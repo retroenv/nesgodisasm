@@ -1,0 +1,40 @@
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: nesgodisasm
+    binary: nesgodisasm
+    dir: cmd/nesgodisasm
+    env:
+      - CGO_ENABLED=0
+    targets:
+      - go_first_class
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{ .CommitDate }}
+
+universal_binaries:
+  - replace: false
+
+archives:
+  - id: nesgodisasm
+    builds: ['nesgodisasm']
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    replacements:
+      386: 32bit
+      amd64: 64bit
+      darwin: macos
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ .Tag }}-snapshot"
+
+changelog:
+  skip: true
