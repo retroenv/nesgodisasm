@@ -24,16 +24,14 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		instruction := offsetInfo.opcode.Instruction
 
-		// process instructions with parameters, ignore special case of unofficial nop
-		// that also has an implied addressing without parameters.
-		if instruction.ParamFunc != nil && offsetInfo.opcode.Addressing != ImpliedAddressing {
+		if offsetInfo.opcode.Addressing == ImpliedAddressing {
+			offsetInfo.Code = instruction.Name
+		} else {
 			params, err := dis.processParamInstruction(dis.pc, offsetInfo)
 			if err != nil {
 				return err
 			}
 			offsetInfo.Code = fmt.Sprintf("%s %s", instruction.Name, params)
-		} else {
-			offsetInfo.Code = instruction.Name
 		}
 
 		opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
@@ -127,15 +125,21 @@ func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param a
 	}
 
 	var address uint16
-	absolute, ok := param.(Absolute)
-	if ok { // not the addressing type found that accesses known addresses
-		address = uint16(absolute)
-	} else {
-		indirect, ok := param.(Indirect)
-		if !ok {
-			return paramAsString
-		}
-		address = uint16(indirect)
+	switch val := param.(type) {
+	case Absolute:
+		address = uint16(val)
+	case AbsoluteX:
+		address = uint16(val)
+	case AbsoluteY:
+		address = uint16(val)
+	case Indirect:
+		address = uint16(val)
+	case IndirectX:
+		address = uint16(val)
+	case IndirectY:
+		address = uint16(val)
+	default:
+		return paramAsString
 	}
 
 	constantInfo, ok := dis.constants[address]

@@ -16,3 +16,4 @@
 *.dbg
 .testCoverage
 dist/
+internal/testroms

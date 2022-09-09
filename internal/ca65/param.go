@@ -39,7 +39,7 @@ func (c ParamConverter) Absolute(param any) string {
 // AbsoluteX converts the parameters to the assembler implementation compatible string.
 func (c ParamConverter) AbsoluteX(param any) string {
 	switch val := param.(type) {
-	case int, addressing.Absolute:
+	case int, addressing.Absolute, addressing.AbsoluteX:
 		return fmt.Sprintf("$%04X,X", val)
 	case string:
 		return fmt.Sprintf("%s,X", val)
@@ -51,7 +51,7 @@ func (c ParamConverter) AbsoluteX(param any) string {
 // AbsoluteY converts the parameters to the assembler implementation compatible string.
 func (c ParamConverter) AbsoluteY(param any) string {
 	switch val := param.(type) {
-	case int, addressing.Absolute:
+	case int, addressing.Absolute, addressing.AbsoluteY:
 		return fmt.Sprintf("$%04X,Y", val)
 	case string:
 		return fmt.Sprintf("%s,Y", val)
@@ -75,7 +75,7 @@ func (c ParamConverter) ZeroPage(param any) string {
 // ZeroPageX converts the parameters to the assembler implementation compatible string.
 func (c ParamConverter) ZeroPageX(param any) string {
 	switch val := param.(type) {
-	case int, addressing.Absolute, addressing.ZeroPage:
+	case int, addressing.Absolute, addressing.ZeroPage, addressing.ZeroPageX:
 		return fmt.Sprintf("$%02X,X", val)
 	case string:
 		return fmt.Sprintf("%s,X", val)
@@ -87,7 +87,7 @@ func (c ParamConverter) ZeroPageX(param any) string {
 // ZeroPageY converts the parameters to the assembler implementation compatible string.
 func (c ParamConverter) ZeroPageY(param any) string {
 	switch val := param.(type) {
-	case int, addressing.Absolute, addressing.ZeroPage:
+	case int, addressing.Absolute, addressing.ZeroPage, addressing.ZeroPageY:
 		return fmt.Sprintf("$%02X,Y", val)
 	case string:
 		return fmt.Sprintf("%s,Y", val)
@@ -116,20 +116,24 @@ func (c ParamConverter) Indirect(param any) string {
 
 // IndirectX converts the parameters to the assembler implementation compatible string.
 func (c ParamConverter) IndirectX(param any) string {
-	address, ok := param.(addressing.Indirect)
-	if ok {
-		return fmt.Sprintf("($%04X,X)", address)
+	switch val := param.(type) {
+	case addressing.Indirect, addressing.IndirectX:
+		return fmt.Sprintf("($%04X,X)", val)
+	case string:
+		return fmt.Sprintf("(%s,X)", val)
+	default:
+		panic(fmt.Sprintf("unsupported param type %T", val))
 	}
-	alias := param.(string)
-	return fmt.Sprintf("(%s,X)", alias)
 }
 
 // IndirectY converts the parameters to the assembler implementation compatible string.
 func (c ParamConverter) IndirectY(param any) string {
-	address, ok := param.(addressing.Indirect)
-	if ok {
-		return fmt.Sprintf("($%04X),Y", address)
+	switch val := param.(type) {
+	case addressing.Indirect, addressing.IndirectY:
+		return fmt.Sprintf("($%04X),Y", val)
+	case string:
+		return fmt.Sprintf("(%s),Y", val)
+	default:
+		panic(fmt.Sprintf("unsupported param type %T", val))
 	}
-	alias := param.(string)
-	return fmt.Sprintf("(%s),Y", alias)
 }

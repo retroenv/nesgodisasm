@@ -1,5 +1,11 @@
 # nesgodisasm - Disassembler for NES ROMs
 
+[![Build status](https://github.com/retroenv/nesgodisasm/actions/workflows/go.yaml/badge.svg?branch=main)](https://github.com/retroenv/nesgodisasm/actions)
+[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/retroenv/nesgodisasm)
+[![Go Report Card](https://goreportcard.com/badge/github.com/retroenv/nesgodisasm)](https://goreportcard.com/report/github.com/retroenv/nesgodisasm)
+[![codecov](https://codecov.io/gh/retroenv/nesgodisasm/branch/main/graph/badge.svg?token=NS5UY28V3A)](https://codecov.io/gh/retroenv/nesgodisasm)
+
+
 nesgodisasm allows you to disassemble programs for the Nintendo Entertainment System (NES).
 
 ## Features
