@@ -33,15 +33,15 @@ To use the `-verify` option, [cc65](https://github.com/cc65/cc65) needs to be in
 2. Install the latest release from source: 
 
 ```
-go install github.com/retroenv/nesgodisasm/cmd/nesgodisasm@latest
+go install github.com/retroenv/nesgodisasm@latest
 ```
 
 3. Build the current development version:
 
 ```
 git clone https://github.com/retroenv/nesgodisasm.git
-cd nesgo
-go build ./cmd/nesgodisasm
+cd nesgodisasm
+go build .
 # use the dev version:
 ./nesgodisasm  
 ```

@@ -15,5 +15,5 @@
 *.o
 *.dbg
 .testCoverage
+nesgodisasm
 dist/
-internal/testroms
