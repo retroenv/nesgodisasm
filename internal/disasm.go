@@ -13,6 +13,7 @@ import (
 	"github.com/retroenv/retrogolib/nes/cartridge"
 	"github.com/retroenv/retrogolib/nes/codedatalog"
 	"github.com/retroenv/retrogolib/nes/cpu"
+	"github.com/retroenv/retrogolib/nes/parameter"
 )
 
 type fileWriter interface {
@@ -34,7 +35,7 @@ type Disasm struct {
 	options *disasmoptions.Options
 
 	pc         uint16 // program counter
-	converter  ParamConverter
+	converter  parameter.Converter
 	fileWriter fileWriter
 	cart       *cartridge.Cartridge
 	handlers   program.Handlers
@@ -114,8 +115,8 @@ func (dis *Disasm) Process(writer io.Writer) error {
 // compatible code.
 func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 	switch strings.ToLower(assembler) {
-	case ca65.Name:
-		dis.converter = ca65.ParamConverter{}
+	case "ca65":
+		dis.converter = parameter.Ca65Converter{}
 		dis.fileWriter = ca65.FileWriter{}
 
 	default:

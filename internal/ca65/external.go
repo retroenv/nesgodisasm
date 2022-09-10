@@ -1,3 +1,4 @@
+// Package ca65 provides helpers to create ca65 assembler compatible asm output.
 package ca65
 
 import (

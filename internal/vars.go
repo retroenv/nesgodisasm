@@ -6,6 +6,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 	. "github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cpu"
+	"github.com/retroenv/retrogolib/nes/parameter"
 )
 
 const (
@@ -86,7 +87,7 @@ func (dis *Disasm) processVariables() error {
 			offset := dis.addressToOffset(usedAddress)
 			offsetInfo := &dis.offsets[offset]
 
-			converted, err := ParamString(dis.converter, offsetInfo.opcode.Addressing, reference)
+			converted, err := parameter.String(dis.converter, offsetInfo.opcode.Addressing, reference)
 			if err != nil {
 				return err
 			}

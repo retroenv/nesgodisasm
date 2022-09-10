@@ -52,7 +52,7 @@ func readArguments() (optionFlags, *disasmoptions.Options) {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	options := optionFlags{}
 	disasmOptions := disasmoptions.New()
-	disasmOptions.Assembler = ca65.Name
+	disasmOptions.Assembler = "ca65"
 
 	flags.BoolVar(&options.assembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
 	flags.StringVar(&options.codeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")

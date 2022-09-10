@@ -6,6 +6,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 	. "github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cpu"
+	"github.com/retroenv/retrogolib/nes/parameter"
 )
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
@@ -100,7 +101,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 	param, opcodes := dis.readOpParam(opcode.Addressing)
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
 
-	paramAsString, err := ParamString(dis.converter, opcode.Addressing, param)
+	paramAsString, err := parameter.String(dis.converter, opcode.Addressing, param)
 	if err != nil {
 		return "", err
 	}

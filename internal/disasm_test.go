@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/retroenv/nesgodisasm/internal/ca65"
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/retrogolib/assert"
 	"github.com/retroenv/retrogolib/nes/cartridge"
@@ -109,7 +108,7 @@ func TestDisasm(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			options := disasmoptions.New()
 			options.CodeOnly = true
-			options.Assembler = ca65.Name
+			options.Assembler = "ca65"
 
 			cart := cartridge.New()
 			test.Setup(&options, cart)
