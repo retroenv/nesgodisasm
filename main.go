@@ -148,7 +148,7 @@ func verifyOutput(cart *cartridge.Cartridge, options optionFlags) error {
 	filePart := filepath.Ext(options.output)
 	objectFile, err := os.CreateTemp("", filePart+".*.o")
 	if err != nil {
-		return err
+		return fmt.Errorf("creating temp file: %w", err)
 	}
 	defer func() {
 		_ = os.Remove(objectFile.Name())
@@ -156,7 +156,7 @@ func verifyOutput(cart *cartridge.Cartridge, options optionFlags) error {
 
 	outputFile, err := os.CreateTemp("", filePart+".*.nes")
 	if err != nil {
-		return err
+		return fmt.Errorf("creating temp file: %w", err)
 	}
 	defer func() {
 		_ = os.Remove(outputFile.Name())
@@ -217,11 +217,11 @@ func compareCartridgeDetails(input, output []byte) error {
 
 	cart1, err := cartridge.LoadFile(inputReader)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading cartridge file: %w", err)
 	}
 	cart2, err := cartridge.LoadFile(outputReader)
 	if err != nil {
-		return err
+		return fmt.Errorf("loading cartridge file: %w", err)
 	}
 
 	if err := checkBufferEqual(cart1.PRG, cart2.PRG); err != nil {

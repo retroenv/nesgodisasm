@@ -108,7 +108,10 @@ func (dis *Disasm) Process(writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return dis.fileWriter.Write(dis.options, app, writer)
+	if err := dis.fileWriter.Write(dis.options, app, writer); err != nil {
+		return fmt.Errorf("writing app to file: %w", err)
+	}
+	return nil
 }
 
 // initializeCompatibleMode sets the chosen assembler specific instances to be used to output
@@ -214,7 +217,7 @@ func setHexCodeComment(offset *program.Offset) error {
 
 	for _, b := range offset.OpcodeBytes {
 		if _, err := fmt.Fprintf(buf, "%02X ", b); err != nil {
-			return err
+			return fmt.Errorf("writing hext comment: %w", err)
 		}
 	}
 

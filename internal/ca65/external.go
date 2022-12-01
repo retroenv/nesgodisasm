@@ -35,7 +35,7 @@ func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Confi
 
 	configFile, err := os.CreateTemp("", "rom"+".*.cfg")
 	if err != nil {
-		return err
+		return fmt.Errorf("creating temp file: %w", err)
 	}
 	defer func() {
 		_ = os.Remove(configFile.Name())

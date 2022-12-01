@@ -1,7 +1,5 @@
 run:
   deadline: 5m
-  build-tags:
-    - nogui
 
 linters:
   enable:
@@ -31,6 +29,7 @@ linters:
     - gosimple # Linter for Go source code that specializes in simplifying a code
     - govet # reports suspicious constructs, such as Printf calls with wrong arguments
     - ineffassign # Detects when assignments to existing variables are not used
+    - ireturn # accept Interfaces, Return Concrete Types
     - maintidx # measures the maintainability index of each function
     - makezero # Finds slice declarations with non-zero initial length
     - misspell # Finds commonly misspelled English words in comments
@@ -54,6 +53,7 @@ linters:
     - usestdlibvars # detect the possibility to use variables/constants from the Go standard library
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
+    - wrapcheck # Checks that errors returned from external packages are wrapped
 
 linters-settings:
   stylecheck:

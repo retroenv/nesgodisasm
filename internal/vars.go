@@ -89,7 +89,7 @@ func (dis *Disasm) processVariables() error {
 
 			converted, err := parameter.String(dis.converter, offsetInfo.opcode.Addressing, reference)
 			if err != nil {
-				return err
+				return fmt.Errorf("getting parameter as string: %w", err)
 			}
 
 			switch offsetInfo.opcode.Addressing {

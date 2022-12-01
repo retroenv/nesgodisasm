@@ -73,7 +73,7 @@ func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, 
 		switch t := write.(type) {
 		case headerByteWrite:
 			if _, err := fmt.Fprintf(writer, headerByte, t.value, "", t.comment); err != nil {
-				return err
+				return fmt.Errorf("writing header: %w", err)
 			}
 
 		case segmentWrite:
@@ -83,7 +83,7 @@ func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, 
 
 		case lineWrite:
 			if _, err := fmt.Fprintln(writer, t); err != nil {
-				return err
+				return fmt.Errorf("writing line: %w", err)
 			}
 
 		case customWrite:
@@ -95,7 +95,7 @@ func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, 
 
 	if !options.CodeOnly {
 		if _, err := fmt.Fprintf(writer, vectors, app.Handlers.NMI, app.Handlers.Reset, app.Handlers.IRQ); err != nil {
-			return err
+			return fmt.Errorf("writing vectors: %w", err)
 		}
 	}
 	return nil
@@ -105,12 +105,15 @@ func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, 
 func (f FileWriter) writeSegment(writer io.Writer, name string) error {
 	if name != "HEADER" {
 		if _, err := fmt.Fprintln(writer); err != nil {
-			return err
+			return fmt.Errorf("writing segment: %w", err)
 		}
 	}
 
 	_, err := fmt.Fprintf(writer, ".segment \"%s\"\n\n", name)
-	return err
+	if err != nil {
+		return fmt.Errorf("writing segment footer: %w", err)
+	}
+	return nil
 }
 
 // writeConstants will write constant aliases to the output.
@@ -133,7 +136,7 @@ func (f FileWriter) writeVariables(_ *disasmoptions.Options, app *program.Progra
 
 func outputAliasMap(aliases map[string]uint16, writer io.Writer) error {
 	if _, err := fmt.Fprintln(writer); err != nil {
-		return err
+		return fmt.Errorf("writing line: %w", err)
 	}
 
 	// sort the aliases by name before outputting to avoid random map order
@@ -146,7 +149,7 @@ func outputAliasMap(aliases map[string]uint16, writer io.Writer) error {
 	for _, constant := range names {
 		address := aliases[constant]
 		if _, err := fmt.Fprintf(writer, "%s = $%04X\n", constant, address); err != nil {
-			return err
+			return fmt.Errorf("writing alias: %w", err)
 		}
 	}
 	return nil
@@ -197,7 +200,7 @@ func processPRG(app *program.Program, writer io.Writer, endIndex int) error {
 		// print an empty line in case of data after code and vice versa
 		if i > 0 && res.Label == "" && res.IsType(program.CodeOffset|program.CodeAsData) != previousLineWasCode {
 			if _, err := fmt.Fprintln(writer); err != nil {
-				return err
+				return fmt.Errorf("writing line: %w", err)
 			}
 		}
 		previousLineWasCode = res.IsType(program.CodeOffset | program.CodeAsData)
@@ -232,12 +235,12 @@ func writeLabel(writer io.Writer, offset int, label string) error {
 
 	if offset > 0 {
 		if _, err := fmt.Fprintln(writer); err != nil {
-			return err
+			return fmt.Errorf("writing line: %w", err)
 		}
 	}
 
 	if _, err := fmt.Fprintf(writer, "%s:\n", label); err != nil {
-		return err
+		return fmt.Errorf("writing label: %w", err)
 	}
 	return nil
 }
@@ -245,11 +248,11 @@ func writeLabel(writer io.Writer, offset int, label string) error {
 func writeCodeLine(writer io.Writer, res program.Offset) error {
 	if res.Comment == "" {
 		if _, err := fmt.Fprintf(writer, "  %s\n", res.Code); err != nil {
-			return err
+			return fmt.Errorf("writing code line: %w", err)
 		}
 	} else {
 		if _, err := fmt.Fprintf(writer, "  %-30s ; %s\n", res.Code, res.Comment); err != nil {
-			return err
+			return fmt.Errorf("writing code line: %w", err)
 		}
 	}
 	return nil
@@ -297,7 +300,7 @@ func bundlePRGDataWrites(app *program.Program, writer io.Writer, startIndex, end
 			_, err = fmt.Fprintf(writer, "%-32s ; %s\n", line, res.Comment)
 		}
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("writing prg line: %w", err)
 		}
 	}
 	return len(data), nil
@@ -314,12 +317,12 @@ func bundleDataWrites(writer io.Writer, data []byte, returnLine bool) (string, e
 
 		buf := &strings.Builder{}
 		if _, err := buf.WriteString(".byte "); err != nil {
-			return "", err
+			return "", fmt.Errorf("writing data prefix: %w", err)
 		}
 
 		for j := 0; j < toWrite; j++ {
 			if _, err := fmt.Fprintf(buf, "$%02x, ", data[i+j]); err != nil {
-				return "", err
+				return "", fmt.Errorf("writing data byte: %w", err)
 			}
 		}
 
@@ -329,7 +332,7 @@ func bundleDataWrites(writer io.Writer, data []byte, returnLine bool) (string, e
 		}
 
 		if _, err := fmt.Fprintf(writer, "%s\n", line); err != nil {
-			return "", err
+			return "", fmt.Errorf("writing data line: %w", err)
 		}
 
 		i += toWrite

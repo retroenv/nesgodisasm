@@ -103,7 +103,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 
 	paramAsString, err := parameter.String(dis.converter, opcode.Addressing, param)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("getting parameter as string: %w", err)
 	}
 
 	paramAsString = dis.replaceParamByAlias(offset, opcode, param, paramAsString)
