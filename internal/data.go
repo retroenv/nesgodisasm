@@ -16,7 +16,7 @@ func (dis *Disasm) changeOffsetRangeToData(data []byte, offset uint16) {
 			insNext := &dis.offsets[offset+uint16(j)]
 			if insNext.Label == "" {
 				insNext.OpcodeBytes = nil
-				insNext.SetType(program.DataOffset)
+				insNext.SetType(program.CodeAsData | program.DataOffset)
 				noLabelOffsets++
 				continue
 			}
@@ -25,7 +25,7 @@ func (dis *Disasm) changeOffsetRangeToData(data []byte, offset uint16) {
 
 		ins.OpcodeBytes = data[i : i+noLabelOffsets]
 		ins.ClearType(program.CodeOffset)
-		ins.SetType(program.DataOffset)
+		ins.SetType(program.CodeAsData | program.DataOffset)
 		i += noLabelOffsets - 1
 	}
 }

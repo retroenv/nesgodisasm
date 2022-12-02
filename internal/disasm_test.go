@@ -10,7 +10,7 @@ import (
 	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
-var testCodeDefault = []byte{
+var testCodeExample = []byte{
 	0x78,             // sei
 	0x4C, 0x04, 0x80, // jmp + 3
 	0xAD, 0x30, 0x80, // lda a:$8030
@@ -22,7 +22,7 @@ var testCodeDefault = []byte{
 	0x40, // rti
 }
 
-var expectedDefault = `Reset:
+var expectedExample = `Reset:
   sei                            ; $8000 78
   jmp _label_8004                ; $8001 4C 04 80
 
@@ -63,6 +63,24 @@ _label_8005:
   rti
 `
 
+var testCodeReferencingUnofficialInstruction = []byte{
+	0xbd, 0x06, 0x80, // $8000 lda a:_data_8005_indexed+1,X
+	0x90, 0x02, // $8003 bcc _label_8007
+	0x82, 0x04, // $8005 unofficial nop instruction: nop #$04
+	0x40, // $8007 rti
+}
+
+var expectedCodeReferencingUnofficialInstruction = `Reset:
+  lda a:_data_8005_indexed+1,X
+  bcc _label_8007
+
+_data_8005_indexed:
+.byte $82, $04                   ; unofficial nop instruction: nop #$04
+
+_label_8007:
+  rti
+`
+
 func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
 
@@ -90,8 +108,8 @@ func TestDisasm(t *testing.T) {
 				cart.PRG[0x0020] = 0x12
 				cart.PRG[0x0030] = 0x34
 			},
-			Input:    testCodeDefault,
-			Expected: expectedDefault,
+			Input:    testCodeExample,
+			Expected: expectedExample,
 		},
 		{
 			Name: "no hex no address",
@@ -101,6 +119,15 @@ func TestDisasm(t *testing.T) {
 			},
 			Input:    testCodeNoHexNoAddress,
 			Expected: expectedNoOffsetNoHex,
+		},
+		{
+			Name: "data referencing into unofficial instruction",
+			Setup: func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+				options.OffsetComments = false
+				options.HexComments = false
+			},
+			Input:    testCodeReferencingUnofficialInstruction,
+			Expected: expectedCodeReferencingUnofficialInstruction,
 		},
 	}
 

@@ -3,7 +3,6 @@ package disasm
 import (
 	"fmt"
 
-	"github.com/retroenv/nesgodisasm/internal/program"
 	. "github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cpu"
 	"github.com/retroenv/retrogolib/nes/parameter"
@@ -72,16 +71,16 @@ func (dis *Disasm) processVariables() error {
 			}
 		}
 
-		var offsetInfo *offset
+		var dataOffsetInfo *offset
+		var addressAdjustment uint16
 		if address >= CodeBaseAddress {
-			offset := dis.addressToOffset(address)
-			offsetInfo = &dis.offsets[offset]
+			dataOffsetInfo, address, addressAdjustment = dis.getOpcodeStart(address)
 		} else {
 			dis.usedVariables[address] = struct{}{}
 		}
 
 		var reference string
-		varInfo.name, reference = dis.dataName(offsetInfo, varInfo.indexedUsage, address)
+		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, address, addressAdjustment)
 
 		for _, usedAddress := range varInfo.usageAt {
 			offset := dis.addressToOffset(usedAddress)
@@ -105,14 +104,30 @@ func (dis *Disasm) processVariables() error {
 	return nil
 }
 
-// dataName calculates the name of a variable based on its address.
+// getOpcodeStart returns a reference to the opcode start of the given address.
+// In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
+// converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.
+func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
+	var addressAdjustment uint16
+	for {
+		offset := dis.addressToOffset(address)
+		info := &dis.offsets[offset]
+
+		if len(info.OpcodeBytes) == 0 {
+			address--
+			addressAdjustment++
+			continue
+		}
+		return info, address, addressAdjustment
+	}
+}
+
+// dataName calculates the name of a variable based on its address and optional address adjustment.
 // It returns the name of the variable and a string to reference it, it is possible that the reference
-// is using an adjuster like -1.
-func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address uint16) (string, string) {
+// is using an adjuster like +1 or +2.
+func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
 	var reference string
 	if offsetInfo != nil {
-		offsetInfo, address, reference = dis.setNameOfNextOffset(address)
-
 		// if destination has an existing label, reuse it
 		if offsetInfo.Label != "" {
 			return offsetInfo.Label, reference
@@ -134,30 +149,11 @@ func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address uint1
 	}
 
 	reference = name + reference
+	if addressAdjustment > 0 {
+		reference = fmt.Sprintf("%s+%d", reference, addressAdjustment)
+	}
 	if offsetInfo != nil {
 		offsetInfo.Label = name
 	}
 	return name, reference
-}
-
-// setNameOfNextOffset checks whether the destination is inside the 2. or 3. byte of an instruction
-// and points the label to the offset after it.
-func (dis *Disasm) setNameOfNextOffset(address uint16) (*offset, uint16, string) {
-	for i := address; i < 0xFFFA; i++ {
-		offset := dis.addressToOffset(i)
-		offsetInfo := &dis.offsets[offset]
-
-		if offsetInfo.IsType(program.CodeOffset) && len(offsetInfo.OpcodeBytes) == 0 {
-			continue
-		}
-
-		var adjuster string
-		j := i - address
-		if j > 0 {
-			adjuster = fmt.Sprintf("-%d", j)
-		}
-
-		return offsetInfo, i, adjuster
-	}
-	panic("no offset for label found")
 }
