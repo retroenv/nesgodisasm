@@ -11,12 +11,8 @@ import (
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 func (dis *Disasm) followExecutionFlow() error {
-	for len(dis.targetsToParse) > 0 {
-		dis.popTarget()
-		if dis.pc == 0 {
-			break
-		}
-
+	for addr := dis.popTarget(); addr != 0; addr = dis.popTarget() {
+		dis.pc = addr
 		offset := dis.addressToOffset(dis.pc)
 		offsetInfo, inspectCode := dis.initializeOffsetInfo(offset)
 		if !inspectCode {
@@ -24,6 +20,8 @@ func (dis *Disasm) followExecutionFlow() error {
 		}
 
 		instruction := offsetInfo.opcode.Instruction
+
+		// TODO: keep information about current function
 
 		if offsetInfo.opcode.Addressing == ImpliedAddressing {
 			offsetInfo.Code = instruction.Name
@@ -35,10 +33,9 @@ func (dis *Disasm) followExecutionFlow() error {
 			offsetInfo.Code = fmt.Sprintf("%s %s", instruction.Name, params)
 		}
 
-		opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
-		nextTarget := dis.pc + opcodeLength
-
 		if _, ok := cpu.NotExecutingFollowingOpcodeInstructions[instruction.Name]; !ok {
+			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
+			nextTarget := dis.pc + opcodeLength
 			dis.addTarget(nextTarget, instruction, false)
 		}
 
@@ -164,10 +161,23 @@ func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param a
 	}
 }
 
-// popTarget pops the next target to disassemble and sets it into the program counter.
-func (dis *Disasm) popTarget() {
-	dis.pc = dis.targetsToParse[0]
-	dis.targetsToParse = dis.targetsToParse[1:]
+// popTarget pops the next target to disassemble, if there is no more target to parse, 0 will be returned.
+// Return address from function addresses have the lowest priority, to be able to handle
+// jump table functions correctly.
+func (dis *Disasm) popTarget() uint16 {
+	if len(dis.targetsToParse) > 0 {
+		addr := dis.targetsToParse[0]
+		dis.targetsToParse = dis.targetsToParse[1:]
+		return addr
+	}
+
+	if len(dis.functionReturnsToParse) > 0 {
+		addr := dis.functionReturnsToParse[0]
+		dis.functionReturnsToParse = dis.functionReturnsToParse[1:]
+		return addr
+	}
+
+	return 0
 }
 
 // addTarget adds a target to the list to be processed if the address has not been processed yet.
@@ -187,5 +197,10 @@ func (dis *Disasm) addTarget(target uint16, currentInstruction *cpu.Instruction,
 		return
 	}
 	dis.targetsAdded[target] = struct{}{}
-	dis.targetsToParse = append(dis.targetsToParse, target)
+
+	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
+		dis.functionReturnsToParse = append(dis.functionReturnsToParse, target)
+	} else {
+		dis.targetsToParse = append(dis.targetsToParse, target)
+	}
 }

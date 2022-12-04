@@ -49,8 +49,9 @@ type Disasm struct {
 	jumpTargets map[uint16]struct{} // jumpTargets is a set of all addresses that branched to
 	offsets     []offset
 
-	targetsToParse []uint16
-	targetsAdded   map[uint16]struct{}
+	targetsToParse         []uint16
+	targetsAdded           map[uint16]struct{}
+	functionReturnsToParse []uint16
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
