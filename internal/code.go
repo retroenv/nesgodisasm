@@ -27,10 +27,10 @@ func (dis *Disasm) processJumpTargets() {
 			dis.handleJumpIntoInstruction(offset)
 		}
 
-		for _, caller := range dis.offsets[offset].JumpFrom {
+		for _, caller := range dis.offsets[offset].jumpFrom {
 			offset = dis.addressToOffset(caller)
 			dis.offsets[offset].Code = dis.offsets[offset].opcode.Instruction.Name
-			dis.offsets[offset].JumpingTo = name
+			dis.offsets[offset].jumpingTo = name
 		}
 	}
 }

@@ -36,7 +36,7 @@ func (dis *Disasm) followExecutionFlow() error {
 		if _, ok := cpu.NotExecutingFollowingOpcodeInstructions[instruction.Name]; !ok {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			nextTarget := dis.pc + opcodeLength
-			dis.addTarget(nextTarget, instruction, false)
+			dis.addTarget(nextTarget, offsetInfo.context, instruction, false)
 		}
 
 		dis.checkInstructionOverlap(offsetInfo, offset)
@@ -108,7 +108,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
 		if ok {
-			dis.addTarget(uint16(addr), opcode.Instruction, true)
+			dis.addTarget(uint16(addr), offsetInfo.context, opcode.Instruction, true)
 		}
 	}
 
@@ -181,15 +181,21 @@ func (dis *Disasm) popTarget() uint16 {
 }
 
 // addTarget adds a target to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addTarget(target uint16, currentInstruction *cpu.Instruction, jumpTarget bool) {
+func (dis *Disasm) addTarget(target, context uint16, currentInstruction *cpu.Instruction, jumpTarget bool) {
 	offset := dis.addressToOffset(target)
 	offsetInfo := &dis.offsets[offset]
 
 	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
 		offsetInfo.SetType(program.CallTarget)
+		if offsetInfo.context == 0 {
+			offsetInfo.context = target
+		}
+	} else if offsetInfo.context == 0 {
+		offsetInfo.context = context
 	}
+
 	if jumpTarget {
-		offsetInfo.JumpFrom = append(offsetInfo.JumpFrom, dis.pc)
+		offsetInfo.jumpFrom = append(offsetInfo.jumpFrom, dis.pc)
 		dis.jumpTargets[target] = struct{}{}
 	}
 

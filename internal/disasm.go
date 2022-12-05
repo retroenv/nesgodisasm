@@ -26,8 +26,9 @@ type offset struct {
 
 	opcode cpu.Opcode // opcode that the byte at this offset represents
 
-	JumpFrom  []uint16 // list of all addresses that jump to this offset
-	JumpingTo string   // label to jump to if instruction branches
+	jumpFrom  []uint16 // list of all addresses that jump to this offset
+	jumpingTo string   // label to jump to if instruction branches
+	context   uint16   // function or interrupt context that the offset is part of
 }
 
 // Disasm implements a NES disassembler.
@@ -134,7 +135,7 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(0xFFFA)
 	if nmi != 0 {
-		dis.addTarget(nmi, nil, false)
+		dis.addTarget(nmi, nmi, nil, false)
 		offset := dis.addressToOffset(nmi)
 		dis.offsets[offset].Label = "NMI"
 		dis.offsets[offset].SetType(program.CallTarget)
@@ -142,14 +143,14 @@ func (dis *Disasm) initializeIrqHandlers() {
 	}
 
 	reset := dis.readMemoryWord(0xFFFC)
-	dis.addTarget(reset, nil, false)
+	dis.addTarget(reset, reset, nil, false)
 	offset := dis.addressToOffset(reset)
 	dis.offsets[offset].Label = "Reset"
 	dis.offsets[offset].SetType(program.CallTarget)
 
 	irq := dis.readMemoryWord(0xFFFE)
 	if irq != 0 {
-		dis.addTarget(irq, nil, false)
+		dis.addTarget(irq, irq, nil, false)
 		offset = dis.addressToOffset(irq)
 		dis.offsets[offset].Label = "IRQ"
 		dis.offsets[offset].SetType(program.CallTarget)
@@ -167,8 +168,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		res := dis.offsets[i]
 		offset := res.Offset
 
-		if res.JumpingTo != "" {
-			offset.Code = fmt.Sprintf("%s %s", res.Code, res.JumpingTo)
+		if res.jumpingTo != "" {
+			offset.Code = fmt.Sprintf("%s %s", res.Code, res.jumpingTo)
 		}
 
 		if res.IsType(program.CodeOffset | program.CodeAsData) {
@@ -213,6 +214,24 @@ func (dis *Disasm) addressToOffset(address uint16) uint16 {
 	return offset
 }
 
+func (dis *Disasm) loadCodeDataLog() error {
+	prgFlags, err := codedatalog.LoadFile(dis.cart, dis.options.CodeDataLog)
+	if err != nil {
+		return fmt.Errorf("loading code/data log file: %w", err)
+	}
+
+	for offset, flags := range prgFlags {
+		if flags&codedatalog.Code != 0 {
+			dis.addTarget(dis.codeBaseAddress+uint16(offset), 0, nil, false)
+		}
+		if flags&codedatalog.SubEntryPoint != 0 {
+			dis.offsets[offset].SetType(program.CallTarget)
+		}
+	}
+
+	return nil
+}
+
 func setHexCodeComment(offset *program.Offset) error {
 	buf := &strings.Builder{}
 
@@ -238,22 +257,4 @@ func setOffsetComment(offset *program.Offset, address uint16) {
 	} else {
 		offset.Comment = fmt.Sprintf("$%04X %s", address, offset.Comment)
 	}
-}
-
-func (dis *Disasm) loadCodeDataLog() error {
-	prgFlags, err := codedatalog.LoadFile(dis.cart, dis.options.CodeDataLog)
-	if err != nil {
-		return fmt.Errorf("loading code/data log file: %w", err)
-	}
-
-	for offset, flags := range prgFlags {
-		if flags&codedatalog.Code != 0 {
-			dis.addTarget(dis.codeBaseAddress+uint16(offset), nil, false)
-		}
-		if flags&codedatalog.SubEntryPoint != 0 {
-			dis.offsets[offset].SetType(program.CallTarget)
-		}
-	}
-
-	return nil
 }
