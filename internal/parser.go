@@ -11,7 +11,7 @@ import (
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 func (dis *Disasm) followExecutionFlow() error {
-	for addr := dis.popTarget(); addr != 0; addr = dis.popTarget() {
+	for addr := dis.addressToDisassemble(); addr != 0; addr = dis.addressToDisassemble() {
 		dis.pc = addr
 		offset := dis.addressToOffset(dis.pc)
 		offsetInfo, inspectCode := dis.initializeOffsetInfo(offset)
@@ -33,8 +33,8 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		if _, ok := cpu.NotExecutingFollowingOpcodeInstructions[instruction.Name]; !ok {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
-			nextTarget := dis.pc + opcodeLength
-			dis.addOffsetToParse(nextTarget, offsetInfo.context, instruction, false)
+			followingOpcodeAddress := dis.pc + opcodeLength
+			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, instruction, false)
 		} else {
 			dis.checkForJumpEngine(offsetInfo, dis.pc)
 		}
@@ -108,7 +108,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
 		if ok {
-			dis.addOffsetToParse(uint16(addr), offsetInfo.context, opcode.Instruction, true)
+			dis.addAddressToParse(uint16(addr), offsetInfo.context, opcode.Instruction, true)
 		}
 	}
 
@@ -161,10 +161,10 @@ func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param a
 	}
 }
 
-// popTarget pops the next target to disassemble, if there is no more target to parse, 0 will be returned.
-// Return address from function addresses have the lowest priority, to be able to handle
-// jump table functions correctly.
-func (dis *Disasm) popTarget() uint16 {
+// addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
+// 0 will be returned. Return address from function addresses have the lowest priority, to be able to
+// handle jump table functions correctly.
+func (dis *Disasm) addressToDisassemble() uint16 {
 	if len(dis.offsetsToParse) > 0 {
 		addr := dis.offsetsToParse[0]
 		dis.offsetsToParse = dis.offsetsToParse[1:]
@@ -180,39 +180,41 @@ func (dis *Disasm) popTarget() uint16 {
 	return 0
 }
 
-// addOffsetToParse adds a target to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addOffsetToParse(target, context uint16, currentInstruction *cpu.Instruction, isABranchTarget bool) {
-	offset := dis.addressToOffset(target)
+// addAddressToParse adds an address to the list to be processed if the address has not been processed yet.
+func (dis *Disasm) addAddressToParse(address, context uint16, currentInstruction *cpu.Instruction,
+	isABranchDestination bool) {
+
+	offset := dis.addressToOffset(address)
 	offsetInfo := &dis.offsets[offset]
 
 	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
-		offsetInfo.SetType(program.CallTarget)
+		offsetInfo.SetType(program.CallDestination)
 		if offsetInfo.context == 0 {
-			offsetInfo.context = target // begin a new context
+			offsetInfo.context = address // begin a new context
 		}
 	} else if offsetInfo.context == 0 {
 		offsetInfo.context = context // continue current context
 	}
 
-	if isABranchTarget {
+	if isABranchDestination {
 		offsetInfo.branchFrom = append(offsetInfo.branchFrom, dis.pc)
-		dis.branchDestinations[target] = struct{}{}
+		dis.branchDestinations[address] = struct{}{}
 	}
 
-	if _, ok := dis.offsetsToParseAdded[target]; ok {
+	if _, ok := dis.offsetsToParseAdded[address]; ok {
 		return
 	}
-	dis.offsetsToParseAdded[target] = struct{}{}
+	dis.offsetsToParseAdded[address] = struct{}{}
 
 	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
-		dis.functionReturnsToParse = append(dis.functionReturnsToParse, target)
+		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
 	} else {
-		dis.offsetsToParse = append(dis.offsetsToParse, target)
+		dis.offsetsToParse = append(dis.offsetsToParse, address)
 	}
 }
 
-// checkForJumpEngine checks if the current instruction is the jump inside a jump engine function.
-// The function offsets after the call to the jump engine will be used as targets to disassemble as code.
+// checkForJumpEngine checks if the current instruction is the jump instruction inside a jump engine function.
+// The function offsets after the call to the jump engine will be used as destinations to disassemble as code.
 // This can be found in some official games like Super Mario Bros.
 func (dis *Disasm) checkForJumpEngine(offsetInfo *offset, jumpAddress uint16) {
 	instruction := offsetInfo.opcode.Instruction
@@ -221,9 +223,9 @@ func (dis *Disasm) checkForJumpEngine(offsetInfo *offset, jumpAddress uint16) {
 	}
 
 	// parse all instructions of the function context until the jump
-	for addr := offsetInfo.context; addr != 0 && addr > jumpAddress; {
-		addr = dis.addressToOffset(addr)
-		offsetInfo = &dis.offsets[addr]
+	for address := offsetInfo.context; address != 0 && address > jumpAddress; {
+		address = dis.addressToOffset(address)
+		offsetInfo = &dis.offsets[address]
 
 		// if current function has a branching instruction beside the final jump, it's probably not one
 		// of the common jump engines
@@ -231,7 +233,7 @@ func (dis *Disasm) checkForJumpEngine(offsetInfo *offset, jumpAddress uint16) {
 			return
 		}
 
-		addr += uint16(len(offsetInfo.OpcodeBytes))
+		address += uint16(len(offsetInfo.OpcodeBytes))
 	}
 
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found

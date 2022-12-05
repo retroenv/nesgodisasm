@@ -11,7 +11,7 @@ type Offset struct {
 
 	Type OffsetType
 
-	Label   string // name of label or subroutine if identified as a jump target
+	Label   string // name of label or subroutine if identified as a jump destination
 	Code    string // asm output of this instruction
 	Comment string
 }

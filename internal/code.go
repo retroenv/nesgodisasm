@@ -6,22 +6,22 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 )
 
-// processJumpDestinations processes all jump targets and updates the callers with
-// the generated jump target label name.
+// processJumpDestinations processes all jump destinations and updates the callers with
+// the generated jump destination label name.
 func (dis *Disasm) processJumpDestinations() {
-	for target := range dis.branchDestinations {
-		offset := dis.addressToOffset(target)
+	for address := range dis.branchDestinations {
+		offset := dis.addressToOffset(address)
 		name := dis.offsets[offset].Label
 		if name == "" {
-			if dis.offsets[offset].IsType(program.CallTarget) {
-				name = fmt.Sprintf("_func_%04x", target)
+			if dis.offsets[offset].IsType(program.CallDestination) {
+				name = fmt.Sprintf("_func_%04x", address)
 			} else {
-				name = fmt.Sprintf("_label_%04x", target)
+				name = fmt.Sprintf("_label_%04x", address)
 			}
 			dis.offsets[offset].Label = name
 		}
 
-		// if the offset is marked as code but does not have opcode bytes, the jumping target
+		// if the offset is marked as code but does not have opcode bytes, the jump destination
 		// is inside the second or third byte of an instruction.
 		if dis.offsets[offset].IsType(program.CodeOffset) && len(dis.offsets[offset].OpcodeBytes) == 0 {
 			dis.handleJumpIntoInstruction(offset)
