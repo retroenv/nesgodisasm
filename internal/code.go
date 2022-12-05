@@ -9,7 +9,7 @@ import (
 // processJumpTargets processes all jump targets and updates the callers with
 // the generated jump target label name.
 func (dis *Disasm) processJumpTargets() {
-	for target := range dis.jumpTargets {
+	for target := range dis.branchTargets {
 		offset := dis.addressToOffset(target)
 		name := dis.offsets[offset].Label
 		if name == "" {
@@ -27,10 +27,10 @@ func (dis *Disasm) processJumpTargets() {
 			dis.handleJumpIntoInstruction(offset)
 		}
 
-		for _, caller := range dis.offsets[offset].jumpFrom {
+		for _, caller := range dis.offsets[offset].branchFrom {
 			offset = dis.addressToOffset(caller)
 			dis.offsets[offset].Code = dis.offsets[offset].opcode.Instruction.Name
-			dis.offsets[offset].jumpingTo = name
+			dis.offsets[offset].branchingTo = name
 		}
 	}
 }

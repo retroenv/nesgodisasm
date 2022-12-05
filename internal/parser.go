@@ -21,8 +21,6 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		instruction := offsetInfo.opcode.Instruction
 
-		// TODO: keep information about current function
-
 		if offsetInfo.opcode.Addressing == ImpliedAddressing {
 			offsetInfo.Code = instruction.Name
 		} else {
@@ -37,6 +35,8 @@ func (dis *Disasm) followExecutionFlow() error {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			nextTarget := dis.pc + opcodeLength
 			dis.addTarget(nextTarget, offsetInfo.context, instruction, false)
+		} else {
+			dis.checkForJumpEngine(offsetInfo, dis.pc)
 		}
 
 		dis.checkInstructionOverlap(offsetInfo, offset)
@@ -181,22 +181,22 @@ func (dis *Disasm) popTarget() uint16 {
 }
 
 // addTarget adds a target to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addTarget(target, context uint16, currentInstruction *cpu.Instruction, jumpTarget bool) {
+func (dis *Disasm) addTarget(target, context uint16, currentInstruction *cpu.Instruction, isABranchTarget bool) {
 	offset := dis.addressToOffset(target)
 	offsetInfo := &dis.offsets[offset]
 
 	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
 		offsetInfo.SetType(program.CallTarget)
 		if offsetInfo.context == 0 {
-			offsetInfo.context = target
+			offsetInfo.context = target // begin a new context
 		}
 	} else if offsetInfo.context == 0 {
-		offsetInfo.context = context
+		offsetInfo.context = context // continue current context
 	}
 
-	if jumpTarget {
-		offsetInfo.jumpFrom = append(offsetInfo.jumpFrom, dis.pc)
-		dis.jumpTargets[target] = struct{}{}
+	if isABranchTarget {
+		offsetInfo.branchFrom = append(offsetInfo.branchFrom, dis.pc)
+		dis.branchTargets[target] = struct{}{}
 	}
 
 	if _, ok := dis.targetsAdded[target]; ok {
@@ -209,4 +209,34 @@ func (dis *Disasm) addTarget(target, context uint16, currentInstruction *cpu.Ins
 	} else {
 		dis.targetsToParse = append(dis.targetsToParse, target)
 	}
+}
+
+// checkForJumpEngine checks if the current instruction is the jump inside a jump engine function.
+// The function offsets after the call to the jump engine will be used as targets to disassemble as code.
+// This can be found in some official games like Super Mario Bros.
+func (dis *Disasm) checkForJumpEngine(offsetInfo *offset, jumpAddress uint16) {
+	instruction := offsetInfo.opcode.Instruction
+	if instruction.Name != cpu.JmpInstruction || offsetInfo.opcode.Addressing != IndirectAddressing {
+		return
+	}
+
+	// parse all instructions of the function context until the jump
+	for addr := offsetInfo.context; addr != 0 && addr > jumpAddress; {
+		addr = dis.addressToOffset(addr)
+		offsetInfo = &dis.offsets[addr]
+
+		// if current function has a branching instruction beside the final jump, it's probably not one
+		// of the common jump engines
+		if _, ok := cpu.BranchingInstructions[offsetInfo.opcode.Instruction.Name]; ok {
+			return
+		}
+
+		addr += uint16(len(offsetInfo.OpcodeBytes))
+	}
+
+	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
+	// in the function, this makes it a likely jump engine
+	dis.jumpEngines[offsetInfo.context] = struct{}{}
+
+	// TODO parse caller of jump engine
 }

@@ -26,9 +26,9 @@ type offset struct {
 
 	opcode cpu.Opcode // opcode that the byte at this offset represents
 
-	jumpFrom  []uint16 // list of all addresses that jump to this offset
-	jumpingTo string   // label to jump to if instruction branches
-	context   uint16   // function or interrupt context that the offset is part of
+	branchFrom  []uint16 // list of all addresses that branch to this offset
+	branchingTo string   // label to jump to if instruction branches
+	context     uint16   // function or interrupt context that the offset is part of
 }
 
 // Disasm implements a NES disassembler.
@@ -47,8 +47,9 @@ type Disasm struct {
 	variables       map[uint16]*variable
 	usedVariables   map[uint16]struct{}
 
-	jumpTargets map[uint16]struct{} // jumpTargets is a set of all addresses that branched to
-	offsets     []offset
+	jumpEngines   map[uint16]struct{} // set of all jump engine functions addresses
+	branchTargets map[uint16]struct{} // set of all addresses that are branched to
+	offsets       []offset
 
 	targetsToParse         []uint16
 	targetsAdded           map[uint16]struct{}
@@ -65,7 +66,8 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		usedVariables:   map[uint16]struct{}{},
 		usedConstants:   map[uint16]constTranslation{},
 		offsets:         make([]offset, len(cart.PRG)),
-		jumpTargets:     map[uint16]struct{}{},
+		jumpEngines:     map[uint16]struct{}{},
+		branchTargets:   map[uint16]struct{}{},
 		targetsAdded:    map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",
@@ -168,8 +170,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		res := dis.offsets[i]
 		offset := res.Offset
 
-		if res.jumpingTo != "" {
-			offset.Code = fmt.Sprintf("%s %s", res.Code, res.jumpingTo)
+		if res.branchingTo != "" {
+			offset.Code = fmt.Sprintf("%s %s", res.Code, res.branchingTo)
 		}
 
 		if res.IsType(program.CodeOffset | program.CodeAsData) {
