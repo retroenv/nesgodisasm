@@ -61,7 +61,7 @@ func (dis *Disasm) addVariableReference(offset uint16, opcode cpu.Opcode, addres
 	return true
 }
 
-// processJumpTargets processes all variables and updates the instructions that use them
+// processVariables processes all variables and updates the instructions that use them
 // with a generated alias name.
 func (dis *Disasm) processVariables() error {
 	for address, varInfo := range dis.variables {

@@ -6,10 +6,10 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 )
 
-// processJumpTargets processes all jump targets and updates the callers with
+// processJumpDestinations processes all jump targets and updates the callers with
 // the generated jump target label name.
-func (dis *Disasm) processJumpTargets() {
-	for target := range dis.branchTargets {
+func (dis *Disasm) processJumpDestinations() {
+	for target := range dis.branchDestinations {
 		offset := dis.addressToOffset(target)
 		name := dis.offsets[offset].Label
 		if name == "" {

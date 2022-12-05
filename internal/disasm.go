@@ -47,28 +47,28 @@ type Disasm struct {
 	variables       map[uint16]*variable
 	usedVariables   map[uint16]struct{}
 
-	jumpEngines   map[uint16]struct{} // set of all jump engine functions addresses
-	branchTargets map[uint16]struct{} // set of all addresses that are branched to
-	offsets       []offset
+	jumpEngines        map[uint16]struct{} // set of all jump engine functions addresses
+	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
+	offsets            []offset
 
-	targetsToParse         []uint16
-	targetsAdded           map[uint16]struct{}
+	offsetsToParse         []uint16
+	offsetsToParseAdded    map[uint16]struct{}
 	functionReturnsToParse []uint16
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
 func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, error) {
 	dis := &Disasm{
-		options:         options,
-		cart:            cart,
-		codeBaseAddress: uint16(0x10000 - len(cart.PRG)),
-		variables:       map[uint16]*variable{},
-		usedVariables:   map[uint16]struct{}{},
-		usedConstants:   map[uint16]constTranslation{},
-		offsets:         make([]offset, len(cart.PRG)),
-		jumpEngines:     map[uint16]struct{}{},
-		branchTargets:   map[uint16]struct{}{},
-		targetsAdded:    map[uint16]struct{}{},
+		options:             options,
+		cart:                cart,
+		codeBaseAddress:     uint16(0x10000 - len(cart.PRG)),
+		variables:           map[uint16]*variable{},
+		usedVariables:       map[uint16]struct{}{},
+		usedConstants:       map[uint16]constTranslation{},
+		offsets:             make([]offset, len(cart.PRG)),
+		jumpEngines:         map[uint16]struct{}{},
+		branchDestinations:  map[uint16]struct{}{},
+		offsetsToParseAdded: map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",
 			Reset: "Reset",
@@ -106,7 +106,7 @@ func (dis *Disasm) Process(writer io.Writer) error {
 	if err := dis.processVariables(); err != nil {
 		return err
 	}
-	dis.processJumpTargets()
+	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
 	if err != nil {
@@ -137,7 +137,7 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(0xFFFA)
 	if nmi != 0 {
-		dis.addTarget(nmi, nmi, nil, false)
+		dis.addOffsetToParse(nmi, nmi, nil, false)
 		offset := dis.addressToOffset(nmi)
 		dis.offsets[offset].Label = "NMI"
 		dis.offsets[offset].SetType(program.CallTarget)
@@ -145,14 +145,14 @@ func (dis *Disasm) initializeIrqHandlers() {
 	}
 
 	reset := dis.readMemoryWord(0xFFFC)
-	dis.addTarget(reset, reset, nil, false)
+	dis.addOffsetToParse(reset, reset, nil, false)
 	offset := dis.addressToOffset(reset)
 	dis.offsets[offset].Label = "Reset"
 	dis.offsets[offset].SetType(program.CallTarget)
 
 	irq := dis.readMemoryWord(0xFFFE)
 	if irq != 0 {
-		dis.addTarget(irq, irq, nil, false)
+		dis.addOffsetToParse(irq, irq, nil, false)
 		offset = dis.addressToOffset(irq)
 		dis.offsets[offset].Label = "IRQ"
 		dis.offsets[offset].SetType(program.CallTarget)
@@ -224,7 +224,7 @@ func (dis *Disasm) loadCodeDataLog() error {
 
 	for offset, flags := range prgFlags {
 		if flags&codedatalog.Code != 0 {
-			dis.addTarget(dis.codeBaseAddress+uint16(offset), 0, nil, false)
+			dis.addOffsetToParse(dis.codeBaseAddress+uint16(offset), 0, nil, false)
 		}
 		if flags&codedatalog.SubEntryPoint != 0 {
 			dis.offsets[offset].SetType(program.CallTarget)

@@ -34,7 +34,7 @@ func (dis *Disasm) followExecutionFlow() error {
 		if _, ok := cpu.NotExecutingFollowingOpcodeInstructions[instruction.Name]; !ok {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			nextTarget := dis.pc + opcodeLength
-			dis.addTarget(nextTarget, offsetInfo.context, instruction, false)
+			dis.addOffsetToParse(nextTarget, offsetInfo.context, instruction, false)
 		} else {
 			dis.checkForJumpEngine(offsetInfo, dis.pc)
 		}
@@ -108,7 +108,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
 		if ok {
-			dis.addTarget(uint16(addr), offsetInfo.context, opcode.Instruction, true)
+			dis.addOffsetToParse(uint16(addr), offsetInfo.context, opcode.Instruction, true)
 		}
 	}
 
@@ -165,9 +165,9 @@ func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param a
 // Return address from function addresses have the lowest priority, to be able to handle
 // jump table functions correctly.
 func (dis *Disasm) popTarget() uint16 {
-	if len(dis.targetsToParse) > 0 {
-		addr := dis.targetsToParse[0]
-		dis.targetsToParse = dis.targetsToParse[1:]
+	if len(dis.offsetsToParse) > 0 {
+		addr := dis.offsetsToParse[0]
+		dis.offsetsToParse = dis.offsetsToParse[1:]
 		return addr
 	}
 
@@ -180,8 +180,8 @@ func (dis *Disasm) popTarget() uint16 {
 	return 0
 }
 
-// addTarget adds a target to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addTarget(target, context uint16, currentInstruction *cpu.Instruction, isABranchTarget bool) {
+// addOffsetToParse adds a target to the list to be processed if the address has not been processed yet.
+func (dis *Disasm) addOffsetToParse(target, context uint16, currentInstruction *cpu.Instruction, isABranchTarget bool) {
 	offset := dis.addressToOffset(target)
 	offsetInfo := &dis.offsets[offset]
 
@@ -196,18 +196,18 @@ func (dis *Disasm) addTarget(target, context uint16, currentInstruction *cpu.Ins
 
 	if isABranchTarget {
 		offsetInfo.branchFrom = append(offsetInfo.branchFrom, dis.pc)
-		dis.branchTargets[target] = struct{}{}
+		dis.branchDestinations[target] = struct{}{}
 	}
 
-	if _, ok := dis.targetsAdded[target]; ok {
+	if _, ok := dis.offsetsToParseAdded[target]; ok {
 		return
 	}
-	dis.targetsAdded[target] = struct{}{}
+	dis.offsetsToParseAdded[target] = struct{}{}
 
 	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
 		dis.functionReturnsToParse = append(dis.functionReturnsToParse, target)
 	} else {
-		dis.targetsToParse = append(dis.targetsToParse, target)
+		dis.offsetsToParse = append(dis.offsetsToParse, target)
 	}
 }
 
