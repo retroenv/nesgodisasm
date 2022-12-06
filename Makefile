@@ -21,7 +21,7 @@ install: ## install all binaries
 	go install .
 
 install-linters: ## install all used linters
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.49.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.50.1
 
 release: ## build release binaries for current git tag and publish on github
 	goreleaser release
