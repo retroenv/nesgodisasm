@@ -140,9 +140,7 @@ func runDisasm(t *testing.T, setup func(options *disasmoptions.Options, cart *ca
 		options.HexComments = false
 	}
 
-	data := make([]byte, 0x1000)
-	copy(data, input)
-	disasm := testProgram(t, &options, cart, data)
+	disasm := testProgram(t, &options, cart, input)
 
 	var buffer bytes.Buffer
 	writer := bufio.NewWriter(&buffer)
