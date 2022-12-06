@@ -152,6 +152,10 @@ func outputAliasMap(aliases map[string]uint16, writer io.Writer) error {
 			return fmt.Errorf("writing alias: %w", err)
 		}
 	}
+
+	if _, err := fmt.Fprintln(writer); err != nil {
+		return fmt.Errorf("writing line: %w", err)
+	}
 	return nil
 }
 
@@ -210,12 +214,9 @@ func processPRG(app *program.Program, writer io.Writer, endIndex int) error {
 		}
 
 		if res.IsType(program.DataOffset) {
-			count, err := bundlePRGDataWrites(app, writer, i, endIndex)
-			if err != nil {
+			var err error
+			if i, err = processDataOffsets(app, writer, i, endIndex, res); err != nil {
 				return err
-			}
-			if count > 0 {
-				i = i + count - 1
 			}
 			continue
 		}
@@ -226,6 +227,25 @@ func processPRG(app *program.Program, writer io.Writer, endIndex int) error {
 		i += len(res.OpcodeBytes) - 1
 	}
 	return nil
+}
+
+func processDataOffsets(app *program.Program, writer io.Writer, index, endIndex int, res program.Offset) (int, error) {
+	if res.IsType(program.FunctionReference) {
+		if err := writeFunctionReference(writer, res); err != nil {
+			return 0, err
+		}
+		index++
+		return index, nil
+	}
+
+	count, err := bundlePRGDataWrites(app, writer, index, endIndex)
+	if err != nil {
+		return 0, err
+	}
+	if count > 0 {
+		index += count - 1
+	}
+	return index, nil
 }
 
 func writeLabel(writer io.Writer, offset int, label string) error {
@@ -371,4 +391,13 @@ func getLastNonZeroCHRByte(app *program.Program) int {
 		return i + 1
 	}
 	return 0
+}
+
+// writeFunctionReference writes a reference to a function, typically used in function tables after a jump engine call.
+// TODO write label instead of bytes
+func writeFunctionReference(writer io.Writer, res program.Offset) error {
+	if _, err := fmt.Fprintf(writer, "  .dw $%02x%02x\n", res.OpcodeBytes[1], res.OpcodeBytes[0]); err != nil {
+		return fmt.Errorf("writing function reference: %w", err)
+	}
+	return nil
 }
