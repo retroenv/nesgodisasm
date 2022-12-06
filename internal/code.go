@@ -51,8 +51,8 @@ func (dis *Disasm) handleJumpIntoInstruction(offset uint16) {
 }
 
 // handleUnofficialNop translates unofficial nop codes into data bytes as the instruction
-// has multiple opcodes for the same addressing mode which will result in a different
-// bytes being assembled.
+// has multiple opcodes for the same addressing mode which can result in different
+// bytes being assembled and make the resulting ROM not match the original.
 func (dis *Disasm) handleUnofficialNop(offset uint16) {
 	ins := &dis.offsets[offset]
 	ins.Comment = fmt.Sprintf("unofficial nop instruction: %s", ins.Code)

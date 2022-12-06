@@ -91,3 +91,6 @@ issues:
     - linters:
         - godot
       text: "Comment should end in a period"
+    - linters:
+        - whitespace
+      text: "unnecessary leading newline"

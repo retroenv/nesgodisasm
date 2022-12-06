@@ -48,27 +48,30 @@ type Disasm struct {
 	usedVariables   map[uint16]struct{}
 
 	jumpEngines        map[uint16]struct{} // set of all jump engine functions addresses
+	jumpEngineCallers  map[uint16]*jumpEngineCaller
 	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
 	offsets            []offset
 
 	offsetsToParse         []uint16
 	offsetsToParseAdded    map[uint16]struct{}
-	functionReturnsToParse []uint16
+	functionReturnsToParse map[uint16]struct{}
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
 func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, error) {
 	dis := &Disasm{
-		options:             options,
-		cart:                cart,
-		codeBaseAddress:     uint16(0x10000 - len(cart.PRG)),
-		variables:           map[uint16]*variable{},
-		usedVariables:       map[uint16]struct{}{},
-		usedConstants:       map[uint16]constTranslation{},
-		offsets:             make([]offset, len(cart.PRG)),
-		jumpEngines:         map[uint16]struct{}{},
-		branchDestinations:  map[uint16]struct{}{},
-		offsetsToParseAdded: map[uint16]struct{}{},
+		options:                options,
+		cart:                   cart,
+		codeBaseAddress:        uint16(0x10000 - len(cart.PRG)),
+		variables:              map[uint16]*variable{},
+		usedVariables:          map[uint16]struct{}{},
+		usedConstants:          map[uint16]constTranslation{},
+		offsets:                make([]offset, len(cart.PRG)),
+		jumpEngineCallers:      map[uint16]*jumpEngineCaller{},
+		jumpEngines:            map[uint16]struct{}{},
+		branchDestinations:     map[uint16]struct{}{},
+		offsetsToParseAdded:    map[uint16]struct{}{},
+		functionReturnsToParse: map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",
 			Reset: "Reset",
@@ -160,7 +163,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 	}
 }
 
-// converts the internal disasm type representation to a program type that will be used by
+// converts the internal disassembly representation to a program type that will be used by
 // the chosen assembler output instance to generate the asm file.
 func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app := program.New(dis.cart)

@@ -10,19 +10,20 @@ import (
 	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
-var testCodeExample = []byte{
-	0x78,             // sei
-	0x4C, 0x04, 0x80, // jmp + 3
-	0xAD, 0x30, 0x80, // lda a:$8030
-	0xBD, 0x20, 0x80, // lda a:$8020,X
-	0xea,       // nop
-	0x90, 0x01, // bcc +1
-	0xdc, 0xae, 0x8b, // nop $8BAE,X
-	0x78, // sei
-	0x40, // rti
-}
+func TestDisasmCodeExample(t *testing.T) {
+	input := []byte{
+		0x78,             // sei
+		0x4C, 0x04, 0x80, // jmp + 3
+		0xAD, 0x30, 0x80, // lda a:$8030
+		0xBD, 0x20, 0x80, // lda a:$8020,X
+		0xea,       // nop
+		0x90, 0x01, // bcc +1
+		0xdc, 0xae, 0x8b, // nop $8BAE,X
+		0x78, // sei
+		0x40, // rti
+	}
 
-var expectedExample = `Reset:
+	expected := `Reset:
   sei                            ; $8000 78
   jmp _label_8004                ; $8001 4C 04 80
 
@@ -46,31 +47,22 @@ _data_8030:
 .byte $34
 `
 
-var testCodeNoHexNoAddress = []byte{
-	0x78,             // sei
-	0x4C, 0x05, 0x80, // jmp + 3
-	0x1a, // nop
-	0x40, // rti
+	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+		cart.PRG[0x0020] = 0x12
+		cart.PRG[0x0030] = 0x34
+	}
+	runDisasm(t, setup, input, expected)
 }
 
-var expectedNoOffsetNoHex = `Reset:
-  sei
-  jmp _label_8005
+func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
+	input := []byte{
+		0xbd, 0x06, 0x80, // $8000 lda a:_data_8005_indexed+1,X
+		0x90, 0x02, // $8003 bcc _label_8007
+		0x82, 0x04, // $8005 unofficial nop instruction: nop #$04
+		0x40, // $8007 rti
+	}
 
-.byte $1a
-
-_label_8005:
-  rti
-`
-
-var testCodeReferencingUnofficialInstruction = []byte{
-	0xbd, 0x06, 0x80, // $8000 lda a:_data_8005_indexed+1,X
-	0x90, 0x02, // $8003 bcc _label_8007
-	0x82, 0x04, // $8005 unofficial nop instruction: nop #$04
-	0x40, // $8007 rti
-}
-
-var expectedCodeReferencingUnofficialInstruction = `Reset:
+	expected := `Reset:
   lda a:_data_8005_indexed+1,X
   bcc _label_8007
 
@@ -81,26 +73,30 @@ _label_8007:
   rti
 `
 
-var testCodeJumpEngine = []byte{
-	0x20, 0x05, 0x80, // // $8000 jsr $8005
-	0x20, 0x80, // $8005 dw $8005
-	0x0A,       // $8005 asl a
-	0xA8,       // $8007 tay
-	0x68,       // $8007 pla
-	0x85, 0x04, // $8007 sta $04
-	0x68,       // $8007 pla
-	0x85, 0x05, // $8007 sta $05
-	0xC8,       // $8007 iny
-	0xB1, 0x04, // $8007 lda (_var_0004_indexed),Y
-	0x85, 0x06, // $8007 sta $06
-	0xC8,       // $8007 iny
-	0xB1, 0x04, // $8007 lda (_var_0004_indexed),Y
-	0x85, 0x07, // $8007 sta $07
-	0x6C, 0x06, 0x00, // $8007 jmp ($0006)
-	0x40, // $8007 rti
+	runDisasm(t, nil, input, expected)
 }
 
-var expectedCodeJumpEngine = `Reset:
+func TestDisasmJumpEngine(t *testing.T) {
+	input := []byte{
+		0x20, 0x05, 0x80, // // $8000 jsr $8005
+		0x1a, 0x80, // $8005 dw $8005
+		0x0A,       // $8005 asl a
+		0xA8,       // $8007 tay
+		0x68,       // $8007 pla
+		0x85, 0x04, // $8007 sta $04
+		0x68,       // $8007 pla
+		0x85, 0x05, // $8007 sta $05
+		0xC8,       // $8007 iny
+		0xB1, 0x04, // $8007 lda (_var_0004_indexed),Y
+		0x85, 0x06, // $8007 sta $06
+		0xC8,       // $8007 iny
+		0xB1, 0x04, // $8007 lda (_var_0004_indexed),Y
+		0x85, 0x07, // $8007 sta $07
+		0x6C, 0x06, 0x00, // $8007 jmp ($0006)
+		0x40, // $8007 rti
+	}
+
+	expected := `Reset:
   lda a:_data_8005_indexed+1,X
   bcc _label_8007
 
@@ -110,6 +106,9 @@ _data_8005_indexed:
 _label_8007:
   rti
 `
+
+	runDisasm(t, nil, input, expected)
+}
 
 func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
@@ -125,70 +124,34 @@ func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.C
 	return disasm
 }
 
-func TestDisasm(t *testing.T) {
-	setupClean := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+func runDisasm(t *testing.T, setup func(options *disasmoptions.Options, cart *cartridge.Cartridge), input []byte, expected string) {
+	t.Helper()
+
+	options := disasmoptions.New()
+	options.CodeOnly = true
+	options.Assembler = "ca65"
+
+	cart := cartridge.New()
+
+	if setup != nil {
+		setup(&options, cart)
+	} else {
 		options.OffsetComments = false
 		options.HexComments = false
 	}
 
-	tests := []struct {
-		Name     string
-		Setup    func(options *disasmoptions.Options, cart *cartridge.Cartridge)
-		Input    []byte
-		Expected string
-	}{
-		//{
-		//	Name: "default",
-		//	Setup: func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
-		//		cart.PRG[0x0020] = 0x12
-		//		cart.PRG[0x0030] = 0x34
-		//	},
-		//	Input:    testCodeExample,
-		//	Expected: expectedExample,
-		//},
-		//{
-		//	Name:     "no hex no address",
-		//	Setup:    setupClean,
-		//	Input:    testCodeNoHexNoAddress,
-		//	Expected: expectedNoOffsetNoHex,
-		//},
-		//{
-		//	Name: "data referencing into unofficial instruction",
-		//Setup: setupClean,
-		//	Input:    testCodeReferencingUnofficialInstruction,
-		//	Expected: expectedCodeReferencingUnofficialInstruction,
-		//},
-		{
-			Name:     "jump engine",
-			Setup:    setupClean,
-			Input:    testCodeJumpEngine,
-			Expected: expectedCodeJumpEngine,
-		},
-	}
+	data := make([]byte, 0x1000)
+	copy(data, input)
+	disasm := testProgram(t, &options, cart, data)
 
-	for _, test := range tests {
-		t.Run(test.Name, func(t *testing.T) {
-			options := disasmoptions.New()
-			options.CodeOnly = true
-			options.Assembler = "ca65"
+	var buffer bytes.Buffer
+	writer := bufio.NewWriter(&buffer)
 
-			cart := cartridge.New()
-			test.Setup(&options, cart)
+	err := disasm.Process(writer)
+	assert.NoError(t, err)
 
-			input := make([]byte, 0x1000)
-			copy(input, test.Input)
-			disasm := testProgram(t, &options, cart, input)
+	assert.NoError(t, writer.Flush())
 
-			var buffer bytes.Buffer
-			writer := bufio.NewWriter(&buffer)
-
-			err := disasm.Process(writer)
-			assert.NoError(t, err)
-
-			assert.NoError(t, writer.Flush())
-
-			buf := buffer.String()
-			assert.Equal(t, test.Expected, buf)
-		})
-	}
+	buf := buffer.String()
+	assert.Equal(t, expected, buf)
 }

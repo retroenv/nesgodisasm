@@ -171,12 +171,13 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 		return addr
 	}
 
-	if len(dis.functionReturnsToParse) > 0 {
-		addr := dis.functionReturnsToParse[0]
-		dis.functionReturnsToParse = dis.functionReturnsToParse[1:]
+	// get a random address to parse (due to Golang's random map iteration order)
+	for addr := range dis.functionReturnsToParse {
+		delete(dis.functionReturnsToParse, addr)
 		return addr
 	}
 
+	// TODO parse jump engine tables if there are more references
 	return 0
 }
 
@@ -187,7 +188,7 @@ func (dis *Disasm) addAddressToParse(address, context uint16, currentInstruction
 	offset := dis.addressToOffset(address)
 	offsetInfo := &dis.offsets[offset]
 
-	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
+	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
 		offsetInfo.SetType(program.CallDestination)
 		if offsetInfo.context == 0 {
 			offsetInfo.context = address // begin a new context
@@ -206,39 +207,12 @@ func (dis *Disasm) addAddressToParse(address, context uint16, currentInstruction
 	}
 	dis.offsetsToParseAdded[address] = struct{}{}
 
+	// add instructions that follow a function call to a special queue with lower priority, to allow the
+	// jump engine be detected before trying to parse the data following the call, which in case of a jump
+	// engine is not code but pointers to functions.
 	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
-		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
+		dis.functionReturnsToParse[address] = struct{}{}
 	} else {
 		dis.offsetsToParse = append(dis.offsetsToParse, address)
 	}
-}
-
-// checkForJumpEngine checks if the current instruction is the jump instruction inside a jump engine function.
-// The function offsets after the call to the jump engine will be used as destinations to disassemble as code.
-// This can be found in some official games like Super Mario Bros.
-func (dis *Disasm) checkForJumpEngine(offsetInfo *offset, jumpAddress uint16) {
-	instruction := offsetInfo.opcode.Instruction
-	if instruction.Name != cpu.JmpInstruction || offsetInfo.opcode.Addressing != IndirectAddressing {
-		return
-	}
-
-	// parse all instructions of the function context until the jump
-	for address := offsetInfo.context; address != 0 && address > jumpAddress; {
-		address = dis.addressToOffset(address)
-		offsetInfo = &dis.offsets[address]
-
-		// if current function has a branching instruction beside the final jump, it's probably not one
-		// of the common jump engines
-		if _, ok := cpu.BranchingInstructions[offsetInfo.opcode.Instruction.Name]; ok {
-			return
-		}
-
-		address += uint16(len(offsetInfo.OpcodeBytes))
-	}
-
-	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
-	// in the function, this makes it a likely jump engine
-	dis.jumpEngines[offsetInfo.context] = struct{}{}
-
-	// TODO parse caller of jump engine
 }
