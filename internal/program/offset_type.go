@@ -8,8 +8,9 @@ const (
 	UnknownOffset OffsetType = 0
 	CodeOffset    OffsetType = 1 << iota
 	DataOffset
-	CodeAsData // for branches into instructions and unofficial instructions
-	CallTarget // opcode is target of a jsr call, indicating a subroutine
+	CodeAsData        // for branches into instructions and unofficial instructions
+	CallDestination   // opcode is the destination of a jsr call, indicating a subroutine
+	FunctionReference // reference to a function
 )
 
 // IsType returns whether the offset is of given type.

@@ -3,6 +3,7 @@ package disasm
 import (
 	"bufio"
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
@@ -76,6 +77,56 @@ _label_8007:
 	runDisasm(t, nil, input, expected)
 }
 
+func TestDisasmJumpEngine(t *testing.T) {
+	input := []byte{
+		0x20, 0x05, 0x80, // // jsr $8005
+		0x1a, 0x80, // .word 801a
+		0x0A,       // 8005: asl a
+		0xA8,       // tay
+		0x68,       // pla
+		0x85, 0x04, // sta $04
+		0x68,       // pla
+		0x85, 0x05, // sta $05
+		0xC8,       // iny
+		0xB1, 0x04, // lda $04,Y
+		0x85, 0x06, // sta $06
+		0xC8,       // iny
+		0xB1, 0x04, // lda $04,Y
+		0x85, 0x07, // sta $07
+		0x6C, 0x06, 0x00, // jmp ($0006)
+		0x40, // 801a: rti
+	}
+
+	expected := `
+		_var_0004_indexed = $0004
+        
+        Reset:
+          jsr _func_8005
+        
+          .word _label_801a
+        
+        _func_8005:                      ; jump engine detected
+          asl a
+          tay
+          pla
+          sta $04
+          pla
+          sta $05
+          iny
+          lda (_var_0004_indexed),Y
+          sta $06
+          iny
+          lda (_var_0004_indexed),Y
+          sta $07
+          jmp ($0006)
+        
+        _label_801a:
+          rti
+`
+
+	runDisasm(t, nil, input, expected)
+}
+
 func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
 
@@ -88,6 +139,15 @@ func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.C
 	assert.NoError(t, err)
 
 	return disasm
+}
+
+func trimStringList(s string) string {
+	sl := strings.Split(s, "\n")
+	for i, s := range sl {
+		sl[i] = strings.TrimSpace(s)
+	}
+	s = strings.Join(sl, "\n")
+	return s
 }
 
 func runDisasm(t *testing.T, setup func(options *disasmoptions.Options, cart *cartridge.Cartridge), input []byte, expected string) {
@@ -116,6 +176,7 @@ func runDisasm(t *testing.T, setup func(options *disasmoptions.Options, cart *ca
 
 	assert.NoError(t, writer.Flush())
 
-	buf := buffer.String()
+	buf := trimStringList(buffer.String())
+	expected = trimStringList(expected)
 	assert.Equal(t, expected, buf)
 }

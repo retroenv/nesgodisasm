@@ -6,31 +6,36 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 )
 
-// processJumpTargets processes all jump targets and updates the callers with
-// the generated jump target label name.
-func (dis *Disasm) processJumpTargets() {
-	for target := range dis.jumpTargets {
-		offset := dis.addressToOffset(target)
+// processJumpDestinations processes all jump destinations and updates the callers with
+// the generated jump destination label name.
+func (dis *Disasm) processJumpDestinations() {
+	for address := range dis.branchDestinations {
+		offset := dis.addressToOffset(address)
 		name := dis.offsets[offset].Label
 		if name == "" {
-			if dis.offsets[offset].IsType(program.CallTarget) {
-				name = fmt.Sprintf("_func_%04x", target)
+			if dis.offsets[offset].IsType(program.CallDestination) {
+				name = fmt.Sprintf("_func_%04x", address)
 			} else {
-				name = fmt.Sprintf("_label_%04x", target)
+				name = fmt.Sprintf("_label_%04x", address)
 			}
 			dis.offsets[offset].Label = name
 		}
 
-		// if the offset is marked as code but does not have opcode bytes, the jumping target
+		// if the offset is marked as code but does not have opcode bytes, the jump destination
 		// is inside the second or third byte of an instruction.
 		if dis.offsets[offset].IsType(program.CodeOffset) && len(dis.offsets[offset].OpcodeBytes) == 0 {
 			dis.handleJumpIntoInstruction(offset)
 		}
 
-		for _, caller := range dis.offsets[offset].JumpFrom {
-			offset = dis.addressToOffset(caller)
-			dis.offsets[offset].Code = dis.offsets[offset].opcode.Instruction.Name
-			dis.offsets[offset].JumpingTo = name
+		for _, caller := range dis.offsets[offset].branchFrom {
+			caller = dis.addressToOffset(caller)
+			offset := &dis.offsets[caller]
+			offset.branchingTo = name
+
+			// reference can be a function address of a jump engine
+			if offset.IsType(program.CodeOffset) {
+				offset.Code = offset.opcode.Instruction.Name
+			}
 		}
 	}
 }
@@ -51,8 +56,8 @@ func (dis *Disasm) handleJumpIntoInstruction(offset uint16) {
 }
 
 // handleUnofficialNop translates unofficial nop codes into data bytes as the instruction
-// has multiple opcodes for the same addressing mode which will result in a different
-// bytes being assembled.
+// has multiple opcodes for the same addressing mode which can result in different
+// bytes being assembled and make the resulting ROM not match the original.
 func (dis *Disasm) handleUnofficialNop(offset uint16) {
 	ins := &dis.offsets[offset]
 	ins.Comment = fmt.Sprintf("unofficial nop instruction: %s", ins.Code)

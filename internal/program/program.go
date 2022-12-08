@@ -11,9 +11,10 @@ type Offset struct {
 
 	Type OffsetType
 
-	Label   string // name of label or subroutine if identified as a jump target
-	Code    string // asm output of this instruction
-	Comment string
+	Label        string // name of label or subroutine if identified as a jump destination
+	Code         string // asm output of this instruction
+	Comment      string
+	LabelComment string
 }
 
 // Handlers defines the handlers that the NES can jump to.

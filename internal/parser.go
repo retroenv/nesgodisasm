@@ -11,12 +11,8 @@ import (
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 func (dis *Disasm) followExecutionFlow() error {
-	for len(dis.targetsToParse) > 0 {
-		dis.popTarget()
-		if dis.pc == 0 {
-			break
-		}
-
+	for addr := dis.addressToDisassemble(); addr != 0; addr = dis.addressToDisassemble() {
+		dis.pc = addr
 		offset := dis.addressToOffset(dis.pc)
 		offsetInfo, inspectCode := dis.initializeOffsetInfo(offset)
 		if !inspectCode {
@@ -35,11 +31,12 @@ func (dis *Disasm) followExecutionFlow() error {
 			offsetInfo.Code = fmt.Sprintf("%s %s", instruction.Name, params)
 		}
 
-		opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
-		nextTarget := dis.pc + opcodeLength
-
 		if _, ok := cpu.NotExecutingFollowingOpcodeInstructions[instruction.Name]; !ok {
-			dis.addTarget(nextTarget, instruction, false)
+			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
+			followingOpcodeAddress := dis.pc + opcodeLength
+			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, addr, instruction, false)
+		} else {
+			dis.checkForJumpEngine(offsetInfo, dis.pc)
 		}
 
 		dis.checkInstructionOverlap(offsetInfo, offset)
@@ -111,7 +108,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
 		if ok {
-			dis.addTarget(uint16(addr), opcode.Instruction, true)
+			dis.addAddressToParse(uint16(addr), offsetInfo.context, dis.pc, opcode.Instruction, true)
 		}
 	}
 
@@ -164,28 +161,60 @@ func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param a
 	}
 }
 
-// popTarget pops the next target to disassemble and sets it into the program counter.
-func (dis *Disasm) popTarget() {
-	dis.pc = dis.targetsToParse[0]
-	dis.targetsToParse = dis.targetsToParse[1:]
+// addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
+// 0 will be returned. Return address from function addresses have the lowest priority, to be able to
+// handle jump table functions correctly.
+func (dis *Disasm) addressToDisassemble() uint16 {
+	if len(dis.offsetsToParse) > 0 {
+		addr := dis.offsetsToParse[0]
+		dis.offsetsToParse = dis.offsetsToParse[1:]
+		return addr
+	}
+
+	// get a random address to parse (due to Golang's random map iteration order)
+	for addr := range dis.functionReturnsToParse {
+		delete(dis.functionReturnsToParse, addr)
+		return addr
+	}
+
+	// TODO parse jump engine tables if there are more references
+	return 0
 }
 
-// addTarget adds a target to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addTarget(target uint16, currentInstruction *cpu.Instruction, jumpTarget bool) {
-	offset := dis.addressToOffset(target)
+// addAddressToParse adds an address to the list to be processed if the address has not been processed yet.
+func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *cpu.Instruction,
+	isABranchDestination bool) {
+
+	offset := dis.addressToOffset(address)
 	offsetInfo := &dis.offsets[offset]
 
-	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
-		offsetInfo.SetType(program.CallTarget)
-	}
-	if jumpTarget {
-		offsetInfo.JumpFrom = append(offsetInfo.JumpFrom, dis.pc)
-		dis.jumpTargets[target] = struct{}{}
+	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
+		offsetInfo.SetType(program.CallDestination)
+		if offsetInfo.context == 0 {
+			offsetInfo.context = address // begin a new context
+		}
+	} else if offsetInfo.context == 0 {
+		offsetInfo.context = context // continue current context
 	}
 
-	if _, ok := dis.targetsAdded[target]; ok {
+	if isABranchDestination {
+		if from > 0 {
+			offsetInfo.branchFrom = append(offsetInfo.branchFrom, from)
+		}
+		dis.branchDestinations[address] = struct{}{}
+	}
+
+	if _, ok := dis.offsetsToParseAdded[address]; ok {
 		return
 	}
-	dis.targetsAdded[target] = struct{}{}
-	dis.targetsToParse = append(dis.targetsToParse, target)
+	dis.offsetsToParseAdded[address] = struct{}{}
+
+	// add instructions that follow a function call to a special queue with lower priority, to allow the
+	// jump engine be detected before trying to parse the data following the call, which in case of a jump
+	// engine is not code but pointers to functions.
+	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
+		dis.functionReturnsToParse[address] = struct{}{}
+	} else {
+		dis.offsetsToParse = append(dis.offsetsToParse, address)
+	}
 }

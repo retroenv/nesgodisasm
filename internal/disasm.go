@@ -26,8 +26,9 @@ type offset struct {
 
 	opcode cpu.Opcode // opcode that the byte at this offset represents
 
-	JumpFrom  []uint16 // list of all addresses that jump to this offset
-	JumpingTo string   // label to jump to if instruction branches
+	branchFrom  []uint16 // list of all addresses that branch to this offset
+	branchingTo string   // label to jump to if instruction branches
+	context     uint16   // function or interrupt context that the offset is part of
 }
 
 // Disasm implements a NES disassembler.
@@ -46,25 +47,31 @@ type Disasm struct {
 	variables       map[uint16]*variable
 	usedVariables   map[uint16]struct{}
 
-	jumpTargets map[uint16]struct{} // jumpTargets is a set of all addresses that branched to
-	offsets     []offset
+	jumpEngines        map[uint16]struct{} // set of all jump engine functions addresses
+	jumpEngineCallers  map[uint16]*jumpEngineCaller
+	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
+	offsets            []offset
 
-	targetsToParse []uint16
-	targetsAdded   map[uint16]struct{}
+	offsetsToParse         []uint16
+	offsetsToParseAdded    map[uint16]struct{}
+	functionReturnsToParse map[uint16]struct{}
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
 func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, error) {
 	dis := &Disasm{
-		options:         options,
-		cart:            cart,
-		codeBaseAddress: uint16(0x10000 - len(cart.PRG)),
-		variables:       map[uint16]*variable{},
-		usedVariables:   map[uint16]struct{}{},
-		usedConstants:   map[uint16]constTranslation{},
-		offsets:         make([]offset, len(cart.PRG)),
-		jumpTargets:     map[uint16]struct{}{},
-		targetsAdded:    map[uint16]struct{}{},
+		options:                options,
+		cart:                   cart,
+		codeBaseAddress:        uint16(0x10000 - len(cart.PRG)),
+		variables:              map[uint16]*variable{},
+		usedVariables:          map[uint16]struct{}{},
+		usedConstants:          map[uint16]constTranslation{},
+		offsets:                make([]offset, len(cart.PRG)),
+		jumpEngineCallers:      map[uint16]*jumpEngineCaller{},
+		jumpEngines:            map[uint16]struct{}{},
+		branchDestinations:     map[uint16]struct{}{},
+		offsetsToParseAdded:    map[uint16]struct{}{},
+		functionReturnsToParse: map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",
 			Reset: "Reset",
@@ -102,7 +109,7 @@ func (dis *Disasm) Process(writer io.Writer) error {
 	if err := dis.processVariables(); err != nil {
 		return err
 	}
-	dis.processJumpTargets()
+	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
 	if err != nil {
@@ -133,30 +140,30 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(0xFFFA)
 	if nmi != 0 {
-		dis.addTarget(nmi, nil, false)
+		dis.addAddressToParse(nmi, nmi, 0, nil, false)
 		offset := dis.addressToOffset(nmi)
 		dis.offsets[offset].Label = "NMI"
-		dis.offsets[offset].SetType(program.CallTarget)
+		dis.offsets[offset].SetType(program.CallDestination)
 		dis.handlers.NMI = "NMI"
 	}
 
 	reset := dis.readMemoryWord(0xFFFC)
-	dis.addTarget(reset, nil, false)
+	dis.addAddressToParse(reset, reset, 0, nil, false)
 	offset := dis.addressToOffset(reset)
 	dis.offsets[offset].Label = "Reset"
-	dis.offsets[offset].SetType(program.CallTarget)
+	dis.offsets[offset].SetType(program.CallDestination)
 
 	irq := dis.readMemoryWord(0xFFFE)
 	if irq != 0 {
-		dis.addTarget(irq, nil, false)
+		dis.addAddressToParse(irq, irq, 0, nil, false)
 		offset = dis.addressToOffset(irq)
 		dis.offsets[offset].Label = "IRQ"
-		dis.offsets[offset].SetType(program.CallTarget)
+		dis.offsets[offset].SetType(program.CallDestination)
 		dis.handlers.IRQ = "IRQ"
 	}
 }
 
-// converts the internal disasm type representation to a program type that will be used by
+// converts the internal disassembly representation to a program type that will be used by
 // the chosen assembler output instance to generate the asm file.
 func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app := program.New(dis.cart)
@@ -166,11 +173,12 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		res := dis.offsets[i]
 		offset := res.Offset
 
-		if res.JumpingTo != "" {
-			offset.Code = fmt.Sprintf("%s %s", res.Code, res.JumpingTo)
+		if res.branchingTo != "" {
+			offset.Code = fmt.Sprintf("%s %s", res.Code, res.branchingTo)
 		}
 
-		if res.IsType(program.CodeOffset | program.CodeAsData) {
+		switch {
+		case res.IsType(program.CodeOffset | program.CodeAsData):
 			if len(offset.OpcodeBytes) == 0 && offset.Label == "" {
 				continue
 			}
@@ -182,7 +190,10 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 					return nil, err
 				}
 			}
-		} else {
+
+		case res.IsType(program.FunctionReference):
+			offset.Code = fmt.Sprintf(".word %s", res.branchingTo)
+		default:
 			offset.SetType(program.DataOffset)
 		}
 
@@ -212,6 +223,24 @@ func (dis *Disasm) addressToOffset(address uint16) uint16 {
 	return offset
 }
 
+func (dis *Disasm) loadCodeDataLog() error {
+	prgFlags, err := codedatalog.LoadFile(dis.cart, dis.options.CodeDataLog)
+	if err != nil {
+		return fmt.Errorf("loading code/data log file: %w", err)
+	}
+
+	for offset, flags := range prgFlags {
+		if flags&codedatalog.Code != 0 {
+			dis.addAddressToParse(dis.codeBaseAddress+uint16(offset), 0, 0, nil, false)
+		}
+		if flags&codedatalog.SubEntryPoint != 0 {
+			dis.offsets[offset].SetType(program.CallDestination)
+		}
+	}
+
+	return nil
+}
+
 func setHexCodeComment(offset *program.Offset) error {
 	buf := &strings.Builder{}
 
@@ -237,22 +266,4 @@ func setOffsetComment(offset *program.Offset, address uint16) {
 	} else {
 		offset.Comment = fmt.Sprintf("$%04X %s", address, offset.Comment)
 	}
-}
-
-func (dis *Disasm) loadCodeDataLog() error {
-	prgFlags, err := codedatalog.LoadFile(dis.cart, dis.options.CodeDataLog)
-	if err != nil {
-		return fmt.Errorf("loading code/data log file: %w", err)
-	}
-
-	for offset, flags := range prgFlags {
-		if flags&codedatalog.Code != 0 {
-			dis.addTarget(dis.codeBaseAddress+uint16(offset), nil, false)
-		}
-		if flags&codedatalog.SubEntryPoint != 0 {
-			dis.offsets[offset].SetType(program.CallTarget)
-		}
-	}
-
-	return nil
 }
