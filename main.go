@@ -28,8 +28,9 @@ type optionFlags struct {
 	output      string
 	codeDataLog string
 
-	assembleTest bool
-	quiet        bool
+	assembleTest   bool
+	assembleOutput string
+	quiet          bool
 
 	noHexComments bool
 	noOffsets     bool
@@ -55,6 +56,7 @@ func readArguments() (optionFlags, *disasmoptions.Options) {
 	disasmOptions.Assembler = "ca65"
 
 	flags.BoolVar(&options.assembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
+	flags.StringVar(&options.assembleOutput, "keepverify", "", "verify the generated output by assembling with ca65 and check if it matches the input")
 	flags.StringVar(&options.codeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.BoolVar(&options.noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&options.noOffsets, "nooffsets", false, "do not output offsets in comments")
@@ -154,13 +156,24 @@ func verifyOutput(cart *cartridge.Cartridge, options optionFlags) error {
 		_ = os.Remove(objectFile.Name())
 	}()
 
-	outputFile, err := os.CreateTemp("", filePart+".*.nes")
-	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
+	var outputFile *os.File
+	if options.assembleOutput != "" {
+		outputFile, err = os.Create(options.assembleOutput)
+		if err != nil {
+			return fmt.Errorf("creating file '%s': %w", options.output, err)
+		}
+		defer func() {
+			_ = outputFile.Close()
+		}()
+	} else {
+		outputFile, err = os.CreateTemp("", filePart+".*.nes")
+		if err != nil {
+			return fmt.Errorf("creating temp file: %w", err)
+		}
+		defer func() {
+			_ = os.Remove(outputFile.Name())
+		}()
 	}
-	defer func() {
-		_ = os.Remove(outputFile.Name())
-	}()
 
 	ca65Config := ca65.Config{
 		PRGSize: len(cart.PRG),
