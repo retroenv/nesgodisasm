@@ -196,6 +196,7 @@ func checkBufferEqual(input, output []byte) error {
 
 	var diffs uint64
 	firstDiff := -1
+	var firstDiffBytes [2]byte
 	for i := range input {
 		if input[i] == output[i] {
 			continue
@@ -203,12 +204,16 @@ func checkBufferEqual(input, output []byte) error {
 		diffs++
 		if firstDiff == -1 {
 			firstDiff = i
+			firstDiffBytes[0] = input[i]
+			firstDiffBytes[1] = output[i]
 		}
 	}
 	if diffs == 0 {
 		return nil
 	}
-	return fmt.Errorf("%d offset mismatches, first at offset %d", diffs, firstDiff)
+	return fmt.Errorf("%d offset mismatches\n"+
+		"first at offset %d (0x%04X) - expected 0x%02X - got 0x%02X", diffs,
+		firstDiff, firstDiff, firstDiffBytes[0], firstDiffBytes[1])
 }
 
 func compareCartridgeDetails(input, output []byte) error {
