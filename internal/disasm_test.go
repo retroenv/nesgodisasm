@@ -105,8 +105,8 @@ func TestDisasmJumpEngine(t *testing.T) {
         
           .word _label_801a
         
-        _func_8005:
-          asl a                          ; jump engine detected
+        _func_8005:                      ; jump engine detected
+          asl a
           tay
           pla
           sta $04
