@@ -171,9 +171,17 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 		return addr
 	}
 
-	// get a random address to parse (due to Golang's random map iteration order)
-	for addr := range dis.functionReturnsToParse {
-		delete(dis.functionReturnsToParse, addr)
+	for len(dis.functionReturnsToParse) > 0 {
+		addr := dis.functionReturnsToParse[0]
+		dis.functionReturnsToParse = dis.functionReturnsToParse[1:]
+
+		_, ok := dis.functionReturnsToParseAdded[addr]
+		// if the address was removed from the set it marks the address as not being parsed anymore,
+		// this way is more efficient than iterating the slice to delete the element
+		if !ok {
+			continue
+		}
+		delete(dis.functionReturnsToParseAdded, addr)
 		return addr
 	}
 
@@ -213,7 +221,8 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	// jump engine be detected before trying to parse the data following the call, which in case of a jump
 	// engine is not code but pointers to functions.
 	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
-		dis.functionReturnsToParse[address] = struct{}{}
+		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
+		dis.functionReturnsToParseAdded[address] = struct{}{}
 	} else {
 		dis.offsetsToParse = append(dis.offsetsToParse, address)
 	}

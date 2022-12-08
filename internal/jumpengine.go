@@ -57,7 +57,7 @@ func (dis *Disasm) handleJumpEngineCallers(context uint16) {
 		offsetInfo := &dis.offsets[offset]
 		address := caller + uint16(len(offsetInfo.OpcodeBytes))
 		// remove from code that should be parsed
-		delete(dis.functionReturnsToParse, address)
+		delete(dis.functionReturnsToParseAdded, address)
 
 		jumpEngineOffset.LabelComment = "jump engine detected"
 		dis.processJumpEngineEntry(jumpEngine, address)
