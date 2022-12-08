@@ -52,26 +52,27 @@ type Disasm struct {
 	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
 	offsets            []offset
 
-	offsetsToParse         []uint16
-	offsetsToParseAdded    map[uint16]struct{}
-	functionReturnsToParse map[uint16]struct{}
+	offsetsToParse              []uint16
+	offsetsToParseAdded         map[uint16]struct{}
+	functionReturnsToParse      []uint16
+	functionReturnsToParseAdded map[uint16]struct{}
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
 func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, error) {
 	dis := &Disasm{
-		options:                options,
-		cart:                   cart,
-		codeBaseAddress:        uint16(0x10000 - len(cart.PRG)),
-		variables:              map[uint16]*variable{},
-		usedVariables:          map[uint16]struct{}{},
-		usedConstants:          map[uint16]constTranslation{},
-		offsets:                make([]offset, len(cart.PRG)),
-		jumpEngineCallers:      map[uint16]*jumpEngineCaller{},
-		jumpEngines:            map[uint16]struct{}{},
-		branchDestinations:     map[uint16]struct{}{},
-		offsetsToParseAdded:    map[uint16]struct{}{},
-		functionReturnsToParse: map[uint16]struct{}{},
+		options:                     options,
+		cart:                        cart,
+		codeBaseAddress:             uint16(0x10000 - len(cart.PRG)),
+		variables:                   map[uint16]*variable{},
+		usedVariables:               map[uint16]struct{}{},
+		usedConstants:               map[uint16]constTranslation{},
+		offsets:                     make([]offset, len(cart.PRG)),
+		jumpEngineCallers:           map[uint16]*jumpEngineCaller{},
+		jumpEngines:                 map[uint16]struct{}{},
+		branchDestinations:          map[uint16]struct{}{},
+		offsetsToParseAdded:         map[uint16]struct{}{},
+		functionReturnsToParseAdded: map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",
 			Reset: "Reset",
