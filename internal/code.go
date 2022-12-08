@@ -28,9 +28,14 @@ func (dis *Disasm) processJumpDestinations() {
 		}
 
 		for _, caller := range dis.offsets[offset].branchFrom {
-			offset = dis.addressToOffset(caller)
-			dis.offsets[offset].Code = dis.offsets[offset].opcode.Instruction.Name
-			dis.offsets[offset].branchingTo = name
+			caller = dis.addressToOffset(caller)
+			offset := &dis.offsets[caller]
+			offset.branchingTo = name
+
+			// reference can be a function address of a jump engine
+			if offset.IsType(program.CodeOffset) {
+				offset.Code = offset.opcode.Instruction.Name
+			}
 		}
 	}
 }

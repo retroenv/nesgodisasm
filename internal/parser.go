@@ -34,7 +34,7 @@ func (dis *Disasm) followExecutionFlow() error {
 		if _, ok := cpu.NotExecutingFollowingOpcodeInstructions[instruction.Name]; !ok {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			followingOpcodeAddress := dis.pc + opcodeLength
-			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, instruction, false)
+			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, addr, instruction, false)
 		} else {
 			dis.checkForJumpEngine(offsetInfo, dis.pc)
 		}
@@ -108,7 +108,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
 		if ok {
-			dis.addAddressToParse(uint16(addr), offsetInfo.context, opcode.Instruction, true)
+			dis.addAddressToParse(uint16(addr), offsetInfo.context, dis.pc, opcode.Instruction, true)
 		}
 	}
 
@@ -182,7 +182,7 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 }
 
 // addAddressToParse adds an address to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addAddressToParse(address, context uint16, currentInstruction *cpu.Instruction,
+func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *cpu.Instruction,
 	isABranchDestination bool) {
 
 	offset := dis.addressToOffset(address)
@@ -198,7 +198,9 @@ func (dis *Disasm) addAddressToParse(address, context uint16, currentInstruction
 	}
 
 	if isABranchDestination {
-		offsetInfo.branchFrom = append(offsetInfo.branchFrom, dis.pc)
+		if from > 0 {
+			offsetInfo.branchFrom = append(offsetInfo.branchFrom, from)
+		}
 		dis.branchDestinations[address] = struct{}{}
 	}
 

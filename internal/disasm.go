@@ -140,7 +140,7 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(0xFFFA)
 	if nmi != 0 {
-		dis.addAddressToParse(nmi, nmi, nil, false)
+		dis.addAddressToParse(nmi, nmi, 0, nil, false)
 		offset := dis.addressToOffset(nmi)
 		dis.offsets[offset].Label = "NMI"
 		dis.offsets[offset].SetType(program.CallDestination)
@@ -148,14 +148,14 @@ func (dis *Disasm) initializeIrqHandlers() {
 	}
 
 	reset := dis.readMemoryWord(0xFFFC)
-	dis.addAddressToParse(reset, reset, nil, false)
+	dis.addAddressToParse(reset, reset, 0, nil, false)
 	offset := dis.addressToOffset(reset)
 	dis.offsets[offset].Label = "Reset"
 	dis.offsets[offset].SetType(program.CallDestination)
 
 	irq := dis.readMemoryWord(0xFFFE)
 	if irq != 0 {
-		dis.addAddressToParse(irq, irq, nil, false)
+		dis.addAddressToParse(irq, irq, 0, nil, false)
 		offset = dis.addressToOffset(irq)
 		dis.offsets[offset].Label = "IRQ"
 		dis.offsets[offset].SetType(program.CallDestination)
@@ -177,7 +177,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 			offset.Code = fmt.Sprintf("%s %s", res.Code, res.branchingTo)
 		}
 
-		if res.IsType(program.CodeOffset | program.CodeAsData) {
+		switch {
+		case res.IsType(program.CodeOffset | program.CodeAsData):
 			if len(offset.OpcodeBytes) == 0 && offset.Label == "" {
 				continue
 			}
@@ -189,7 +190,10 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 					return nil, err
 				}
 			}
-		} else {
+
+		case res.IsType(program.FunctionReference):
+			offset.Code = fmt.Sprintf(".word %s", res.branchingTo)
+		default:
 			offset.SetType(program.DataOffset)
 		}
 
@@ -227,7 +231,7 @@ func (dis *Disasm) loadCodeDataLog() error {
 
 	for offset, flags := range prgFlags {
 		if flags&codedatalog.Code != 0 {
-			dis.addAddressToParse(dis.codeBaseAddress+uint16(offset), 0, nil, false)
+			dis.addAddressToParse(dis.codeBaseAddress+uint16(offset), 0, 0, nil, false)
 		}
 		if flags&codedatalog.SubEntryPoint != 0 {
 			dis.offsets[offset].SetType(program.CallDestination)

@@ -195,83 +195,87 @@ func processPRG(app *program.Program, writer io.Writer, endIndex int) error {
 	var previousLineWasCode bool
 
 	for i := 0; i < endIndex; i++ {
-		res := app.PRG[i]
+		offset := app.PRG[i]
 
-		if err := writeLabel(writer, i, res.Label); err != nil {
+		if err := writeLabel(writer, i, offset); err != nil {
 			return err
 		}
 
 		// print an empty line in case of data after code and vice versa
-		if i > 0 && res.Label == "" && res.IsType(program.CodeOffset|program.CodeAsData) != previousLineWasCode {
+		if i > 0 && offset.Label == "" && offset.IsType(program.CodeOffset|program.CodeAsData) != previousLineWasCode {
 			if _, err := fmt.Fprintln(writer); err != nil {
 				return fmt.Errorf("writing line: %w", err)
 			}
 		}
-		previousLineWasCode = res.IsType(program.CodeOffset | program.CodeAsData)
+		previousLineWasCode = offset.IsType(program.CodeOffset | program.CodeAsData)
 
-		if res.IsType(program.CodeOffset) && len(res.OpcodeBytes) == 0 {
-			continue
-		}
-
-		if res.IsType(program.DataOffset) {
-			var err error
-			if i, err = processDataOffsets(app, writer, i, endIndex, res); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if err := writeCodeLine(writer, res); err != nil {
+		adjustment, err := writeOffset(app, writer, i, endIndex, offset)
+		if err != nil {
 			return err
 		}
-		i += len(res.OpcodeBytes) - 1
+		i += adjustment
 	}
 	return nil
 }
 
-func processDataOffsets(app *program.Program, writer io.Writer, index, endIndex int, res program.Offset) (int, error) {
-	if res.IsType(program.FunctionReference) {
-		if err := writeFunctionReference(writer, res); err != nil {
+func writeOffset(app *program.Program, writer io.Writer, index, endIndex int, offset program.Offset) (int, error) {
+	if offset.IsType(program.CodeOffset) && len(offset.OpcodeBytes) == 0 {
+		return 0, nil
+	}
+	if offset.IsType(program.FunctionReference) {
+		if _, err := fmt.Fprintf(writer, "  %s\n", offset.Code); err != nil {
+			return 0, fmt.Errorf("writing function reference: %w", err)
+		}
+		return 1, nil
+	}
+
+	if offset.IsType(program.DataOffset) {
+		count, err := bundlePRGDataWrites(app, writer, index, endIndex)
+		if err != nil {
 			return 0, err
 		}
-		index++
-		return index, nil
-	}
-
-	count, err := bundlePRGDataWrites(app, writer, index, endIndex)
-	if err != nil {
+		if count > 0 {
+			return count - 1, nil
+		}
 		return 0, err
 	}
-	if count > 0 {
-		index += count - 1
+
+	if err := writeCodeLine(writer, offset); err != nil {
+		return 0, err
 	}
-	return index, nil
+	return len(offset.OpcodeBytes) - 1, nil
 }
 
-func writeLabel(writer io.Writer, offset int, label string) error {
-	if label == "" {
+func writeLabel(writer io.Writer, index int, offset program.Offset) error {
+	if offset.Label == "" {
 		return nil
 	}
 
-	if offset > 0 {
+	if index > 0 {
 		if _, err := fmt.Fprintln(writer); err != nil {
 			return fmt.Errorf("writing line: %w", err)
 		}
 	}
 
-	if _, err := fmt.Fprintf(writer, "%s:\n", label); err != nil {
-		return fmt.Errorf("writing label: %w", err)
+	if offset.LabelComment == "" {
+		if _, err := fmt.Fprintf(writer, "%s:\n", offset.Label); err != nil {
+			return fmt.Errorf("writing label: %w", err)
+		}
+	} else {
+		if _, err := fmt.Fprintf(writer, "%-32s ; %s\n", offset.Label+":", offset.LabelComment); err != nil {
+			return fmt.Errorf("writing label: %w", err)
+		}
 	}
 	return nil
 }
 
-func writeCodeLine(writer io.Writer, res program.Offset) error {
-	if res.Comment == "" {
-		if _, err := fmt.Fprintf(writer, "  %s\n", res.Code); err != nil {
+func writeCodeLine(writer io.Writer, offset program.Offset) error {
+	if offset.Comment == "" {
+		if _, err := fmt.Fprintf(writer, "  %s\n", offset.Code); err != nil {
 			return fmt.Errorf("writing code line: %w", err)
 		}
 	} else {
-		if _, err := fmt.Fprintf(writer, "  %-30s ; %s\n", res.Code, res.Comment); err != nil {
+		if _, err := fmt.Fprintf(writer, "  %-30s ; %s\n", offset.Code, offset.Comment); err != nil {
 			return fmt.Errorf("writing code line: %w", err)
 		}
 	}
@@ -283,21 +287,21 @@ func bundlePRGDataWrites(app *program.Program, writer io.Writer, startIndex, end
 	var data []byte
 
 	for i := startIndex; i < endIndex; i++ {
-		res := app.PRG[i]
+		offset := app.PRG[i]
 		// opcode bytes can be nil if data bytes have been combined for an unofficial nop
-		if !res.IsType(program.DataOffset) || len(res.OpcodeBytes) == 0 {
+		if !offset.IsType(program.DataOffset) || len(offset.OpcodeBytes) == 0 {
 			break
 		}
 		// stop at first label or code after start index
-		if i > startIndex && (res.IsType(program.CodeOffset|program.CodeAsData) || res.Label != "") {
+		if i > startIndex && (offset.IsType(program.CodeOffset|program.CodeAsData) || offset.Label != "") {
 			break
 		}
-		data = append(data, res.OpcodeBytes...)
+		data = append(data, offset.OpcodeBytes...)
 	}
 
 	var err error
 	var line string
-	res := app.PRG[startIndex]
+	offset := app.PRG[startIndex]
 
 	switch len(data) {
 	case 0:
@@ -307,17 +311,17 @@ func bundlePRGDataWrites(app *program.Program, writer io.Writer, startIndex, end
 		line = fmt.Sprintf(".byte $%02x", data[0])
 
 	default:
-		line, err = bundleDataWrites(writer, data, res.Comment != "")
+		line, err = bundleDataWrites(writer, data, offset.Comment != "")
 		if err != nil {
 			return 0, err
 		}
 	}
 
 	if line != "" {
-		if res.Comment == "" {
+		if offset.Comment == "" {
 			_, err = fmt.Fprintf(writer, "%s\n", line)
 		} else {
-			_, err = fmt.Fprintf(writer, "%-32s ; %s\n", line, res.Comment)
+			_, err = fmt.Fprintf(writer, "%-32s ; %s\n", line, offset.Comment)
 		}
 		if err != nil {
 			return 0, fmt.Errorf("writing prg line: %w", err)
@@ -372,8 +376,8 @@ func getLastNonZeroPRGByte(options *disasmoptions.Options, app *program.Program)
 	start := len(app.PRG) - 1 - 6 // skip irq pointers
 
 	for i := start; i >= 0; i-- {
-		res := app.PRG[i]
-		if len(res.OpcodeBytes) == 0 || res.OpcodeBytes[0] == 0 {
+		offset := app.PRG[i]
+		if len(offset.OpcodeBytes) == 0 || offset.OpcodeBytes[0] == 0 {
 			continue
 		}
 		return i + 1, nil
@@ -391,13 +395,4 @@ func getLastNonZeroCHRByte(app *program.Program) int {
 		return i + 1
 	}
 	return 0
-}
-
-// writeFunctionReference writes a reference to a function, typically used in function tables after a jump engine call.
-// TODO write label instead of bytes
-func writeFunctionReference(writer io.Writer, res program.Offset) error {
-	if _, err := fmt.Fprintf(writer, "  .dw $%02x%02x\n", res.OpcodeBytes[1], res.OpcodeBytes[0]); err != nil {
-		return fmt.Errorf("writing function reference: %w", err)
-	}
-	return nil
 }

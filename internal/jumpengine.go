@@ -59,7 +59,7 @@ func (dis *Disasm) handleJumpEngineCallers(context uint16) {
 		// remove from code that should be parsed
 		delete(dis.functionReturnsToParse, address)
 
-		jumpEngineOffset.Comment = "jump engine detected"
+		jumpEngineOffset.LabelComment = "jump engine detected"
 		dis.processJumpEngineEntry(jumpEngine, address)
 	}
 }
@@ -85,12 +85,12 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 		return
 	}
 
-	offsetInfo1.Offset.SetType(program.FunctionReference | program.DataOffset)
-	offsetInfo2.Offset.SetType(program.FunctionReference | program.DataOffset)
+	offsetInfo1.Offset.SetType(program.FunctionReference)
+	offsetInfo2.Offset.SetType(program.FunctionReference)
 
 	offsetInfo1.OpcodeBytes = []byte{dis.readMemory(address), dis.readMemory(address + 1)}
 
 	jumpEngine.functions = append(jumpEngine.functions, address)
 
-	dis.addAddressToParse(destination, destination, nil, false)
+	dis.addAddressToParse(destination, destination, address, nil, true)
 }
