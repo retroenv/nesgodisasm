@@ -47,10 +47,11 @@ type Disasm struct {
 	variables       map[uint16]*variable
 	usedVariables   map[uint16]struct{}
 
-	jumpEngines        map[uint16]struct{} // set of all jump engine functions addresses
-	jumpEngineCallers  map[uint16]*jumpEngineCaller
-	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
-	offsets            []offset
+	jumpEngines            map[uint16]struct{} // set of all jump engine functions addresses
+	jumpEngineCallers      []*jumpEngineCaller // jump engine caller tables to process
+	jumpEngineCallersAdded map[uint16]*jumpEngineCaller
+	branchDestinations     map[uint16]struct{} // set of all addresses that are branched to
+	offsets                []offset
 
 	offsetsToParse              []uint16
 	offsetsToParseAdded         map[uint16]struct{}
@@ -68,7 +69,7 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		usedVariables:               map[uint16]struct{}{},
 		usedConstants:               map[uint16]constTranslation{},
 		offsets:                     make([]offset, len(cart.PRG)),
-		jumpEngineCallers:           map[uint16]*jumpEngineCaller{},
+		jumpEngineCallersAdded:      map[uint16]*jumpEngineCaller{},
 		jumpEngines:                 map[uint16]struct{}{},
 		branchDestinations:          map[uint16]struct{}{},
 		offsetsToParseAdded:         map[uint16]struct{}{},
