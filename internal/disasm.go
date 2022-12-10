@@ -41,7 +41,7 @@ type Disasm struct {
 	cart       *cartridge.Cartridge
 	handlers   program.Handlers
 
-	codeBaseAddress uint16
+	codeBaseAddress uint16 // codebase address of the cartridge, as it can be different from 0x8000
 	constants       map[uint16]constTranslation
 	usedConstants   map[uint16]constTranslation
 	variables       map[uint16]*variable
