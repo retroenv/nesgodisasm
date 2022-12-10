@@ -36,7 +36,7 @@ _label_8004:
 .byte $dc                        ; $800D unofficial nop instruction: nop $8BAE,X DC
 
 _label_800e:
-  ldx a:$788B                    ; $800E AE 8B 78
+  ldx a:$788B                    ; $800E branch into instruction detected AE 8B 78
   rti                            ; $8011 40
 
 .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
