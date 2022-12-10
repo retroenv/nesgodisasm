@@ -28,9 +28,9 @@ type optionFlags struct {
 	output      string
 	codeDataLog string
 
-	assembleTest   bool
-	assembleOutput string
-	quiet          bool
+	assembleTest bool
+	debug        bool
+	quiet        bool
 
 	noHexComments bool
 	noOffsets     bool
@@ -56,7 +56,7 @@ func readArguments() (optionFlags, *disasmoptions.Options) {
 	disasmOptions.Assembler = "ca65"
 
 	flags.BoolVar(&options.assembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
-	flags.StringVar(&options.assembleOutput, "keepverify", "", "verify the generated output by assembling with ca65 and check if it matches the input")
+	flags.BoolVar(&options.debug, "debug", false, "enabled debugging options")
 	flags.StringVar(&options.codeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.BoolVar(&options.noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&options.noOffsets, "nooffsets", false, "do not output offsets in comments")
@@ -157,8 +157,8 @@ func verifyOutput(cart *cartridge.Cartridge, options optionFlags) error {
 	}()
 
 	var outputFile *os.File
-	if options.assembleOutput != "" {
-		outputFile, err = os.Create(options.assembleOutput)
+	if options.debug {
+		outputFile, err = os.Create("debug.asm")
 		if err != nil {
 			return fmt.Errorf("creating file '%s': %w", options.output, err)
 		}
@@ -193,8 +193,8 @@ func verifyOutput(cart *cartridge.Cartridge, options optionFlags) error {
 		return fmt.Errorf("reading file for comparison: %w", err)
 	}
 
-	if err := checkBufferEqual(source, destination); err != nil {
-		if detailsErr := compareCartridgeDetails(source, destination); detailsErr != nil {
+	if err := checkBufferEqual(source, destination, options.debug); err != nil {
+		if detailsErr := compareCartridgeDetails(source, destination, options.debug); detailsErr != nil {
 			return fmt.Errorf("comparing cartridge details: %w", detailsErr)
 		}
 		return err
@@ -202,7 +202,7 @@ func verifyOutput(cart *cartridge.Cartridge, options optionFlags) error {
 	return nil
 }
 
-func checkBufferEqual(input, output []byte) error {
+func checkBufferEqual(input, output []byte, debug bool) error {
 	if len(input) != len(output) {
 		return fmt.Errorf("mismatched lengths, %d != %d", len(input), len(output))
 	}
@@ -220,6 +220,10 @@ func checkBufferEqual(input, output []byte) error {
 			firstDiffBytes[0] = input[i]
 			firstDiffBytes[1] = output[i]
 		}
+		if debug {
+			fmt.Printf("offset 0x%04X mismatch - expected 0x%02X - got 0x%02X\n",
+				i, input[i], output[i])
+		}
 	}
 	if diffs == 0 {
 		return nil
@@ -229,7 +233,7 @@ func checkBufferEqual(input, output []byte) error {
 		firstDiff, firstDiff, firstDiffBytes[0], firstDiffBytes[1])
 }
 
-func compareCartridgeDetails(input, output []byte) error {
+func compareCartridgeDetails(input, output []byte, debug bool) error {
 	inputReader := bytes.NewReader(input)
 	outputReader := bytes.NewReader(output)
 
@@ -242,13 +246,13 @@ func compareCartridgeDetails(input, output []byte) error {
 		return fmt.Errorf("loading cartridge file: %w", err)
 	}
 
-	if err := checkBufferEqual(cart1.PRG, cart2.PRG); err != nil {
+	if err := checkBufferEqual(cart1.PRG, cart2.PRG, debug); err != nil {
 		fmt.Printf("PRG difference: %s\n", err)
 	}
-	if err := checkBufferEqual(cart1.CHR, cart2.CHR); err != nil {
+	if err := checkBufferEqual(cart1.CHR, cart2.CHR, debug); err != nil {
 		fmt.Printf("CHR difference: %s\n", err)
 	}
-	if err := checkBufferEqual(cart1.Trainer, cart2.Trainer); err != nil {
+	if err := checkBufferEqual(cart1.Trainer, cart2.Trainer, debug); err != nil {
 		fmt.Printf("Trainer difference: %s\n", err)
 	}
 	if cart1.Mapper != cart2.Mapper {
