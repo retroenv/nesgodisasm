@@ -60,7 +60,11 @@ func (dis *Disasm) handleJumpIntoInstruction(offset uint16) {
 // bytes being assembled and make the resulting ROM not match the original.
 func (dis *Disasm) handleUnofficialNop(offset uint16) {
 	ins := &dis.offsets[offset]
-	ins.Comment = fmt.Sprintf("unofficial nop instruction: %s", ins.Code)
+	if ins.Code == "" { // in case of branch into unofficial nop instruction detected
+		ins.Comment = fmt.Sprintf("unofficial nop instruction: %s", ins.Comment)
+	} else {
+		ins.Comment = fmt.Sprintf("unofficial nop instruction: %s", ins.Code)
+	}
 	ins.Code = ""
 	ins.SetType(program.CodeAsData)
 	dis.changeOffsetRangeToData(ins.OpcodeBytes, offset)

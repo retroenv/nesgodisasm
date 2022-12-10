@@ -58,7 +58,12 @@ func (dis *Disasm) checkInstructionOverlap(offsetInfo *offset, offset uint16) {
 	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(offset)+i < len(dis.offsets); i++ {
 		ins := &dis.offsets[offset+uint16(i)]
 		if ins.IsType(program.CodeOffset) {
+			ins.Comment = "branch into instruction detected"
+			offsetInfo.Comment = offsetInfo.Code
 			offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:i]
+			offsetInfo.Code = ""
+			offsetInfo.ClearType(program.CodeOffset)
+			offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 			return
 		}
 	}
