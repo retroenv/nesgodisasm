@@ -102,7 +102,7 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 	}
 
 	destination := dis.readMemoryWord(address)
-	if destination < CodeBaseAddress {
+	if destination < dis.codeBaseAddress {
 		jumpEngine.terminated = true
 		return false
 	}
