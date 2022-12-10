@@ -98,7 +98,7 @@ func (dis *Disasm) handleJumpEngineCaller(caller uint16) {
 // It returns whether the entry was a valid function reference address and has been added for processing.
 func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address uint16) bool {
 	if jumpEngine.terminated {
-		return true
+		return false
 	}
 
 	destination := dis.readMemoryWord(address)
@@ -132,16 +132,27 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 // follows the call. It returns whether a new address to parse was added.
 func (dis *Disasm) scanForNewJumpEngineEntry() bool {
 	for len(dis.jumpEngineCallers) != 0 {
+		minEntries := -1
+
 		// find the jump engine table with the smallest number of processed entries,
 		// this conservative approach avoids interpreting code in the table area as function references
-		minEntries := -1
-		for _, engineCaller := range dis.jumpEngineCallers {
-			if i := engineCaller.entries; i < minEntries || minEntries == -1 {
+		for i := 0; i < len(dis.jumpEngineCallers); i++ {
+			engineCaller := dis.jumpEngineCallers[i]
+			if engineCaller.terminated {
+				// jump engine table is processed, remove it from list to process
+				dis.jumpEngineCallers = append(dis.jumpEngineCallers[:i], dis.jumpEngineCallers[i+1:]...)
+			}
+
+			if i := engineCaller.entries; !engineCaller.terminated && (i < minEntries || minEntries == -1) {
 				minEntries = i
 			}
 		}
+		if minEntries == -1 {
+			return false
+		}
 
-		for i, engineCaller := range dis.jumpEngineCallers {
+		for i := 0; i < len(dis.jumpEngineCallers); i++ {
+			engineCaller := dis.jumpEngineCallers[i]
 			if engineCaller.entries != minEntries {
 				continue
 			}
@@ -154,6 +165,7 @@ func (dis *Disasm) scanForNewJumpEngineEntry() bool {
 
 			// jump engine table is processed, remove it from list to process
 			dis.jumpEngineCallers = append(dis.jumpEngineCallers[:i], dis.jumpEngineCallers[i+1:]...)
+			i--
 		}
 	}
 	return false
