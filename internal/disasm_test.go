@@ -11,13 +11,34 @@ import (
 	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
-func TestDisasmCodeExample(t *testing.T) {
+func TestDisasmZeroDataReference(t *testing.T) {
 	input := []byte{
-		0x78,             // sei
-		0x4C, 0x04, 0x80, // jmp + 3
-		0xAD, 0x30, 0x80, // lda a:$8030
-		0xBD, 0x20, 0x80, // lda a:$8020,X
-		0xea,       // nop
+		0xAD, 0x20, 0x80, // lda a:$8020
+		0xBD, 0x10, 0x80, // lda a:$8010,X
+		0x40, // rti
+	}
+
+	// TODO: fix missing reference
+	expected := `Reset:
+        lda a:_data_8020               ; $8000 AD 20 80
+        lda a:_data_8010_indexed,X     ; $8003 BD 10 80
+        rti                            ; $8006 40
+        
+        .byte $00, $00, $00, $00, $00, $00, $00, $00, $00
+        
+        _data_8010_indexed:
+        .byte $12, $00, $00, $00, $00, $34
+`
+
+	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+		cart.PRG[0x0010] = 0x12
+		cart.PRG[0x0015] = 0x34
+	}
+	runDisasm(t, setup, input, expected)
+}
+
+func TestDisasmBranchIntoUnofficialNop(t *testing.T) {
+	input := []byte{
 		0x90, 0x01, // bcc +1
 		0xdc, 0xae, 0x8b, // nop $8BAE,X
 		0x78, // sei
@@ -25,34 +46,15 @@ func TestDisasmCodeExample(t *testing.T) {
 	}
 
 	expected := `Reset:
-  sei                            ; $8000 78
-  jmp _label_8004                ; $8001 4C 04 80
-
-_label_8004:
-  lda a:_data_8030               ; $8004 AD 30 80
-  lda a:_data_8020_indexed,X     ; $8007 BD 20 80
-  nop                            ; $800A EA
-  bcc _label_800e                ; $800B 90 01
-.byte $dc                        ; $800D unofficial nop instruction: nop $8BAE,X DC
-
-_label_800e:
-  ldx a:$788B                    ; $800E branch into instruction detected AE 8B 78
-  rti                            ; $8011 40
-
-.byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-
-_data_8020_indexed:
-.byte $12, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-
-_data_8030:
-.byte $34
+        bcc _label_8003
+        .byte $dc                        ; unofficial nop instruction: nop $8BAE,X
+        
+        _label_8003:
+        ldx a:$788B                    ; branch into instruction detected
+        rti
 `
 
-	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
-		cart.PRG[0x0020] = 0x12
-		cart.PRG[0x0030] = 0x34
-	}
-	runDisasm(t, setup, input, expected)
+	runDisasm(t, nil, input, expected)
 }
 
 func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
