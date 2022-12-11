@@ -18,7 +18,6 @@ func TestDisasmZeroDataReference(t *testing.T) {
 		0x40, // rti
 	}
 
-	// TODO: fix missing reference
 	expected := `Reset:
         lda a:_data_8020               ; $8000 AD 20 80
         lda a:_data_8010_indexed,X     ; $8003 BD 10 80
@@ -27,7 +26,10 @@ func TestDisasmZeroDataReference(t *testing.T) {
         .byte $00, $00, $00, $00, $00, $00, $00, $00, $00
         
         _data_8010_indexed:
-        .byte $12, $00, $00, $00, $00, $34
+        .byte $12, $00, $00, $00, $00, $34, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+        
+        _data_8020:
+        .byte $00
 `
 
 	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
