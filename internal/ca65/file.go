@@ -377,7 +377,7 @@ func getLastNonZeroPRGByte(options *disasmoptions.Options, app *program.Program)
 
 	for i := start; i >= 0; i-- {
 		offset := app.PRG[i]
-		if len(offset.OpcodeBytes) == 0 || offset.OpcodeBytes[0] == 0 {
+		if (len(offset.OpcodeBytes) == 0 || offset.OpcodeBytes[0] == 0) && offset.Label == "" {
 			continue
 		}
 		return i + 1, nil
