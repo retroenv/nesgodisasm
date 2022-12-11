@@ -102,30 +102,49 @@ func TestDisasmJumpEngine(t *testing.T) {
 	}
 
 	expected := `
-		_var_0004_indexed = $0004
+        _var_0004_indexed = $0004
         
         Reset:
-          jsr _func_8005
+        jsr _func_8005
         
-          .word _label_801a
+        .word _label_801a
         
         _func_8005:                      ; jump engine detected
-          asl a
-          tay
-          pla
-          sta $04
-          pla
-          sta $05
-          iny
-          lda (_var_0004_indexed),Y
-          sta $06
-          iny
-          lda (_var_0004_indexed),Y
-          sta $07
-          jmp ($0006)
+        asl a
+        tay
+        pla
+        sta z:_var_0004_indexed
+        pla
+        sta z:$05
+        iny
+        lda (_var_0004_indexed),Y
+        sta z:$06
+        iny
+        lda (_var_0004_indexed),Y
+        sta z:$07
+        jmp ($0006)
         
         _label_801a:
-          rti
+        rti
+`
+
+	runDisasm(t, nil, input, expected)
+}
+
+func TestDisasmMixedAccess(t *testing.T) {
+	input := []byte{
+		0x85, 0x04, // sta $04
+		0xB1, 0x04, // lda $04,Y
+		0x40, // rti
+	}
+
+	expected := `
+        _var_0004_indexed = $0004
+        
+        Reset:
+        sta z:_var_0004_indexed
+        lda (_var_0004_indexed),Y
+        rti
 `
 
 	runDisasm(t, nil, input, expected)

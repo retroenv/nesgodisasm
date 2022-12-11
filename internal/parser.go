@@ -128,21 +128,8 @@ func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param a
 		return paramAsString
 	}
 
-	var address uint16
-	switch val := param.(type) {
-	case Absolute:
-		address = uint16(val)
-	case AbsoluteX:
-		address = uint16(val)
-	case AbsoluteY:
-		address = uint16(val)
-	case Indirect:
-		address = uint16(val)
-	case IndirectX:
-		address = uint16(val)
-	case IndirectY:
-		address = uint16(val)
-	default:
+	address, ok := getAddressingParam(param)
+	if !ok {
 		return paramAsString
 	}
 
@@ -234,5 +221,31 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 		dis.functionReturnsToParseAdded[address] = struct{}{}
 	} else {
 		dis.offsetsToParse = append(dis.offsetsToParse, address)
+	}
+}
+
+// getAddressingParam returns the address of the param if it references an address.
+func getAddressingParam(param any) (uint16, bool) {
+	switch val := param.(type) {
+	case Absolute:
+		return uint16(val), true
+	case AbsoluteX:
+		return uint16(val), true
+	case AbsoluteY:
+		return uint16(val), true
+	case Indirect:
+		return uint16(val), true
+	case IndirectX:
+		return uint16(val), true
+	case IndirectY:
+		return uint16(val), true
+	case ZeroPage:
+		return uint16(val), true
+	case ZeroPageX:
+		return uint16(val), true
+	case ZeroPageY:
+		return uint16(val), true
+	default:
+		return 0, false
 	}
 }
