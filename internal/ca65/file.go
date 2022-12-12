@@ -53,7 +53,7 @@ func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, 
 			headerByteWrite{value: byte(len(app.PRG) / 16384), comment: "Number of 16KB PRG-ROM banks"},
 			headerByteWrite{value: byte(len(app.CHR) / 8192), comment: "Number of 8KB CHR-ROM banks"},
 			headerByteWrite{value: control1, comment: "Control bits 1"},
-			headerByteWrite{value: control2, comment: "Control bits 1"},
+			headerByteWrite{value: control2, comment: "Control bits 2"},
 			headerByteWrite{value: app.RAM, comment: "Number of 8KB PRG-RAM banks"},
 			headerByteWrite{value: app.VideoFormat, comment: "Video format NTSC/PAL"},
 		}
