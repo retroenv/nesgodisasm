@@ -67,6 +67,7 @@ func (dis *Disasm) handleJumpEngineCallers(context uint16) {
 	context = dis.addressToOffset(context)
 	jumpEngineOffset := &dis.offsets[context]
 	jumpEngineOffset.LabelComment = "jump engine detected"
+	jumpEngineOffset.SetType(program.JumpEngine)
 
 	for _, caller := range jumpEngineOffset.branchFrom {
 		dis.handleJumpEngineCaller(caller)
