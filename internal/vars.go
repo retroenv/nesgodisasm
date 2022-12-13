@@ -139,11 +139,11 @@ func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 // is using an adjuster like +1 or +2.
 func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
 	var name string
+
 	if offsetInfo != nil && offsetInfo.Label != "" {
 		// if destination has an existing label, reuse it
 		name = offsetInfo.Label
 	} else {
-
 		prgAccess := offsetInfo != nil
 
 		switch {
