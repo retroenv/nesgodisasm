@@ -103,6 +103,7 @@ func TestDisasmJumpEngine(t *testing.T) {
 
 	expected := `
         _var_0004_indexed = $0004
+        _var_0006 = $0006
         
         Reset:
         jsr _func_8005
@@ -118,11 +119,11 @@ func TestDisasmJumpEngine(t *testing.T) {
         sta z:$05
         iny
         lda (_var_0004_indexed),Y
-        sta z:$06
+        sta z:_var_0006
         iny
         lda (_var_0004_indexed),Y
         sta z:$07
-        jmp ($0006)
+        jmp (_var_0006)
         
         _label_801a:
         rti
