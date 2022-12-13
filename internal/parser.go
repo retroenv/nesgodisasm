@@ -125,7 +125,9 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 // a constant, zero page variable or a code reference.
 func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param any, paramAsString string) string {
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
-		return paramAsString
+		if opcode.Instruction.Name != cpu.JmpInstruction && opcode.Addressing != IndirectAddressing {
+			return paramAsString
+		}
 	}
 
 	address, ok := getAddressingParam(param)
