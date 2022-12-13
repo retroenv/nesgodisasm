@@ -33,7 +33,9 @@ func (dis *Disasm) changeOffsetRangeToData(data []byte, offset uint16) {
 // processData sets all data bytes for offsets that have not being identified as code.
 func (dis *Disasm) processData() {
 	for i, offset := range dis.offsets {
-		if offset.IsType(program.CodeOffset) || offset.IsType(program.DataOffset) {
+		if offset.IsType(program.CodeOffset) ||
+			offset.IsType(program.DataOffset) ||
+			offset.IsType(program.FunctionReference) {
 			continue
 		}
 

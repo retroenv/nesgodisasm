@@ -121,6 +121,7 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 	offsetInfo2.Offset.SetType(program.FunctionReference)
 
 	offsetInfo1.OpcodeBytes = []byte{dis.readMemory(address), dis.readMemory(address + 1)}
+	offsetInfo2.OpcodeBytes = nil
 
 	jumpEngine.entries++
 

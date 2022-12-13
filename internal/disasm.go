@@ -173,30 +173,9 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 
 	for i := 0; i < len(dis.offsets); i++ {
 		res := dis.offsets[i]
-		offset := res.Offset
-
-		if res.branchingTo != "" {
-			offset.Code = fmt.Sprintf("%s %s", res.Code, res.branchingTo)
-		}
-
-		switch {
-		case res.IsType(program.CodeOffset | program.CodeAsData):
-			if len(offset.OpcodeBytes) == 0 && offset.Label == "" {
-				continue
-			}
-			if dis.options.OffsetComments {
-				setOffsetComment(&offset, dis.codeBaseAddress+uint16(i))
-			}
-			if dis.options.HexComments {
-				if err := setHexCodeComment(&offset); err != nil {
-					return nil, err
-				}
-			}
-
-		case res.IsType(program.FunctionReference):
-			offset.Code = fmt.Sprintf(".word %s", res.branchingTo)
-		default:
-			offset.SetType(program.DataOffset)
+		offset, err := getProgramOffset(res, dis.codeBaseAddress+uint16(i), dis.options)
+		if err != nil {
+			return nil, err
 		}
 
 		app.PRG[i] = offset
@@ -243,12 +222,42 @@ func (dis *Disasm) loadCodeDataLog() error {
 	return nil
 }
 
+func getProgramOffset(res offset, address uint16, options *disasmoptions.Options) (program.Offset, error) {
+	offset := res.Offset
+	if res.branchingTo != "" {
+		offset.Code = fmt.Sprintf("%s %s", res.Code, res.branchingTo)
+	}
+
+	if res.IsType(program.CodeOffset | program.CodeAsData | program.FunctionReference) {
+		if len(offset.OpcodeBytes) == 0 && offset.Label == "" {
+			return offset, nil
+		}
+
+		if res.IsType(program.FunctionReference) {
+			offset.Code = fmt.Sprintf(".word %s", res.branchingTo)
+		}
+
+		if options.OffsetComments {
+			setOffsetComment(&offset, address)
+		}
+		if options.HexComments {
+			if err := setHexCodeComment(&offset); err != nil {
+				return program.Offset{}, err
+			}
+		}
+	} else {
+		offset.SetType(program.DataOffset)
+	}
+
+	return offset, nil
+}
+
 func setHexCodeComment(offset *program.Offset) error {
 	buf := &strings.Builder{}
 
 	for _, b := range offset.OpcodeBytes {
 		if _, err := fmt.Fprintf(buf, "%02X ", b); err != nil {
-			return fmt.Errorf("writing hext comment: %w", err)
+			return fmt.Errorf("writing hex comment: %w", err)
 		}
 	}
 

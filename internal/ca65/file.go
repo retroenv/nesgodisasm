@@ -223,7 +223,7 @@ func writeOffset(app *program.Program, writer io.Writer, index, endIndex int, of
 		return 0, nil
 	}
 	if offset.IsType(program.FunctionReference) {
-		if _, err := fmt.Fprintf(writer, "  %s\n", offset.Code); err != nil {
+		if err := writeCodeLine(writer, offset); err != nil {
 			return 0, fmt.Errorf("writing function reference: %w", err)
 		}
 		return 1, nil
@@ -241,7 +241,7 @@ func writeOffset(app *program.Program, writer io.Writer, index, endIndex int, of
 	}
 
 	if err := writeCodeLine(writer, offset); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("writing code line: %w", err)
 	}
 	return len(offset.OpcodeBytes) - 1, nil
 }
@@ -272,11 +272,11 @@ func writeLabel(writer io.Writer, index int, offset program.Offset) error {
 func writeCodeLine(writer io.Writer, offset program.Offset) error {
 	if offset.Comment == "" {
 		if _, err := fmt.Fprintf(writer, "  %s\n", offset.Code); err != nil {
-			return fmt.Errorf("writing code line: %w", err)
+			return fmt.Errorf("writing line: %w", err)
 		}
 	} else {
 		if _, err := fmt.Fprintf(writer, "  %-30s ; %s\n", offset.Code, offset.Comment); err != nil {
-			return fmt.Errorf("writing code line: %w", err)
+			return fmt.Errorf("writing line: %w", err)
 		}
 	}
 	return nil
