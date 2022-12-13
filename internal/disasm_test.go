@@ -106,11 +106,11 @@ func TestDisasmJumpEngine(t *testing.T) {
         _var_0006 = $0006
         
         Reset:
-        jsr _func_8005
+        jsr _jump_engine_8005
         
         .word _label_801a
         
-        _func_8005:                      ; jump engine detected
+        _jump_engine_8005:               ; jump engine detected
         asl a
         tay
         pla

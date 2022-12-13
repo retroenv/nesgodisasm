@@ -6,28 +6,39 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 )
 
+const (
+	funcNaming       = "_func_%04x"
+	jumpEngineNaming = "_jump_engine_%04x"
+	labelNaming      = "_label_%04x"
+)
+
 // processJumpDestinations processes all jump destinations and updates the callers with
 // the generated jump destination label name.
 func (dis *Disasm) processJumpDestinations() {
 	for address := range dis.branchDestinations {
 		offset := dis.addressToOffset(address)
-		name := dis.offsets[offset].Label
+		offsetInfo := &dis.offsets[offset]
+
+		name := offsetInfo.Label
 		if name == "" {
-			if dis.offsets[offset].IsType(program.CallDestination) {
-				name = fmt.Sprintf("_func_%04x", address)
-			} else {
-				name = fmt.Sprintf("_label_%04x", address)
+			switch {
+			case offsetInfo.IsType(program.JumpEngine):
+				name = fmt.Sprintf(jumpEngineNaming, address)
+			case offsetInfo.IsType(program.CallDestination):
+				name = fmt.Sprintf(funcNaming, address)
+			default:
+				name = fmt.Sprintf(labelNaming, address)
 			}
-			dis.offsets[offset].Label = name
+			offsetInfo.Label = name
 		}
 
 		// if the offset is marked as code but does not have opcode bytes, the jump destination
 		// is inside the second or third byte of an instruction.
-		if dis.offsets[offset].IsType(program.CodeOffset) && len(dis.offsets[offset].OpcodeBytes) == 0 {
+		if offsetInfo.IsType(program.CodeOffset) && len(offsetInfo.OpcodeBytes) == 0 {
 			dis.handleJumpIntoInstruction(offset)
 		}
 
-		for _, caller := range dis.offsets[offset].branchFrom {
+		for _, caller := range offsetInfo.branchFrom {
 			caller = dis.addressToOffset(caller)
 			offset := &dis.offsets[caller]
 			offset.branchingTo = name
