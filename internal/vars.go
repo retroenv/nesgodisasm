@@ -2,6 +2,7 @@ package disasm
 
 import (
 	"fmt"
+	"sort"
 
 	. "github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cpu"
@@ -19,6 +20,7 @@ type variable struct {
 	reads  bool
 	writes bool
 
+	address      uint16
 	name         string
 	indexedUsage bool     // access with X/Y registers indicates table
 	usageAt      []uint16 // list of all addresses that use this offset
@@ -39,7 +41,9 @@ func (dis *Disasm) addVariableReference(offset uint16, opcode cpu.Opcode, addres
 
 	varInfo := dis.variables[address]
 	if varInfo == nil {
-		varInfo = &variable{}
+		varInfo = &variable{
+			address: address,
+		}
 		dis.variables[address] = varInfo
 	}
 	varInfo.usageAt = append(varInfo.usageAt, offset)
@@ -64,8 +68,16 @@ func (dis *Disasm) addVariableReference(offset uint16, opcode cpu.Opcode, addres
 // processVariables processes all variables and updates the instructions that use them
 // with a generated alias name.
 func (dis *Disasm) processVariables() error {
-	for address, varInfo := range dis.variables {
-		if len(varInfo.usageAt) == 1 && !varInfo.indexedUsage && address < CodeBaseAddress {
+	variables := make([]*variable, 0, len(dis.variables))
+	for _, varInfo := range dis.variables {
+		variables = append(variables, varInfo)
+	}
+	sort.Slice(variables, func(i, j int) bool {
+		return variables[i].address < variables[j].address
+	})
+
+	for _, varInfo := range variables {
+		if len(varInfo.usageAt) == 1 && !varInfo.indexedUsage && varInfo.address < CodeBaseAddress {
 			if !varInfo.reads || !varInfo.writes {
 				continue // ignore only once usages or ones that are not read and write
 			}
@@ -73,14 +85,14 @@ func (dis *Disasm) processVariables() error {
 
 		var dataOffsetInfo *offset
 		var addressAdjustment uint16
-		if address >= CodeBaseAddress {
-			dataOffsetInfo, address, addressAdjustment = dis.getOpcodeStart(address)
+		if varInfo.address >= CodeBaseAddress {
+			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(varInfo.address)
 		} else {
-			dis.usedVariables[address] = struct{}{}
+			dis.usedVariables[varInfo.address] = struct{}{}
 		}
 
 		var reference string
-		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, address, addressAdjustment)
+		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
 
 		for _, usedAddress := range varInfo.usageAt {
 			offset := dis.addressToOffset(usedAddress)
@@ -126,33 +138,31 @@ func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 // It returns the name of the variable and a string to reference it, it is possible that the reference
 // is using an adjuster like +1 or +2.
 func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
-	var reference string
-	if offsetInfo != nil {
+	var name string
+	if offsetInfo != nil && offsetInfo.Label != "" {
 		// if destination has an existing label, reuse it
-		if offsetInfo.Label != "" {
-			return offsetInfo.Label, reference
+		name = offsetInfo.Label
+	} else {
+
+		prgAccess := offsetInfo != nil
+
+		switch {
+		case prgAccess && indexedUsage:
+			name = fmt.Sprintf(dataNamingIndexed, address)
+		case prgAccess && !indexedUsage:
+			name = fmt.Sprintf(dataNaming, address)
+		case !prgAccess && indexedUsage:
+			name = fmt.Sprintf(variableNamingIndexed, address)
+		default:
+			name = fmt.Sprintf(variableNaming, address)
 		}
 	}
 
-	var name string
-	prgAccess := offsetInfo != nil
-
-	switch {
-	case prgAccess && indexedUsage:
-		name = fmt.Sprintf(dataNamingIndexed, address)
-	case prgAccess && !indexedUsage:
-		name = fmt.Sprintf(dataNaming, address)
-	case !prgAccess && indexedUsage:
-		name = fmt.Sprintf(variableNamingIndexed, address)
-	default:
-		name = fmt.Sprintf(variableNaming, address)
-	}
-
-	reference = name + reference
+	reference := name
 	if addressAdjustment > 0 {
 		reference = fmt.Sprintf("%s+%d", reference, addressAdjustment)
 	}
-	if offsetInfo != nil {
+	if offsetInfo != nil && offsetInfo.Label == "" {
 		offsetInfo.Label = name
 	}
 	return name, reference
