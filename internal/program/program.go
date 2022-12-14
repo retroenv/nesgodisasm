@@ -24,6 +24,13 @@ type Handlers struct {
 	IRQ   string
 }
 
+// Checksums contains the CRC32 checksums to identify the PRG and CHR parts of the ROM.
+type Checksums struct {
+	PRG     uint32
+	CHR     uint32
+	Overall uint32
+}
+
 // Program defines an NES program that contains code or data.
 type Program struct {
 	PRG     []Offset // PRG-ROM banks
@@ -31,6 +38,7 @@ type Program struct {
 	RAM     byte     // PRG-RAM banks
 	Trainer []byte
 
+	Checksums   Checksums
 	Handlers    Handlers
 	Battery     byte
 	Mirror      cartridge.MirrorMode

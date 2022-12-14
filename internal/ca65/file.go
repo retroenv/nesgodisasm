@@ -47,6 +47,7 @@ func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, 
 
 	if !options.CodeOnly {
 		writes = []any{
+			customWrite(f.writeChecksums),
 			lineWrite(cpuSelector),
 			segmentWrite{name: "HEADER"},
 			lineWrite(iNESHeader),
@@ -116,7 +117,7 @@ func (f FileWriter) writeSegment(writer io.Writer, name string) error {
 	return nil
 }
 
-// writeConstants will write constant aliases to the output.
+// writeConstants writes constant aliases to the output.
 func (f FileWriter) writeConstants(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
 	if len(app.Constants) == 0 {
 		return nil
@@ -125,13 +126,27 @@ func (f FileWriter) writeConstants(_ *disasmoptions.Options, app *program.Progra
 	return outputAliasMap(app.Constants, writer)
 }
 
-// writeVariables will write variable aliases to the output.
+// writeVariables writes variable aliases to the output.
 func (f FileWriter) writeVariables(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
 	if len(app.Variables) == 0 {
 		return nil
 	}
 
 	return outputAliasMap(app.Variables, writer)
+}
+
+// writeChecksums writes the CRC32 checksums as comments to the output.
+func (f FileWriter) writeChecksums(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+	if _, err := fmt.Fprintf(writer, "; PRG CRC32 checksum: %08x\n", app.Checksums.PRG); err != nil {
+		return fmt.Errorf("writing prg checksum: %w", err)
+	}
+	if _, err := fmt.Fprintf(writer, "; CHR CRC32 checksum: %08x\n", app.Checksums.CHR); err != nil {
+		return fmt.Errorf("writing chr checksum: %w", err)
+	}
+	if _, err := fmt.Fprintf(writer, "; Overall CRC32 checksum: %08x\n\n", app.Checksums.Overall); err != nil {
+		return fmt.Errorf("writing overall checksum: %w", err)
+	}
+	return nil
 }
 
 func outputAliasMap(aliases map[string]uint16, writer io.Writer) error {
