@@ -3,6 +3,7 @@ package disasm
 
 import (
 	"fmt"
+	"hash/crc32"
 	"io"
 	"strings"
 
@@ -194,6 +195,11 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		varInfo := dis.variables[address]
 		app.Variables[varInfo.name] = address
 	}
+
+	crc32q := crc32.MakeTable(crc32.IEEE)
+	app.Checksums.PRG = crc32.Checksum(dis.cart.PRG, crc32q)
+	app.Checksums.CHR = crc32.Checksum(dis.cart.CHR, crc32q)
+	app.Checksums.Overall = crc32.Checksum(append(dis.cart.PRG, dis.cart.CHR...), crc32q)
 
 	return app, nil
 }
