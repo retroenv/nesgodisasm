@@ -81,9 +81,9 @@ _label_8007:
 	runDisasm(t, nil, input, expected)
 }
 
-func TestDisasmJumpEngine(t *testing.T) {
+func TestDisasmJumpEngineTableFromCaller(t *testing.T) {
 	input := []byte{
-		0x20, 0x05, 0x80, // // jsr $8005
+		0x20, 0x05, 0x80, // jsr $8005
 		0x1a, 0x80, // .word 801a
 		0x0A,       // 8005: asl a
 		0xA8,       // tay
@@ -127,6 +127,46 @@ func TestDisasmJumpEngine(t *testing.T) {
         
         _label_801a:
         rti
+`
+
+	runDisasm(t, nil, input, expected)
+}
+
+func TestDisasmJumpEngineTableAppended(t *testing.T) {
+	input := []byte{
+		0xa5, 0xd7, //
+		0x0a,             //
+		0xaa,             //
+		0xbd, 0x15, 0x80, //
+		0x8d, 0x00, 0x02, //
+		0xbd, 0x16, 0x80, //
+		0x8d, 0x01, 0x02, //
+		0x6c, 0x00, 0x02, //
+		0x00, 0x00, //
+		0x12, 0x80, //
+		0x40, //
+	}
+
+	expected := `
+        _var_0200 = $0200
+        
+        Reset:                           ; jump engine detected
+        lda z:$D7
+        asl a
+        tax
+        lda a:_data_8015_indexed,X
+        sta a:_var_0200
+        lda a:_data_8016_indexed,X
+        sta a:$0201
+        jmp (_var_0200)
+        
+        .byte $00, $00
+        
+        _data_8015_indexed:
+        .byte $12
+        
+        _data_8016_indexed:
+        .byte $80, $40
 `
 
 	runDisasm(t, nil, input, expected)
