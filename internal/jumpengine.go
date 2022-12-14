@@ -26,8 +26,8 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 
 	// parse all instructions of the function context until the jump
 	for address := offsetInfo.context; address != 0 && address > jumpAddress; {
-		address = dis.addressToOffset(address)
-		offsetInfo = &dis.offsets[address]
+		index := dis.addressToIndex(address)
+		offsetInfo = &dis.offsets[index]
 
 		// if current function has a branching instruction beside the final jump, it's probably not one
 		// of the common jump engines
@@ -64,12 +64,12 @@ func (dis *Disasm) checkForJumpEngineCall(offsetInfo *offset, address uint16) {
 
 // handleJumpEngineCallers processes all callers of a newly detected jump engine function.
 func (dis *Disasm) handleJumpEngineCallers(context uint16) {
-	context = dis.addressToOffset(context)
-	jumpEngineOffset := &dis.offsets[context]
-	jumpEngineOffset.LabelComment = "jump engine detected"
-	jumpEngineOffset.SetType(program.JumpEngine)
+	index := dis.addressToIndex(context)
+	offsetInfo := &dis.offsets[index]
+	offsetInfo.LabelComment = "jump engine detected"
+	offsetInfo.SetType(program.JumpEngine)
 
-	for _, caller := range jumpEngineOffset.branchFrom {
+	for _, caller := range offsetInfo.branchFrom {
 		dis.handleJumpEngineCaller(caller)
 	}
 }
@@ -85,8 +85,8 @@ func (dis *Disasm) handleJumpEngineCaller(caller uint16) {
 	}
 
 	// get the address of the function pointers after the jump engine call
-	offset := dis.addressToOffset(caller)
-	offsetInfo := &dis.offsets[offset]
+	index := dis.addressToIndex(caller)
+	offsetInfo := &dis.offsets[index]
 	address := caller + uint16(len(offsetInfo.OpcodeBytes))
 	// remove from code that should be parsed
 	delete(dis.functionReturnsToParseAdded, address)
@@ -108,10 +108,10 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 		return false
 	}
 
-	offset1 := dis.addressToOffset(address)
-	offsetInfo1 := &dis.offsets[offset1]
-	offset2 := dis.addressToOffset(address + 1)
-	offsetInfo2 := &dis.offsets[offset2]
+	indexByte1 := dis.addressToIndex(address)
+	offsetInfo1 := &dis.offsets[indexByte1]
+	indexByte2 := dis.addressToIndex(address + 1)
+	offsetInfo2 := &dis.offsets[indexByte2]
 
 	if offsetInfo1.Offset.Type == program.CodeOffset || offsetInfo2.Offset.Type == program.CodeOffset {
 		jumpEngine.terminated = true

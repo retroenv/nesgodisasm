@@ -14,7 +14,9 @@ type constTranslation struct {
 	Write string
 }
 
-func (dis *Disasm) replaceParamByConstant(opcode cpu.Opcode, paramAsString string, address uint16, constantInfo constTranslation) string {
+func (dis *Disasm) replaceParamByConstant(opcode cpu.Opcode, paramAsString string, address uint16,
+	constantInfo constTranslation) string {
+
 	// split parameter string in case of x/y indexing, only the first part will be replaced by a const name
 	paramParts := strings.Split(paramAsString, ",")
 

@@ -89,7 +89,7 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 	}
 
 	if options.CodeDataLog != nil {
-		if err := dis.loadCodeDataLog(); err != nil {
+		if err = dis.loadCodeDataLog(); err != nil {
 			return nil, err
 		}
 	}
@@ -118,7 +118,7 @@ func (dis *Disasm) Process(writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := dis.fileWriter.Write(dis.options, app, writer); err != nil {
+	if err = dis.fileWriter.Write(dis.options, app, writer); err != nil {
 		return fmt.Errorf("writing app to file: %w", err)
 	}
 	return nil
@@ -144,24 +144,24 @@ func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(0xFFFA)
 	if nmi != 0 {
 		dis.addAddressToParse(nmi, nmi, 0, nil, false)
-		offset := dis.addressToOffset(nmi)
-		dis.offsets[offset].Label = "NMI"
-		dis.offsets[offset].SetType(program.CallDestination)
+		index := dis.addressToIndex(nmi)
+		dis.offsets[index].Label = "NMI"
+		dis.offsets[index].SetType(program.CallDestination)
 		dis.handlers.NMI = "NMI"
 	}
 
 	reset := dis.readMemoryWord(0xFFFC)
 	dis.addAddressToParse(reset, reset, 0, nil, false)
-	offset := dis.addressToOffset(reset)
-	dis.offsets[offset].Label = "Reset"
-	dis.offsets[offset].SetType(program.CallDestination)
+	index := dis.addressToIndex(reset)
+	dis.offsets[index].Label = "Reset"
+	dis.offsets[index].SetType(program.CallDestination)
 
 	irq := dis.readMemoryWord(0xFFFE)
 	if irq != 0 {
 		dis.addAddressToParse(irq, irq, 0, nil, false)
-		offset = dis.addressToOffset(irq)
-		dis.offsets[offset].Label = "IRQ"
-		dis.offsets[offset].SetType(program.CallDestination)
+		index = dis.addressToIndex(irq)
+		dis.offsets[index].Label = "IRQ"
+		dis.offsets[index].SetType(program.CallDestination)
 		dis.handlers.IRQ = "IRQ"
 	}
 }
@@ -173,13 +173,13 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app.Handlers = dis.handlers
 
 	for i := 0; i < len(dis.offsets); i++ {
-		res := dis.offsets[i]
-		offset, err := getProgramOffset(res, dis.codeBaseAddress+uint16(i), dis.options)
+		offsetInfo := dis.offsets[i]
+		programOffsetInfo, err := getProgramOffset(offsetInfo, dis.codeBaseAddress+uint16(i), dis.options)
 		if err != nil {
 			return nil, err
 		}
 
-		app.PRG[i] = offset
+		app.PRG[i] = programOffsetInfo
 	}
 
 	for address := range dis.usedConstants {
@@ -204,10 +204,11 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	return app, nil
 }
 
-func (dis *Disasm) addressToOffset(address uint16) uint16 {
-	offset := address - CodeBaseAddress
-	offset %= uint16(len(dis.cart.PRG))
-	return offset
+// addressToIndex converts an address if the code base address to an index into the PRG array.
+func (dis *Disasm) addressToIndex(address uint16) uint16 {
+	index := address - CodeBaseAddress
+	index %= uint16(len(dis.cart.PRG))
+	return index
 }
 
 func (dis *Disasm) loadCodeDataLog() error {
@@ -216,46 +217,46 @@ func (dis *Disasm) loadCodeDataLog() error {
 		return fmt.Errorf("loading code/data log file: %w", err)
 	}
 
-	for offset, flags := range prgFlags {
+	for index, flags := range prgFlags {
 		if flags&codedatalog.Code != 0 {
-			dis.addAddressToParse(dis.codeBaseAddress+uint16(offset), 0, 0, nil, false)
+			dis.addAddressToParse(dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
 		}
 		if flags&codedatalog.SubEntryPoint != 0 {
-			dis.offsets[offset].SetType(program.CallDestination)
+			dis.offsets[index].SetType(program.CallDestination)
 		}
 	}
 
 	return nil
 }
 
-func getProgramOffset(res offset, address uint16, options *disasmoptions.Options) (program.Offset, error) {
-	offset := res.Offset
-	if res.branchingTo != "" {
-		offset.Code = fmt.Sprintf("%s %s", res.Code, res.branchingTo)
+func getProgramOffset(offsetInfo offset, address uint16, options *disasmoptions.Options) (program.Offset, error) {
+	programOffset := offsetInfo.Offset
+	if offsetInfo.branchingTo != "" {
+		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code, offsetInfo.branchingTo)
 	}
 
-	if res.IsType(program.CodeOffset | program.CodeAsData | program.FunctionReference) {
-		if len(offset.OpcodeBytes) == 0 && offset.Label == "" {
-			return offset, nil
+	if offsetInfo.IsType(program.CodeOffset | program.CodeAsData | program.FunctionReference) {
+		if len(programOffset.OpcodeBytes) == 0 && programOffset.Label == "" {
+			return programOffset, nil
 		}
 
-		if res.IsType(program.FunctionReference) {
-			offset.Code = fmt.Sprintf(".word %s", res.branchingTo)
+		if offsetInfo.IsType(program.FunctionReference) {
+			programOffset.Code = fmt.Sprintf(".word %s", offsetInfo.branchingTo)
 		}
 
 		if options.OffsetComments {
-			setOffsetComment(&offset, address)
+			setOffsetComment(&programOffset, address)
 		}
 		if options.HexComments {
-			if err := setHexCodeComment(&offset); err != nil {
+			if err := setHexCodeComment(&programOffset); err != nil {
 				return program.Offset{}, err
 			}
 		}
 	} else {
-		offset.SetType(program.DataOffset)
+		programOffset.SetType(program.DataOffset)
 	}
 
-	return offset, nil
+	return programOffset, nil
 }
 
 func setHexCodeComment(offset *program.Offset) error {

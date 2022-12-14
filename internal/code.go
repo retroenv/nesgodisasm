@@ -16,8 +16,8 @@ const (
 // the generated jump destination label name.
 func (dis *Disasm) processJumpDestinations() {
 	for address := range dis.branchDestinations {
-		offset := dis.addressToOffset(address)
-		offsetInfo := &dis.offsets[offset]
+		index := dis.addressToIndex(address)
+		offsetInfo := &dis.offsets[index]
 
 		name := offsetInfo.Label
 		if name == "" {
@@ -35,17 +35,17 @@ func (dis *Disasm) processJumpDestinations() {
 		// if the offset is marked as code but does not have opcode bytes, the jump destination
 		// is inside the second or third byte of an instruction.
 		if offsetInfo.IsType(program.CodeOffset) && len(offsetInfo.OpcodeBytes) == 0 {
-			dis.handleJumpIntoInstruction(offset)
+			dis.handleJumpIntoInstruction(index)
 		}
 
 		for _, caller := range offsetInfo.branchFrom {
-			caller = dis.addressToOffset(caller)
-			offset := &dis.offsets[caller]
-			offset.branchingTo = name
+			index = dis.addressToIndex(caller)
+			offsetInfo = &dis.offsets[index]
+			offsetInfo.branchingTo = name
 
 			// reference can be a function address of a jump engine
-			if offset.IsType(program.CodeOffset) {
-				offset.Code = offset.opcode.Instruction.Name
+			if offsetInfo.IsType(program.CodeOffset) {
+				offsetInfo.Code = offsetInfo.opcode.Instruction.Name
 			}
 		}
 	}
@@ -53,38 +53,38 @@ func (dis *Disasm) processJumpDestinations() {
 
 // handleJumpIntoInstruction converts an instruction that has a jump destination label inside
 // its second or third opcode bytes into data.
-func (dis *Disasm) handleJumpIntoInstruction(offset uint16) {
+func (dis *Disasm) handleJumpIntoInstruction(index uint16) {
 	// look backwards for instruction start
-	instructionStart := offset - 1
+	instructionStart := index - 1
 	for ; len(dis.offsets[instructionStart].OpcodeBytes) == 0; instructionStart-- {
 	}
 
-	ins := &dis.offsets[instructionStart]
-	ins.Comment = fmt.Sprintf("branch into instruction detected: %s", ins.Code)
-	ins.Code = ""
-	ins.SetType(program.CodeAsData)
-	dis.changeOffsetRangeToData(ins.OpcodeBytes, instructionStart)
+	offsetInfo := &dis.offsets[instructionStart]
+	offsetInfo.Comment = fmt.Sprintf("branch into instruction detected: %s", offsetInfo.Code)
+	offsetInfo.Code = ""
+	offsetInfo.SetType(program.CodeAsData)
+	dis.changeOffsetRangeToData(offsetInfo.OpcodeBytes, instructionStart)
 }
 
 // handleUnofficialNop translates unofficial nop codes into data bytes as the instruction
 // has multiple opcodes for the same addressing mode which can result in different
 // bytes being assembled and make the resulting ROM not match the original.
-func (dis *Disasm) handleUnofficialNop(offset uint16) {
-	ins := &dis.offsets[offset]
-	if ins.Code == "" { // in case of branch into unofficial nop instruction detected
-		ins.Comment = fmt.Sprintf("unofficial nop instruction: %s", ins.Comment)
+func (dis *Disasm) handleUnofficialNop(index uint16) {
+	offsetInfo := &dis.offsets[index]
+	if offsetInfo.Code == "" { // in case of branch into unofficial nop instruction detected
+		offsetInfo.Comment = fmt.Sprintf("unofficial nop instruction: %s", offsetInfo.Comment)
 	} else {
-		ins.Comment = fmt.Sprintf("unofficial nop instruction: %s", ins.Code)
+		offsetInfo.Comment = fmt.Sprintf("unofficial nop instruction: %s", offsetInfo.Code)
 	}
-	ins.Code = ""
-	ins.SetType(program.CodeAsData)
-	dis.changeOffsetRangeToData(ins.OpcodeBytes, offset)
+	offsetInfo.Code = ""
+	offsetInfo.SetType(program.CodeAsData)
+	dis.changeOffsetRangeToData(offsetInfo.OpcodeBytes, index)
 }
 
-// changeOffsetRangeToCode sets a range of code offsets to code types.
-func (dis *Disasm) changeOffsetRangeToCode(data []byte, offset uint16) {
-	for i := 0; i < len(data) && int(offset)+i < len(dis.offsets); i++ {
-		ins := &dis.offsets[offset+uint16(i)]
-		ins.SetType(program.CodeOffset)
+// changeIndexRangeToCode sets a range of code offsets to code types.
+func (dis *Disasm) changeIndexRangeToCode(data []byte, index uint16) {
+	for i := 0; i < len(data) && int(index)+i < len(dis.offsets); i++ {
+		offsetInfo := &dis.offsets[index+uint16(i)]
+		offsetInfo.SetType(program.CodeOffset)
 	}
 }
