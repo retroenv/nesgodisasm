@@ -13,8 +13,8 @@ import (
 func (dis *Disasm) followExecutionFlow() error {
 	for addr := dis.addressToDisassemble(); addr != 0; addr = dis.addressToDisassemble() {
 		dis.pc = addr
-		offset := dis.addressToOffset(dis.pc)
-		offsetInfo, inspectCode := dis.initializeOffsetInfo(offset)
+		index := dis.addressToIndex(dis.pc)
+		offsetInfo, inspectCode := dis.initializeOffsetInfo(index)
 		if !inspectCode {
 			continue
 		}
@@ -40,39 +40,41 @@ func (dis *Disasm) followExecutionFlow() error {
 			dis.checkForJumpEngineCall(offsetInfo, dis.pc)
 		}
 
-		dis.checkInstructionOverlap(offsetInfo, offset)
+		dis.checkInstructionOverlap(offsetInfo, index)
 
 		if instruction.Name == cpu.NopInstruction && instruction.Unofficial {
-			dis.handleUnofficialNop(offset)
+			dis.handleUnofficialNop(index)
 			continue
 		}
 
-		dis.changeOffsetRangeToCode(offsetInfo.OpcodeBytes, offset)
+		dis.changeIndexRangeToCode(offsetInfo.OpcodeBytes, index)
 	}
 	return nil
 }
 
 // in case the current instruction overlaps with an already existing instruction,
 // cut the current one short.
-func (dis *Disasm) checkInstructionOverlap(offsetInfo *offset, offset uint16) {
-	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(offset)+i < len(dis.offsets); i++ {
-		ins := &dis.offsets[offset+uint16(i)]
-		if ins.IsType(program.CodeOffset) {
-			ins.Comment = "branch into instruction detected"
-			offsetInfo.Comment = offsetInfo.Code
-			offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:i]
-			offsetInfo.Code = ""
-			offsetInfo.ClearType(program.CodeOffset)
-			offsetInfo.SetType(program.CodeAsData | program.DataOffset)
-			return
+func (dis *Disasm) checkInstructionOverlap(offsetInfo *offset, index uint16) {
+	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(index)+i < len(dis.offsets); i++ {
+		offsetInfoFollowing := &dis.offsets[index+uint16(i)]
+		if !offsetInfoFollowing.IsType(program.CodeOffset) {
+			continue
 		}
+
+		offsetInfoFollowing.Comment = "branch into instruction detected"
+		offsetInfo.Comment = offsetInfo.Code
+		offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:i]
+		offsetInfo.Code = ""
+		offsetInfo.ClearType(program.CodeOffset)
+		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
+		return
 	}
 }
 
 // initializeOffsetInfo initializes the offset info for the given offset and returns
 // whether the offset should process inspection for code parameters.
-func (dis *Disasm) initializeOffsetInfo(offset uint16) (*offset, bool) {
-	offsetInfo := &dis.offsets[offset]
+func (dis *Disasm) initializeOffsetInfo(index uint16) (*offset, bool) {
+	offsetInfo := &dis.offsets[index]
 
 	if offsetInfo.IsType(program.CodeOffset) {
 		return offsetInfo, false // was set by CDL
@@ -99,7 +101,7 @@ func (dis *Disasm) initializeOffsetInfo(offset uint16) (*offset, bool) {
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
-func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (string, error) {
+func (dis *Disasm) processParamInstruction(index uint16, offsetInfo *offset) (string, error) {
 	opcode := offsetInfo.opcode
 	param, opcodes := dis.readOpParam(opcode.Addressing)
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
@@ -109,7 +111,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 		return "", fmt.Errorf("getting parameter as string: %w", err)
 	}
 
-	paramAsString = dis.replaceParamByAlias(offset, opcode, param, paramAsString)
+	paramAsString = dis.replaceParamByAlias(index, opcode, param, paramAsString)
 
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
@@ -123,7 +125,7 @@ func (dis *Disasm) processParamInstruction(offset uint16, offsetInfo *offset) (s
 
 // replaceParamByAlias replaces the absolute address with an alias name if it can match it to
 // a constant, zero page variable or a code reference.
-func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param any, paramAsString string) string {
+func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param any, paramAsString string) string {
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		if opcode.Instruction.Name != cpu.JmpInstruction && opcode.Addressing != IndirectAddressing {
 			return paramAsString
@@ -140,12 +142,11 @@ func (dis *Disasm) replaceParamByAlias(offset uint16, opcode cpu.Opcode, param a
 		return dis.replaceParamByConstant(opcode, paramAsString, address, constantInfo)
 	}
 
-	if !dis.addVariableReference(offset, opcode, address) {
+	if !dis.addVariableReference(index, opcode, address) {
 		return paramAsString
 	}
 
 	// force using absolute address to not generate a different opcode by using zeropage access mode
-	// TODO check if other assemblers use the same prefix
 	switch opcode.Addressing {
 	case ZeroPageAddressing, ZeroPageXAddressing, ZeroPageYAddressing:
 		return "z:" + paramAsString
@@ -191,8 +192,8 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *cpu.Instruction,
 	isABranchDestination bool) {
 
-	offset := dis.addressToOffset(address)
-	offsetInfo := &dis.offsets[offset]
+	index := dis.addressToIndex(address)
+	offsetInfo := &dis.offsets[index]
 
 	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
 		offsetInfo.SetType(program.CallDestination)

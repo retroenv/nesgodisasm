@@ -23,10 +23,10 @@ type variable struct {
 	address      uint16
 	name         string
 	indexedUsage bool     // access with X/Y registers indicates table
-	usageAt      []uint16 // list of all addresses that use this offset
+	usageAt      []uint16 // list of all indexes that use this offset
 }
 
-func (dis *Disasm) addVariableReference(offset uint16, opcode cpu.Opcode, address uint16) bool {
+func (dis *Disasm) addVariableReference(index uint16, opcode cpu.Opcode, address uint16) bool {
 	var reads, writes bool
 	if opcode.ReadWritesMemory() {
 		reads = true
@@ -46,7 +46,7 @@ func (dis *Disasm) addVariableReference(offset uint16, opcode cpu.Opcode, addres
 		}
 		dis.variables[address] = varInfo
 	}
-	varInfo.usageAt = append(varInfo.usageAt, offset)
+	varInfo.usageAt = append(varInfo.usageAt, index)
 
 	if reads {
 		varInfo.reads = true
@@ -95,8 +95,8 @@ func (dis *Disasm) processVariables() error {
 		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
 
 		for _, usedAddress := range varInfo.usageAt {
-			offset := dis.addressToOffset(usedAddress)
-			offsetInfo := &dis.offsets[offset]
+			index := dis.addressToIndex(usedAddress)
+			offsetInfo := &dis.offsets[index]
 
 			converted, err := parameter.String(dis.converter, offsetInfo.opcode.Addressing, reference)
 			if err != nil {
@@ -122,15 +122,15 @@ func (dis *Disasm) processVariables() error {
 func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 	var addressAdjustment uint16
 	for {
-		offset := dis.addressToOffset(address)
-		info := &dis.offsets[offset]
+		index := dis.addressToIndex(address)
+		offsetInfo := &dis.offsets[index]
 
-		if len(info.OpcodeBytes) == 0 {
+		if len(offsetInfo.OpcodeBytes) == 0 {
 			address--
 			addressAdjustment++
 			continue
 		}
-		return info, address, addressAdjustment
+		return offsetInfo, address, addressAdjustment
 	}
 }
 

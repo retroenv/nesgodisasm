@@ -14,8 +14,8 @@ func (dis *Disasm) readMemory(address uint16) byte {
 		value = dis.cart.CHR[address]
 
 	case address >= CodeBaseAddress:
-		offset := dis.addressToOffset(address)
-		value = dis.cart.PRG[offset]
+		index := dis.addressToIndex(address)
+		value = dis.cart.PRG[index]
 
 	default:
 		panic(fmt.Sprintf("invalid read from address #%0000x", address))
@@ -34,8 +34,8 @@ func (dis *Disasm) readMemoryWord(address uint16) uint16 {
 // the low byte to wrap without incrementing the high byte.
 func (dis *Disasm) readMemoryWordBug(address uint16) uint16 {
 	low := uint16(dis.readMemory(address))
-	offset := (address & 0xFF00) | uint16(byte(address)+1)
-	high := uint16(dis.readMemory(offset))
+	address = (address & 0xFF00) | uint16(byte(address)+1)
+	high := uint16(dis.readMemory(address))
 	w := (high << 8) | low
 	return w
 }
