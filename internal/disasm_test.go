@@ -143,7 +143,7 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
 		0x8d, 0x01, 0x02, //
 		0x6c, 0x00, 0x02, //
 		0x00, 0x00, //
-		0x12, 0x80, //
+		0x17, 0x80, //
 		0x40, //
 	}
 
@@ -156,17 +156,17 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
         tax
         lda a:_data_8015_indexed,X
         sta a:_var_0200
-        lda a:_data_8016_indexed,X
+        lda a:_data_8015_indexed+1,X
         sta a:$0201
         jmp (_var_0200)
         
         .byte $00, $00
         
         _data_8015_indexed:
-        .byte $12
+        .word _label_8017
         
-        _data_8016_indexed:
-        .byte $80, $40
+        _label_8017:
+        rti
 `
 
 	runDisasm(t, nil, input, expected)
