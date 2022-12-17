@@ -17,6 +17,8 @@ import (
 	"github.com/retroenv/retrogolib/nes/parameter"
 )
 
+const irqStartAddress = 0xfffa
+
 type fileWriter interface {
 	Write(options *disasmoptions.Options, app *program.Program, writer io.Writer) error
 }
@@ -141,7 +143,7 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 // initializeIrqHandlers reads the 3 handler addresses and adds them to the addresses to be
 // followed for execution flow.
 func (dis *Disasm) initializeIrqHandlers() {
-	nmi := dis.readMemoryWord(0xFFFA)
+	nmi := dis.readMemoryWord(irqStartAddress)
 	if nmi != 0 {
 		dis.addAddressToParse(nmi, nmi, 0, nil, false)
 		index := dis.addressToIndex(nmi)
@@ -150,13 +152,13 @@ func (dis *Disasm) initializeIrqHandlers() {
 		dis.handlers.NMI = "NMI"
 	}
 
-	reset := dis.readMemoryWord(0xFFFC)
+	reset := dis.readMemoryWord(irqStartAddress + 2)
 	dis.addAddressToParse(reset, reset, 0, nil, false)
 	index := dis.addressToIndex(reset)
 	dis.offsets[index].Label = "Reset"
 	dis.offsets[index].SetType(program.CallDestination)
 
-	irq := dis.readMemoryWord(0xFFFE)
+	irq := dis.readMemoryWord(irqStartAddress + 4)
 	if irq != 0 {
 		dis.addAddressToParse(irq, irq, 0, nil, false)
 		index = dis.addressToIndex(irq)
