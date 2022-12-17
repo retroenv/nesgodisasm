@@ -133,7 +133,7 @@ func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param an
 	}
 
 	address, ok := getAddressingParam(param)
-	if !ok {
+	if !ok || address >= irqStartAddress {
 		return paramAsString
 	}
 
