@@ -25,17 +25,33 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 	}
 
 	// parse all instructions of the function context until the jump
-	for address := offsetInfo.context; address != 0 && address > jumpAddress; {
+	for address := offsetInfo.context; address != 0 && address < jumpAddress; {
 		index := dis.addressToIndex(address)
-		offsetInfo = &dis.offsets[index]
+		offsetInfoInstruction := &dis.offsets[index]
+		opcode := offsetInfoInstruction.opcode
 
 		// if current function has a branching instruction beside the final jump, it's probably not one
 		// of the common jump engines
-		if _, ok := cpu.BranchingInstructions[offsetInfo.opcode.Instruction.Name]; ok {
+		if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 			return
 		}
 
-		address += uint16(len(offsetInfo.OpcodeBytes))
+		// look for an instructions that loads data from an address in the code or data
+		// address range. this should be the table containing the function addresses.
+		if opcode.ReadsMemory() {
+			param, _ := dis.readOpParam(opcode.Addressing, address)
+			reference, ok := getAddressingParam(param)
+			if ok && reference > dis.codeBaseAddress {
+				jumpEngine := &jumpEngineCaller{
+					tableStartAddress: reference,
+				}
+				dis.jumpEngineCallersAdded[offsetInfo.context] = jumpEngine
+				dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
+				break
+			}
+		}
+
+		address += uint16(len(offsetInfoInstruction.OpcodeBytes))
 	}
 
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
@@ -52,7 +68,7 @@ func (dis *Disasm) checkForJumpEngineCall(offsetInfo *offset, address uint16) {
 		return
 	}
 
-	_, opcodes := dis.readOpParam(offsetInfo.opcode.Addressing)
+	_, opcodes := dis.readOpParam(offsetInfo.opcode.Addressing, dis.pc)
 	destination := binary.LittleEndian.Uint16(opcodes)
 	for addr := range dis.jumpEngines {
 		if addr == destination {

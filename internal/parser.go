@@ -103,7 +103,7 @@ func (dis *Disasm) initializeOffsetInfo(index uint16) (*offset, bool) {
 // Special handling is required as this instruction could branch to a different location.
 func (dis *Disasm) processParamInstruction(index uint16, offsetInfo *offset) (string, error) {
 	opcode := offsetInfo.opcode
-	param, opcodes := dis.readOpParam(opcode.Addressing)
+	param, opcodes := dis.readOpParam(opcode.Addressing, dis.pc)
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
 
 	paramAsString, err := parameter.String(dis.converter, opcode.Addressing, param)

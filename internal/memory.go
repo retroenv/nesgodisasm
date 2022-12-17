@@ -42,10 +42,10 @@ func (dis *Disasm) readMemoryWordBug(address uint16) uint16 {
 
 // readOpParam reads the opcode parameters after the first opcode byte
 // and translates it into emulator specific types.
-func (dis *Disasm) readOpParam(addressing Mode) (any, []byte) {
+func (dis *Disasm) readOpParam(addressing Mode, address uint16) (any, []byte) {
 	fun, ok := paramReader[addressing]
 	if !ok {
 		panic(fmt.Errorf("unsupported addressing mode %00x", addressing))
 	}
-	return fun(dis)
+	return fun(dis, address)
 }
