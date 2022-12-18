@@ -42,8 +42,7 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		dis.checkInstructionOverlap(offsetInfo, index)
 
-		if instruction.Name == cpu.NopInstruction && instruction.Unofficial {
-			dis.handleUnofficialNop(index)
+		if dis.handleDisambiguousInstructions(offsetInfo, index) {
 			continue
 		}
 
