@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrogolib/nes/cpu"
 )
 
 const (
@@ -66,19 +67,29 @@ func (dis *Disasm) handleJumpIntoInstruction(index uint16) {
 	dis.changeOffsetRangeToData(offsetInfo.OpcodeBytes, instructionStart)
 }
 
-// handleUnofficialNop translates unofficial nop codes into data bytes as the instruction
+// handleUnofficialNop translates disambiguous instructions into data bytes as it
 // has multiple opcodes for the same addressing mode which can result in different
-// bytes being assembled and make the resulting ROM not match the original.
-func (dis *Disasm) handleUnofficialNop(index uint16) {
-	offsetInfo := &dis.offsets[index]
-	if offsetInfo.Code == "" { // in case of branch into unofficial nop instruction detected
-		offsetInfo.Comment = fmt.Sprintf("unofficial nop instruction: %s", offsetInfo.Comment)
-	} else {
-		offsetInfo.Comment = fmt.Sprintf("unofficial nop instruction: %s", offsetInfo.Code)
+// bytes being assembled and make the resulting ROM not matching the original.
+func (dis *Disasm) handleDisambiguousInstructions(offsetInfo *offset, index uint16) bool {
+	instruction := offsetInfo.opcode.Instruction
+	if !instruction.Unofficial {
+		return false
 	}
+
+	if instruction.Name != cpu.NopInstruction && instruction.Name != cpu.SbcInstruction {
+		return false
+	}
+
+	if offsetInfo.Code == "" { // in case of branch into unofficial nop instruction detected
+		offsetInfo.Comment = fmt.Sprintf("disambiguous instruction: %s", offsetInfo.Comment)
+	} else {
+		offsetInfo.Comment = fmt.Sprintf("disambiguous instruction: %s", offsetInfo.Code)
+	}
+
 	offsetInfo.Code = ""
 	offsetInfo.SetType(program.CodeAsData)
 	dis.changeOffsetRangeToData(offsetInfo.OpcodeBytes, index)
+	return true
 }
 
 // changeIndexRangeToCode sets a range of code offsets to code types.

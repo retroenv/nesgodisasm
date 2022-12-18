@@ -13,8 +13,8 @@ import (
 
 func TestDisasmZeroDataReference(t *testing.T) {
 	input := []byte{
-		0xAD, 0x20, 0x80, // lda a:$8020
-		0xBD, 0x10, 0x80, // lda a:$8010,X
+		0xad, 0x20, 0x80, // lda a:$8020
+		0xbd, 0x10, 0x80, // lda a:$8010,X
 		0x40, // rti
 	}
 
@@ -49,7 +49,7 @@ func TestDisasmBranchIntoUnofficialNop(t *testing.T) {
 
 	expected := `Reset:
         bcc _label_8003
-        .byte $dc                        ; unofficial nop instruction: nop $8BAE,X
+        .byte $dc                        ; disambiguous instruction: nop $8BAE,X
         
         _label_8003:
         ldx a:$788B                    ; branch into instruction detected
@@ -68,14 +68,14 @@ func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
 	}
 
 	expected := `Reset:
-  lda a:_data_8005_indexed+1,X
-  bcc _label_8007
-
-_data_8005_indexed:
-.byte $82, $04                   ; unofficial nop instruction: nop #$04
-
-_label_8007:
-  rti
+        lda a:_data_8005_indexed+1,X
+        bcc _label_8007
+        
+        _data_8005_indexed:
+        .byte $82, $04                   ; disambiguous instruction: nop #$04
+        
+        _label_8007:
+        rti
 `
 
 	runDisasm(t, nil, input, expected)
@@ -85,17 +85,17 @@ func TestDisasmJumpEngineTableFromCaller(t *testing.T) {
 	input := []byte{
 		0x20, 0x05, 0x80, // jsr $8005
 		0x1a, 0x80, // .word 801a
-		0x0A,       // 8005: asl a
-		0xA8,       // tay
+		0x0a,       // 8005: asl a
+		0xa8,       // tay
 		0x68,       // pla
 		0x85, 0x04, // sta $04
 		0x68,       // pla
 		0x85, 0x05, // sta $05
-		0xC8,       // iny
-		0xB1, 0x04, // lda $04,Y
+		0xc8,       // iny
+		0xb1, 0x04, // lda $04,Y
 		0x85, 0x06, // sta $06
-		0xC8,       // iny
-		0xB1, 0x04, // lda $04,Y
+		0xc8,       // iny
+		0xb1, 0x04, // lda $04,Y
 		0x85, 0x07, // sta $07
 		0x6C, 0x06, 0x00, // jmp ($0006)
 		0x40, // 801a: rti
@@ -175,7 +175,7 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
 func TestDisasmMixedAccess(t *testing.T) {
 	input := []byte{
 		0x85, 0x04, // sta $04
-		0xB1, 0x04, // lda $04,Y
+		0xb1, 0x04, // lda $04,Y
 		0x40, // rti
 	}
 
@@ -186,6 +186,20 @@ func TestDisasmMixedAccess(t *testing.T) {
         sta z:_var_0004_indexed
         lda (_var_0004_indexed),Y
         rti
+`
+
+	runDisasm(t, nil, input, expected)
+}
+
+func TestDisasmDisambiguousInstructions(t *testing.T) {
+	input := []byte{
+		0xeb, 0x04, // sta $04
+		0x04, 0xa9, // lda $04,Y
+	}
+
+	expected := `Reset:
+        .byte $eb, $04                   ; disambiguous instruction: sbc #$04
+        .byte $04, $a9                   ; disambiguous instruction: nop $A9
 `
 
 	runDisasm(t, nil, input, expected)
