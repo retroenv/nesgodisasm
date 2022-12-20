@@ -155,6 +155,9 @@ func (dis *Disasm) initializeIrqHandlers() {
 	reset := dis.readMemoryWord(irqStartAddress + 2)
 	dis.addAddressToParse(reset, reset, 0, nil, false)
 	index := dis.addressToIndex(reset)
+	if dis.offsets[index].Label != "" {
+		dis.handlers.NMI = "Reset"
+	}
 	dis.offsets[index].Label = "Reset"
 	dis.offsets[index].SetType(program.CallDestination)
 
@@ -164,9 +167,11 @@ func (dis *Disasm) initializeIrqHandlers() {
 		index = dis.addressToIndex(irq)
 		if dis.offsets[index].Label == "" {
 			dis.offsets[index].Label = "IRQ"
+			dis.handlers.IRQ = "IRQ"
+		} else {
+			dis.handlers.IRQ = dis.offsets[index].Label
 		}
 		dis.offsets[index].SetType(program.CallDestination)
-		dis.handlers.IRQ = "IRQ"
 	}
 
 	if nmi == reset {
