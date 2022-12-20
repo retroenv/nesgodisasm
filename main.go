@@ -130,7 +130,7 @@ func getFiles(options *optionFlags) ([]string, error) {
 
 func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) error {
 	if !options.quiet {
-		fmt.Printf(" * Processing %s", options.input)
+		fmt.Printf(" * Processing %s ", options.input)
 	}
 
 	file, err := os.Open(options.input)
@@ -178,10 +178,10 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 
 	if options.assembleTest {
 		if err = verifyOutput(cart, options); err != nil {
-			return fmt.Errorf(" - output file mismatch:\n%w", err)
+			return fmt.Errorf("- output file mismatch:\n%w", err)
 		}
 		if !options.quiet {
-			fmt.Printf(" - output file matched input file\n")
+			fmt.Printf("- output file matched input file\n")
 		}
 	} else {
 		fmt.Println()
