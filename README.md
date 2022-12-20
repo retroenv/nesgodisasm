@@ -28,9 +28,9 @@ Currently, only ROMs that use mapper 0 are supported.
 The tool uses a modern software stack that does not have any system dependencies beside requiring a somewhat modern
 operating system to run:
 
-Linux: 2.6.32+
-Windows: 7+
-macOS: High Sierra 10.13+
+* Linux: 2.6.32+
+* Windows: 7+
+* macOS: High Sierra 10.13+
 
 There are different options to install nesgodisasm, the binary releases do not have any dependencies, 
 compiling the tool from source code needs to have a recent version of [Golang](https://go.dev/) installed.
