@@ -16,6 +16,7 @@ nesgodisasm allows you to disassemble programs for the Nintendo Entertainment Sy
 * Supports undocumented 6502 CPU opcodes
 * Supports branching into opcode parts of an instruction
 * Does not output trailing zero bytes of banks by default
+* Batch processing mode to disassembling multiple ROMs at once
 * Flexible architecture that allows it to create output modules for other assemblers 
 
 Check the [issue tracker](https://github.com/retroenv/nesgodisasm/issues?q=is%3Aissue+is%3Aopen) for planned features or known bugs.
@@ -23,6 +24,13 @@ Check the [issue tracker](https://github.com/retroenv/nesgodisasm/issues?q=is%3A
 Currently, only ROMs that use mapper 0 are supported.
 
 ## Installation
+
+The tool uses a modern software stack that does not have any system dependencies beside requiring a somewhat modern
+operating system to run:
+
+Linux: 2.6.32+
+Windows: 7+
+macOS: High Sierra 10.13+
 
 There are different options to install nesgodisasm, the binary releases do not have any dependencies, 
 compiling the tool from source code needs to have a recent version of [Golang](https://go.dev/) installed.
@@ -88,6 +96,12 @@ ld65 example.o -t nes -o example.nes
 ```
 usage: nesgodisasm [options] <file to disassemble>
 
+  -batch string
+    	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
+  -cdl string
+    	name of the .cdl Code/Data log file to load
+  -debug
+    	enabled debugging options
   -nohexcomments
     	do not output opcode bytes as hex values in comments
   -nooffsets
