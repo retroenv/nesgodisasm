@@ -8,6 +8,8 @@ import (
 	"github.com/retroenv/retrogolib/nes/cpu"
 )
 
+const jumpEngineLastInstructionsCheck = 10
+
 // jumpEngineCaller stores info about a caller of a jump engine, which is followed by a list of function addresses
 type jumpEngineCaller struct {
 	entries           int  // count of referenced functions in the table
@@ -24,34 +26,36 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 		return
 	}
 
+	contextOffsets, contextAddresses := dis.jumpContextInfo(offsetInfo, jumpAddress)
+
 	// parse all instructions of the function context until the jump
-	for address := offsetInfo.context; address != 0 && address < jumpAddress; {
-		index := dis.addressToIndex(address)
-		offsetInfoInstruction := &dis.offsets[index]
+	for i, offsetInfoInstruction := range contextOffsets {
+		address := contextAddresses[i]
 		opcode := offsetInfoInstruction.opcode
 
 		// if current function has a branching instruction beside the final jump, it's probably not one
 		// of the common jump engines
-		if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
+		_, isBranching := cpu.BranchingInstructions[opcode.Instruction.Name]
+		if isBranching && opcode.Instruction.Name != cpu.JsrInstruction {
 			return
 		}
 
 		// look for an instructions that loads data from an address in the code or data
 		// address range. this should be the table containing the function addresses.
-		if opcode.ReadsMemory() {
-			param, _ := dis.readOpParam(opcode.Addressing, address)
-			reference, ok := getAddressingParam(param)
-			if ok && reference > dis.codeBaseAddress {
-				jumpEngine := &jumpEngineCaller{
-					tableStartAddress: reference,
-				}
-				dis.jumpEngineCallersAdded[offsetInfo.context] = jumpEngine
-				dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
-				break
-			}
+		if !opcode.ReadsMemory() {
+			continue
 		}
 
-		address += uint16(len(offsetInfoInstruction.OpcodeBytes))
+		param, _ := dis.readOpParam(opcode.Addressing, address)
+		reference, ok := getAddressingParam(param)
+		if ok && reference > dis.codeBaseAddress {
+			jumpEngine := &jumpEngineCaller{
+				tableStartAddress: reference,
+			}
+			dis.jumpEngineCallersAdded[offsetInfo.context] = jumpEngine
+			dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
+			break
+		}
 	}
 
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
@@ -59,6 +63,36 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 	dis.jumpEngines[offsetInfo.context] = struct{}{}
 
 	dis.handleJumpEngineCallers(offsetInfo.context)
+}
+
+// jumpContextInfo builds the list of instructions of the current function context.
+// in some ROMs the jump engine can be part of a label inside a larger function,
+// the jump engine detection will use the last instructions before the jmp.
+func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*offset, []uint16) {
+	var contextOffsets []*offset
+	var contextAddresses []uint16
+
+	for address := offsetInfo.context; address != 0 && address < jumpAddress; {
+		index := dis.addressToIndex(address)
+		offsetInfoInstruction := &dis.offsets[index]
+
+		// skip offsets that have not been processed yet
+		if len(offsetInfoInstruction.OpcodeBytes) == 0 {
+			break
+		}
+
+		contextOffsets = append(contextOffsets, offsetInfoInstruction)
+		contextAddresses = append(contextAddresses, address)
+
+		address += uint16(len(offsetInfoInstruction.OpcodeBytes))
+	}
+
+	if len(contextOffsets) > jumpEngineLastInstructionsCheck {
+		contextOffsets = contextOffsets[len(contextOffsets)-jumpEngineLastInstructionsCheck-1:]
+		contextAddresses = contextAddresses[len(contextAddresses)-jumpEngineLastInstructionsCheck-1:]
+	}
+
+	return contextOffsets, contextAddresses
 }
 
 // checkForJumpEngineCall checks if the current instruction is a call into a jump engine function.
