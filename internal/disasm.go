@@ -140,8 +140,8 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 	return nil
 }
 
-// initializeIrqHandlers reads the 3 handler addresses and adds them to the addresses to be
-// followed for execution flow.
+// initializeIrqHandlers reads the 3 IRQ handler addresses and adds them to the addresses to be
+// followed for execution flow. Multiple handler can point to the same address.
 func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(irqStartAddress)
 	if nmi != 0 {
@@ -155,6 +155,9 @@ func (dis *Disasm) initializeIrqHandlers() {
 	reset := dis.readMemoryWord(irqStartAddress + 2)
 	dis.addAddressToParse(reset, reset, 0, nil, false)
 	index := dis.addressToIndex(reset)
+	if dis.offsets[index].Label != "" {
+		dis.handlers.NMI = "Reset"
+	}
 	dis.offsets[index].Label = "Reset"
 	dis.offsets[index].SetType(program.CallDestination)
 
@@ -162,9 +165,20 @@ func (dis *Disasm) initializeIrqHandlers() {
 	if irq != 0 {
 		dis.addAddressToParse(irq, irq, 0, nil, false)
 		index = dis.addressToIndex(irq)
-		dis.offsets[index].Label = "IRQ"
+		if dis.offsets[index].Label == "" {
+			dis.offsets[index].Label = "IRQ"
+			dis.handlers.IRQ = "IRQ"
+		} else {
+			dis.handlers.IRQ = dis.offsets[index].Label
+		}
 		dis.offsets[index].SetType(program.CallDestination)
-		dis.handlers.IRQ = "IRQ"
+	}
+
+	if nmi == reset {
+		dis.handlers.NMI = dis.handlers.Reset
+	}
+	if irq == reset {
+		dis.handlers.IRQ = dis.handlers.Reset
 	}
 }
 

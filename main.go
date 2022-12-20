@@ -24,6 +24,7 @@ var (
 )
 
 type optionFlags struct {
+	batch       string
 	input       string
 	output      string
 	codeDataLog string
@@ -43,42 +44,62 @@ func main() {
 		printBanner(options)
 	}
 
-	if err := disasmFile(options, disasmOptions); err != nil {
-		fmt.Println(fmt.Errorf("disassembling failed: %w", err))
+	files, err := getFiles(options)
+	if err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+
+	for _, file := range files {
+		options.input = file
+		if len(files) > 1 || options.output == "" {
+			// create output file name by replacing file extension with .asm
+			options.output = file[:len(file)-len(filepath.Ext(file))] + ".asm"
+		}
+
+		if err := disasmFile(options, disasmOptions); err != nil {
+			fmt.Println(fmt.Errorf("disassembling failed: %w", err))
+			os.Exit(1)
+		}
+	}
+	fmt.Println()
 }
 
-func readArguments() (optionFlags, *disasmoptions.Options) {
+func readArguments() (*optionFlags, *disasmoptions.Options) {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	options := optionFlags{}
+	options := &optionFlags{}
 	disasmOptions := disasmoptions.New()
 	disasmOptions.Assembler = "ca65"
 
-	flags.BoolVar(&options.assembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
-	flags.BoolVar(&options.debug, "debug", false, "enabled debugging options")
+	flags.StringVar(&options.batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
+	flags.BoolVar(&options.debug, "debug", false, "enable debugging options")
 	flags.StringVar(&options.codeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.BoolVar(&options.noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&options.noOffsets, "nooffsets", false, "do not output offsets in comments")
 	flags.StringVar(&options.output, "o", "", "name of the output .asm file, printed on console if no name given")
 	flags.BoolVar(&options.quiet, "q", false, "perform operations quietly")
+	flags.BoolVar(&options.assembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
 	flags.BoolVar(&disasmOptions.ZeroBytes, "z", false, "output the trailing zero bytes of banks")
 
 	err := flags.Parse(os.Args[1:])
 	args := flags.Args()
 
-	if err != nil || len(args) == 0 {
+	if err != nil || (len(args) == 0 && options.batch == "") {
 		printBanner(options)
 		fmt.Printf("usage: nesgodisasm [options] <file to disassemble>\n\n")
 		flags.PrintDefaults()
+		fmt.Println()
 		os.Exit(1)
 	}
-	options.input = args[0]
+
+	if options.batch == "" {
+		options.input = args[0]
+	}
 
 	return options, &disasmOptions
 }
 
-func printBanner(options optionFlags) {
+func printBanner(options *optionFlags) {
 	if !options.quiet {
 		fmt.Println("[------------------------------------]")
 		fmt.Println("[ nesgodisasm - NES ROM disassembler ]")
@@ -87,7 +108,31 @@ func printBanner(options optionFlags) {
 	}
 }
 
-func disasmFile(options optionFlags, disasmOptions *disasmoptions.Options) error {
+// getFiles returns the list of files to process, either a single file or the matched files for
+// batch processing.
+func getFiles(options *optionFlags) ([]string, error) {
+	if options.batch == "" {
+		return []string{options.input}, nil
+	}
+
+	files, err := filepath.Glob(options.batch)
+	if err != nil {
+		return nil, fmt.Errorf("finding batch files failed: %w", err)
+	}
+
+	if len(files) == 0 {
+		return nil, errors.New("no input files matched")
+	}
+
+	options.output = ""
+	return files, nil
+}
+
+func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) error {
+	if !options.quiet {
+		fmt.Printf(" * Processing %s ", options.input)
+	}
+
 	file, err := os.Open(options.input)
 	if err != nil {
 		return fmt.Errorf("opening file '%s': %w", options.input, err)
@@ -133,16 +178,18 @@ func disasmFile(options optionFlags, disasmOptions *disasmoptions.Options) error
 
 	if options.assembleTest {
 		if err = verifyOutput(cart, options); err != nil {
-			return err
+			return fmt.Errorf("- output file mismatch:\n%w", err)
 		}
 		if !options.quiet {
-			fmt.Println("Output file matched input file.")
+			fmt.Printf("- output file matched input file\n")
 		}
+	} else {
+		fmt.Println()
 	}
 	return nil
 }
 
-func verifyOutput(cart *cartridge.Cartridge, options optionFlags) error {
+func verifyOutput(cart *cartridge.Cartridge, options *optionFlags) error {
 	if options.output == "" {
 		return errors.New("can not verify console output")
 	}
@@ -267,7 +314,7 @@ func compareCartridgeDetails(input, output []byte, debug bool) error {
 	return nil
 }
 
-func openCodeDataLog(options optionFlags, disasmOptions *disasmoptions.Options) error {
+func openCodeDataLog(options *optionFlags, disasmOptions *disasmoptions.Options) error {
 	if options.codeDataLog == "" {
 		return nil
 	}
