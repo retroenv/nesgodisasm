@@ -14,6 +14,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/ca65"
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/retrogolib/buildinfo"
+	"github.com/retroenv/retrogolib/log"
 	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
@@ -24,6 +25,8 @@ var (
 )
 
 type optionFlags struct {
+	logger *log.Logger
+
 	batch       string
 	input       string
 	output      string
@@ -46,8 +49,7 @@ func main() {
 
 	files, err := getFiles(options)
 	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
+		options.logger.Fatal(err.Error())
 	}
 
 	for _, file := range files {
@@ -58,11 +60,17 @@ func main() {
 		}
 
 		if err := disasmFile(options, disasmOptions); err != nil {
-			fmt.Println(fmt.Errorf("disassembling failed: %w", err))
-			os.Exit(1)
+			options.logger.Fatal("Disassembling failed", log.Err(err))
 		}
 	}
-	fmt.Println()
+}
+
+func createLogger(options *optionFlags) *log.Logger {
+	cfg := log.DefaultConfig()
+	if options.debug {
+		cfg.Level = log.DebugLevel
+	}
+	return log.NewWithConfig(cfg)
 }
 
 func readArguments() (*optionFlags, *disasmoptions.Options) {
@@ -84,6 +92,10 @@ func readArguments() (*optionFlags, *disasmoptions.Options) {
 	err := flags.Parse(os.Args[1:])
 	args := flags.Args()
 
+	logger := createLogger(options)
+	options.logger = logger
+	disasmOptions.Logger = logger
+
 	if err != nil || (len(args) == 0 && options.batch == "") {
 		printBanner(options)
 		fmt.Printf("usage: nesgodisasm [options] <file to disassemble>\n\n")
@@ -104,7 +116,7 @@ func printBanner(options *optionFlags) {
 		fmt.Println("[------------------------------------]")
 		fmt.Println("[ nesgodisasm - NES ROM disassembler ]")
 		fmt.Printf("[------------------------------------]\n\n")
-		fmt.Printf("version: %s\n\n", buildinfo.Version(version, commit, date))
+		options.logger.Info("Build info", log.String("version", buildinfo.Version(version, commit, date)))
 	}
 }
 
@@ -130,7 +142,7 @@ func getFiles(options *optionFlags) ([]string, error) {
 
 func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) error {
 	if !options.quiet {
-		fmt.Printf(" * Processing %s ", options.input)
+		options.logger.Info("Processing ROM", log.String("file", options.input))
 	}
 
 	file, err := os.Open(options.input)
@@ -181,7 +193,7 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 			return fmt.Errorf("- output file mismatch:\n%w", err)
 		}
 		if !options.quiet {
-			fmt.Printf("- output file matched input file\n")
+			options.logger.Info("Output file matched input file")
 		}
 	} else {
 		fmt.Println()
@@ -227,7 +239,7 @@ func verifyOutput(cart *cartridge.Cartridge, options *optionFlags) error {
 		CHRSize: len(cart.CHR),
 	}
 	if err = ca65.AssembleUsingExternalApp(options.output, objectFile.Name(), outputFile.Name(), ca65Config); err != nil {
-		return fmt.Errorf("creating .nes file failed: %w", err)
+		options.logger.Fatal("Reassembling .nes file failed", log.Err(err))
 	}
 
 	source, err := os.ReadFile(options.input)

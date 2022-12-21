@@ -2,12 +2,17 @@
 // assembly writer.
 package disasmoptions
 
-import "io"
+import (
+	"io"
+
+	"github.com/retroenv/retrogolib/log"
+)
 
 // Options defines options to control the disassembler.
 type Options struct {
 	Assembler   string        // what assembler to use
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
+	Logger      *log.Logger
 
 	CodeOnly       bool
 	HexComments    bool

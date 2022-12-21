@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 const (
@@ -30,7 +31,7 @@ func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Confi
 
 	cmd := exec.Command(assembler, asmFile, "-o", objectFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("assembling file: %s: %w", string(out), err)
+		return fmt.Errorf("assembling file: %s: %w", strings.TrimSpace(string(out)), err)
 	}
 
 	configFile, err := os.CreateTemp("", "rom"+".*.cfg")
