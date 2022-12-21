@@ -10,6 +10,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/ca65"
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrogolib/log"
 	. "github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cartridge"
 	"github.com/retroenv/retrogolib/nes/codedatalog"
@@ -36,6 +37,7 @@ type offset struct {
 
 // Disasm implements a NES disassembler.
 type Disasm struct {
+	logger  *log.Logger
 	options *disasmoptions.Options
 
 	pc         uint16 // program counter
@@ -65,6 +67,7 @@ type Disasm struct {
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
 func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, error) {
 	dis := &Disasm{
+		logger:                      options.Logger,
 		options:                     options,
 		cart:                        cart,
 		codeBaseAddress:             uint16(0x10000 - len(cart.PRG)),
@@ -145,6 +148,7 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(irqStartAddress)
 	if nmi != 0 {
+		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
 		dis.addAddressToParse(nmi, nmi, 0, nil, false)
 		index := dis.addressToIndex(nmi)
 		dis.offsets[index].Label = "NMI"
@@ -153,6 +157,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 	}
 
 	reset := dis.readMemoryWord(irqStartAddress + 2)
+	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
 	dis.addAddressToParse(reset, reset, 0, nil, false)
 	index := dis.addressToIndex(reset)
 	if dis.offsets[index].Label != "" {
@@ -163,6 +168,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 
 	irq := dis.readMemoryWord(irqStartAddress + 4)
 	if irq != 0 {
+		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
 		dis.addAddressToParse(irq, irq, 0, nil, false)
 		index = dis.addressToIndex(irq)
 		if dis.offsets[index].Label == "" {

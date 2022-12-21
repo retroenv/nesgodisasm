@@ -8,6 +8,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/retrogolib/assert"
+	"github.com/retroenv/retrogolib/log"
 	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
@@ -232,6 +233,7 @@ func runDisasm(t *testing.T, setup func(options *disasmoptions.Options, cart *ca
 	t.Helper()
 
 	options := disasmoptions.New()
+	options.Logger = log.NewTestLogger(t)
 	options.CodeOnly = true
 	options.Assembler = "ca65"
 
