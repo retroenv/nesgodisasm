@@ -60,7 +60,7 @@ func main() {
 		}
 
 		if err := disasmFile(options, disasmOptions); err != nil {
-			options.logger.Fatal("Disassembling failed", log.Err(err))
+			options.logger.Error("Disassembling failed", err)
 		}
 	}
 }
@@ -190,13 +190,11 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 
 	if options.assembleTest {
 		if err = verifyOutput(cart, options); err != nil {
-			return fmt.Errorf("- output file mismatch:\n%w", err)
+			return fmt.Errorf("output file mismatch: %w", err)
 		}
 		if !options.quiet {
 			options.logger.Info("Output file matched input file")
 		}
-	} else {
-		fmt.Println()
 	}
 	return nil
 }
@@ -252,47 +250,39 @@ func verifyOutput(cart *cartridge.Cartridge, options *optionFlags) error {
 		return fmt.Errorf("reading file for comparison: %w", err)
 	}
 
-	if err := checkBufferEqual(source, destination, options.debug); err != nil {
-		if detailsErr := compareCartridgeDetails(source, destination, options.debug); detailsErr != nil {
-			return fmt.Errorf("comparing cartridge details: %w", detailsErr)
-		}
-		return err
+	if err = compareCartridgeDetails(options.logger, source, destination); err != nil {
+		return fmt.Errorf("comparing cartridge details: %w", err)
 	}
+
 	return nil
 }
 
-func checkBufferEqual(input, output []byte, debug bool) error {
+func checkBufferEqual(logger *log.Logger, input, output []byte) error {
 	if len(input) != len(output) {
 		return fmt.Errorf("mismatched lengths, %d != %d", len(input), len(output))
 	}
 
 	var diffs uint64
-	firstDiff := -1
-	var firstDiffBytes [2]byte
 	for i := range input {
 		if input[i] == output[i] {
 			continue
 		}
+
 		diffs++
-		if firstDiff == -1 {
-			firstDiff = i
-			firstDiffBytes[0] = input[i]
-			firstDiffBytes[1] = output[i]
-		}
-		if debug {
-			fmt.Printf("offset 0x%04X mismatch - expected 0x%02X - got 0x%02X\n",
-				i, input[i], output[i])
+		if diffs < 10 {
+			logger.Error("Offset mismatch", nil,
+				log.String("offset", fmt.Sprintf("0x%04X", i)),
+				log.String("expected", fmt.Sprintf("0x%02X", input[i])),
+				log.String("got", fmt.Sprintf("0x%02X", output[i])))
 		}
 	}
 	if diffs == 0 {
 		return nil
 	}
-	return fmt.Errorf("%d offset mismatches\n"+
-		"first at offset %d (0x%04X) - expected 0x%02X - got 0x%02X", diffs,
-		firstDiff, firstDiff, firstDiffBytes[0], firstDiffBytes[1])
+	return fmt.Errorf("%d offset mismatches", diffs)
 }
 
-func compareCartridgeDetails(input, output []byte, debug bool) error {
+func compareCartridgeDetails(logger *log.Logger, input, output []byte) error {
 	inputReader := bytes.NewReader(input)
 	outputReader := bytes.NewReader(output)
 
@@ -305,23 +295,23 @@ func compareCartridgeDetails(input, output []byte, debug bool) error {
 		return fmt.Errorf("loading cartridge file: %w", err)
 	}
 
-	if err := checkBufferEqual(cart1.PRG, cart2.PRG, debug); err != nil {
-		fmt.Printf("PRG difference: %s\n", err)
+	if err := checkBufferEqual(logger, cart1.PRG, cart2.PRG); err != nil {
+		return fmt.Errorf("segment PRG mismatch: %w", err)
 	}
-	if err := checkBufferEqual(cart1.CHR, cart2.CHR, debug); err != nil {
-		fmt.Printf("CHR difference: %s\n", err)
+	if err := checkBufferEqual(logger, cart1.CHR, cart2.CHR); err != nil {
+		return fmt.Errorf("segment CHR mismatch: %w", err)
 	}
-	if err := checkBufferEqual(cart1.Trainer, cart2.Trainer, debug); err != nil {
-		fmt.Printf("Trainer difference: %s\n", err)
+	if err := checkBufferEqual(logger, cart1.Trainer, cart2.Trainer); err != nil {
+		return fmt.Errorf("trainer mismatch: %w", err)
 	}
 	if cart1.Mapper != cart2.Mapper {
-		fmt.Println("Mapper header does not match")
+		return fmt.Errorf("mapper mismatch, expected %d but got %d", cart1.Mapper, cart2.Mapper)
 	}
 	if cart1.Mirror != cart2.Mirror {
-		fmt.Println("Mirror header does not match")
+		return fmt.Errorf("mirror mismatch, expected %d but got %d", cart1.Mirror, cart2.Mirror)
 	}
 	if cart1.Battery != cart2.Battery {
-		fmt.Println("Battery header does not match")
+		return fmt.Errorf("battery mismatch, expected %d but got %d", cart1.Battery, cart2.Battery)
 	}
 	return nil
 }
@@ -331,10 +321,10 @@ func openCodeDataLog(options *optionFlags, disasmOptions *disasmoptions.Options)
 		return nil
 	}
 
-	log, err := os.Open(options.codeDataLog)
+	logFile, err := os.Open(options.codeDataLog)
 	if err != nil {
 		return fmt.Errorf("opening file '%s': %w", options.codeDataLog, err)
 	}
-	disasmOptions.CodeDataLog = log
+	disasmOptions.CodeDataLog = logFile
 	return nil
 }
