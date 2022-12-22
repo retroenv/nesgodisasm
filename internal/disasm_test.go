@@ -188,14 +188,17 @@ func TestDisasmJumpEngineZeroPage(t *testing.T) {
 		0x60, // rts
 	}
 
-	expected := `Reset:
+	expected := `
+        _var_00e3 = $00E3
+        
+        Reset:
         lda a:_data_8015_indexed,X
         sta z:$E4
         lda a:_data_8016_indexed,X
         sta z:$E5
         lda #$4C
-        sta z:$E3
-        jsr $00E3
+        sta z:_var_00e3
+        jsr a:_var_00e3
         rts
         
         .byte $00, $00, $00

@@ -125,15 +125,18 @@ func (dis *Disasm) processParamInstruction(index uint16, offsetInfo *offset) (st
 // replaceParamByAlias replaces the absolute address with an alias name if it can match it to
 // a constant, zero page variable or a code reference.
 func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param any, paramAsString string) string {
-	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
-		if opcode.Instruction.Name != cpu.JmpInstruction && opcode.Addressing != IndirectAddressing {
-			return paramAsString
-		}
+	forceVariableUsage := false
+	address, addressValid := getAddressingParam(param)
+	if !addressValid || address >= irqStartAddress {
+		return paramAsString
 	}
 
-	address, ok := getAddressingParam(param)
-	if !ok || address >= irqStartAddress {
-		return paramAsString
+	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
+		var handleParam bool
+		handleParam, forceVariableUsage = checkBranchingParam(address, opcode)
+		if !handleParam {
+			return paramAsString
+		}
 	}
 
 	constantInfo, ok := dis.constants[address]
@@ -141,7 +144,7 @@ func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param an
 		return dis.replaceParamByConstant(opcode, paramAsString, address, constantInfo)
 	}
 
-	if !dis.addVariableReference(index, opcode, address) {
+	if !dis.addVariableReference(address, index, opcode, forceVariableUsage) {
 		return paramAsString
 	}
 
@@ -256,4 +259,18 @@ func getAddressingParam(param any) (uint16, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// checkBranchingParam checks whether the branching instruction should do a variable check for the parameter
+// and forces variable usage.
+func checkBranchingParam(address uint16, opcode cpu.Opcode) (bool, bool) {
+	switch {
+	case opcode.Instruction.Name == cpu.JmpInstruction && opcode.Addressing == IndirectAddressing:
+		return true, false
+	case opcode.Instruction.Name == cpu.JmpInstruction || opcode.Instruction.Name == cpu.JsrInstruction:
+		if opcode.Addressing == AbsoluteAddressing && address < CodeBaseAddress {
+			return true, true
+		}
+	}
+	return false, false
 }
