@@ -135,17 +135,17 @@ func TestDisasmJumpEngineTableFromCaller(t *testing.T) {
 
 func TestDisasmJumpEngineTableAppended(t *testing.T) {
 	input := []byte{
-		0xa5, 0xd7, //
-		0x0a,             //
-		0xaa,             //
-		0xbd, 0x15, 0x80, //
-		0x8d, 0x00, 0x02, //
-		0xbd, 0x16, 0x80, //
-		0x8d, 0x01, 0x02, //
-		0x6c, 0x00, 0x02, //
-		0x00, 0x00, //
-		0x17, 0x80, //
-		0x40, //
+		0xa5, 0xd7, // lda z:$D7
+		0x0a,             // asl a
+		0xaa,             // tax
+		0xbd, 0x15, 0x80, // lda a:$8015,X
+		0x8d, 0x00, 0x02, // sta a:$0200
+		0xbd, 0x16, 0x80, // lda a:$8016,X
+		0x8d, 0x01, 0x02, // sta a:$0201
+		0x6c, 0x00, 0x02, // jmp ($0200)
+		0x00, 0x00,
+		0x17, 0x80, // .word $8017
+		0x40, // rti
 	}
 
 	expected := `
@@ -168,6 +168,43 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
         
         _label_8017:
         rti
+`
+
+	runDisasm(t, nil, input, expected)
+}
+
+func TestDisasmJumpEngineZeroPage(t *testing.T) {
+	input := []byte{
+		0xbd, 0x15, 0x80, // lda a:$8015,X
+		0x85, 0xe4, // sta z:$e4
+		0xbd, 0x16, 0x80, // lda a:$8016,X
+		0x85, 0xe5, // sta z:$e5
+		0xa9, 0x4c, // lda #$4c
+		0x85, 0xe3, // sta z:$e3
+		0x20, 0xe3, 0x00, // jsr $00e3
+		0x60, // rts
+		0x00, 0x00, 0x00,
+		0x17, 0x80, // .word $8017
+		0x60, // rts
+	}
+
+	expected := `Reset:
+        lda a:_data_8015_indexed,X
+        sta z:$E4
+        lda a:_data_8016_indexed,X
+        sta z:$E5
+        lda #$4C
+        sta z:$E3
+        jsr $00E3
+        rts
+        
+        .byte $00, $00, $00
+        
+        _data_8015_indexed:
+        .byte $17
+        
+        _data_8016_indexed:
+        .byte $80, $60
 `
 
 	runDisasm(t, nil, input, expected)

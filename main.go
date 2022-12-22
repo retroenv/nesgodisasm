@@ -237,7 +237,7 @@ func verifyOutput(cart *cartridge.Cartridge, options *optionFlags) error {
 		CHRSize: len(cart.CHR),
 	}
 	if err = ca65.AssembleUsingExternalApp(options.output, objectFile.Name(), outputFile.Name(), ca65Config); err != nil {
-		options.logger.Fatal("Reassembling .nes file failed", log.Err(err))
+		return fmt.Errorf("reassembling .nes file failed: %w", err)
 	}
 
 	source, err := os.ReadFile(options.input)

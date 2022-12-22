@@ -191,6 +191,12 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *cpu.Instruction,
 	isABranchDestination bool) {
 
+	// ignore branching into addresses before the code base address, for example when generating code in
+	// zeropage and branching into it to execute it.
+	if address < CodeBaseAddress {
+		return
+	}
+
 	index := dis.addressToIndex(address)
 	offsetInfo := &dis.offsets[index]
 
