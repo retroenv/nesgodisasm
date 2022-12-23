@@ -15,6 +15,7 @@ const (
 
 // Config holds the ROM building configuration.
 type Config struct {
+	PrgBase int
 	PRGSize int
 	CHRSize int
 }
