@@ -189,7 +189,7 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 	}
 
 	if options.assembleTest {
-		if err = verifyOutput(cart, options); err != nil {
+		if err = verifyOutput(cart, options, dis.CodeBaseAddress()); err != nil {
 			return fmt.Errorf("output file mismatch: %w", err)
 		}
 		if !options.quiet {
@@ -199,7 +199,7 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 	return nil
 }
 
-func verifyOutput(cart *cartridge.Cartridge, options *optionFlags) error {
+func verifyOutput(cart *cartridge.Cartridge, options *optionFlags, codeBaseAddress uint16) error {
 	if options.output == "" {
 		return errors.New("can not verify console output")
 	}
@@ -233,6 +233,7 @@ func verifyOutput(cart *cartridge.Cartridge, options *optionFlags) error {
 	}
 
 	ca65Config := ca65.Config{
+		PrgBase: int(codeBaseAddress),
 		PRGSize: len(cart.PRG),
 		CHRSize: len(cart.CHR),
 	}

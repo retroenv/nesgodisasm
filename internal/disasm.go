@@ -11,7 +11,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/log"
-	. "github.com/retroenv/retrogolib/nes/addressing"
+	"github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cartridge"
 	"github.com/retroenv/retrogolib/nes/codedatalog"
 	"github.com/retroenv/retrogolib/nes/cpu"
@@ -70,7 +70,6 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		logger:                      options.Logger,
 		options:                     options,
 		cart:                        cart,
-		codeBaseAddress:             uint16(0x10000 - len(cart.PRG)),
 		variables:                   map[uint16]*variable{},
 		usedVariables:               map[uint16]struct{}{},
 		usedConstants:               map[uint16]constTranslation{},
@@ -93,17 +92,18 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		return nil, err
 	}
 
+	if err = dis.initializeCompatibleMode(options.Assembler); err != nil {
+		return nil, fmt.Errorf("initializing compatible mode: %w", err)
+	}
+
+	dis.initializeIrqHandlers()
+
 	if options.CodeDataLog != nil {
 		if err = dis.loadCodeDataLog(); err != nil {
 			return nil, err
 		}
 	}
 
-	if err = dis.initializeCompatibleMode(options.Assembler); err != nil {
-		return nil, fmt.Errorf("initializing compatible mode: %w", err)
-	}
-
-	dis.initializeIrqHandlers()
 	return dis, nil
 }
 
@@ -186,6 +186,25 @@ func (dis *Disasm) initializeIrqHandlers() {
 	if irq == reset {
 		dis.handlers.IRQ = dis.handlers.Reset
 	}
+
+	dis.calculateCodeBaseAddress(reset)
+}
+
+// calculateCodeBaseAddress calculates the code base address that is assumed by the code.
+// If the code size is only 0x4000 it will be mirror-mapped into the 0x8000 byte of RAM starting at
+// 0x8000. The handlers can be set to any of the 2 mirrors as base, based on this the code base
+// address is calculated. This ensures that jsr instructions will result in the same opcode, as it
+// is based on the code base address.
+func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
+	dis.codeBaseAddress = uint16(0x10000 - len(dis.cart.PRG))
+	if resetHandler < dis.codeBaseAddress {
+		dis.codeBaseAddress = addressing.CodeBaseAddress
+	}
+}
+
+// CodeBaseAddress returns the calculated code base address.
+func (dis *Disasm) CodeBaseAddress() uint16 {
+	return dis.codeBaseAddress
 }
 
 // converts the internal disassembly representation to a program type that will be used by
@@ -228,8 +247,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 
 // addressToIndex converts an address if the code base address to an index into the PRG array.
 func (dis *Disasm) addressToIndex(address uint16) uint16 {
-	index := address - CodeBaseAddress
-	index %= uint16(len(dis.cart.PRG))
+	index := address % uint16(len(dis.cart.PRG))
 	return index
 }
 
