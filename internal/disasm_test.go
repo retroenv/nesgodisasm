@@ -246,11 +246,31 @@ func TestDisasmDisambiguousInstructions(t *testing.T) {
 	runDisasm(t, nil, input, expected)
 }
 
+func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
+	input := []byte{
+		0x20, 0x68, 0xa2, // jsr a268
+		0x40, // rti
+	}
+
+	expected := `Reset:
+        jsr $A268                      ; $C000 20 68 A2
+        rti                            ; $C003 40
+`
+
+	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+		cart.PRG = make([]byte, 0x4000)
+		cart.PRG[0x3FFD] = 0xC0 // reset handler that forces base address to $C000
+	}
+	runDisasm(t, setup, input, expected)
+}
+
 func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
 
-	// point reset handler to offset 0 of PRG buffer, aka 0x8000 address
-	cart.PRG[0x7FFD] = 0x80
+	if len(cart.PRG) == 0x8000 {
+		// point reset handler to offset 0 of PRG buffer, aka 0x8000 address
+		cart.PRG[0x7FFD] = 0x80
+	}
 
 	copy(cart.PRG, code)
 

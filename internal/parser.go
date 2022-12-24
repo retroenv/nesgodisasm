@@ -196,7 +196,7 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 
 	// ignore branching into addresses before the code base address, for example when generating code in
 	// zeropage and branching into it to execute it.
-	if address < CodeBaseAddress {
+	if address < dis.codeBaseAddress {
 		return
 	}
 
