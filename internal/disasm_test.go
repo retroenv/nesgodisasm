@@ -249,12 +249,17 @@ func TestDisasmDisambiguousInstructions(t *testing.T) {
 func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
 	input := []byte{
 		0x20, 0x68, 0xa2, // jsr a268
+		0xb9, 0xfe, 0xbf, // lda a:$bffe,Y
 		0x40, // rti
 	}
 
-	expected := `Reset:
+	expected := `
+        _var_bffe_indexed = $BFFE
+        
+        Reset:
         jsr $A268                      ; $C000 20 68 A2
-        rti                            ; $C003 40
+        lda a:_var_bffe_indexed,Y      ; $C003 B9 FE BF
+        rti                            ; $C006 40
 `
 
 	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {

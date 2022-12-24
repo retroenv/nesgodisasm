@@ -87,7 +87,7 @@ func (dis *Disasm) processVariables() error {
 
 		var dataOffsetInfo *offset
 		var addressAdjustment uint16
-		if varInfo.address >= CodeBaseAddress {
+		if varInfo.address >= dis.codeBaseAddress {
 			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(varInfo.address)
 		} else {
 			dis.usedVariables[varInfo.address] = struct{}{}
