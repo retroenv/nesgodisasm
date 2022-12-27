@@ -16,15 +16,17 @@ func TestDisasmZeroDataReference(t *testing.T) {
 	input := []byte{
 		0xad, 0x20, 0x80, // lda a:$8020
 		0xbd, 0x10, 0x80, // lda a:$8010,X
+		0x04, 0xa9, // nop $A9
 		0x40, // rti
 	}
 
 	expected := `Reset:
-        lda a:_data_8020               ; $8000 AD 20 80
-        lda a:_data_8010_indexed,X     ; $8003 BD 10 80
-        rti                            ; $8006 40
+        lda a:_data_8020               ; $8000  AD 20 80
+        lda a:_data_8010_indexed,X     ; $8003  BD 10 80
+        .byte $04, $a9                   ; $8006  04 A9  disambiguous instruction: nop $A9
+        rti                            ; $8008  40
         
-        .byte $00, $00, $00, $00, $00, $00, $00, $00, $00
+        .byte $00, $00, $00, $00, $00, $00, $00
         
         _data_8010_indexed:
         .byte $12, $00, $00, $00, $00, $34, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
@@ -272,9 +274,9 @@ func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
         _var_bffe_indexed = $BFFE
         
         Reset:
-        jsr $A268                      ; $C000 20 68 A2
-        lda a:_var_bffe_indexed,Y      ; $C003 B9 FE BF
-        rti                            ; $C006 40
+        jsr $A268                      ; $C000  20 68 A2
+        lda a:_var_bffe_indexed,Y      ; $C003  B9 FE BF
+        rti                            ; $C006  40
 `
 
 	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {

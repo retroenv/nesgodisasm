@@ -287,13 +287,8 @@ func getProgramOffset(offsetInfo offset, address uint16, options *disasmoptions.
 			programOffset.Code = fmt.Sprintf(".word %s", offsetInfo.branchingTo)
 		}
 
-		if options.OffsetComments {
-			setOffsetComment(&programOffset, address)
-		}
-		if options.HexComments {
-			if err := setHexCodeComment(&programOffset); err != nil {
-				return program.Offset{}, err
-			}
+		if err := setComment(&programOffset, address, options); err != nil {
+			return program.Offset{}, err
 		}
 	} else {
 		programOffset.SetType(program.DataOffset)
@@ -302,29 +297,37 @@ func getProgramOffset(offsetInfo offset, address uint16, options *disasmoptions.
 	return programOffset, nil
 }
 
-func setHexCodeComment(offset *program.Offset) error {
+func setComment(programOffset *program.Offset, address uint16, options *disasmoptions.Options) error {
+	var comments []string
+
+	if options.OffsetComments {
+		comments = []string{fmt.Sprintf("$%04X", address)}
+	}
+
+	if options.HexComments {
+		hexCodeComment, err := hexCodeComment(programOffset)
+		if err != nil {
+			return err
+		}
+		comments = append(comments, hexCodeComment)
+	}
+
+	if programOffset.Comment != "" {
+		comments = append(comments, programOffset.Comment)
+	}
+	programOffset.Comment = strings.Join(comments, "  ")
+	return nil
+}
+
+func hexCodeComment(offset *program.Offset) (string, error) {
 	buf := &strings.Builder{}
 
 	for _, b := range offset.OpcodeBytes {
 		if _, err := fmt.Fprintf(buf, "%02X ", b); err != nil {
-			return fmt.Errorf("writing hex comment: %w", err)
+			return "", fmt.Errorf("writing hex comment: %w", err)
 		}
 	}
 
 	comment := strings.TrimRight(buf.String(), " ")
-	if offset.Comment == "" {
-		offset.Comment = comment
-	} else {
-		offset.Comment = fmt.Sprintf("%s %s", offset.Comment, comment)
-	}
-
-	return nil
-}
-
-func setOffsetComment(offset *program.Offset, address uint16) {
-	if offset.Comment == "" {
-		offset.Comment = fmt.Sprintf("$%04X", address)
-	} else {
-		offset.Comment = fmt.Sprintf("$%04X %s", address, offset.Comment)
-	}
+	return comment, nil
 }
