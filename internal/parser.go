@@ -11,8 +11,13 @@ import (
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 func (dis *Disasm) followExecutionFlow() error {
-	for addr := dis.addressToDisassemble(); addr != 0; addr = dis.addressToDisassemble() {
-		dis.pc = addr
+	for address := dis.addressToDisassemble(); address != 0; address = dis.addressToDisassemble() {
+		if _, ok := dis.offsetsParsed[address]; ok {
+			continue
+		}
+		dis.offsetsParsed[address] = struct{}{}
+
+		dis.pc = address
 		index := dis.addressToIndex(dis.pc)
 		offsetInfo, inspectCode := dis.initializeOffsetInfo(index)
 		if !inspectCode {
@@ -36,7 +41,7 @@ func (dis *Disasm) followExecutionFlow() error {
 		} else {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			followingOpcodeAddress := dis.pc + opcodeLength
-			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, addr, instruction, false)
+			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, address, instruction, false)
 			dis.checkForJumpEngineCall(offsetInfo, dis.pc)
 		}
 
@@ -165,23 +170,23 @@ func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param an
 func (dis *Disasm) addressToDisassemble() uint16 {
 	for {
 		if len(dis.offsetsToParse) > 0 {
-			addr := dis.offsetsToParse[0]
+			address := dis.offsetsToParse[0]
 			dis.offsetsToParse = dis.offsetsToParse[1:]
-			return addr
+			return address
 		}
 
 		for len(dis.functionReturnsToParse) > 0 {
-			addr := dis.functionReturnsToParse[0]
+			address := dis.functionReturnsToParse[0]
 			dis.functionReturnsToParse = dis.functionReturnsToParse[1:]
 
-			_, ok := dis.functionReturnsToParseAdded[addr]
+			_, ok := dis.functionReturnsToParseAdded[address]
 			// if the address was removed from the set it marks the address as not being parsed anymore,
 			// this way is more efficient than iterating the slice to delete the element
 			if !ok {
 				continue
 			}
-			delete(dis.functionReturnsToParseAdded, addr)
-			return addr
+			delete(dis.functionReturnsToParseAdded, address)
+			return address
 		}
 
 		if !dis.scanForNewJumpEngineEntry() {
