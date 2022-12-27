@@ -35,7 +35,8 @@ func (dis *Disasm) processJumpDestinations() {
 
 		// if the offset is marked as code but does not have opcode bytes, the jump destination
 		// is inside the second or third byte of an instruction.
-		if offsetInfo.IsType(program.CodeOffset) && len(offsetInfo.OpcodeBytes) == 0 {
+		if (offsetInfo.IsType(program.CodeOffset) || offsetInfo.IsType(program.CodeAsData)) &&
+			len(offsetInfo.OpcodeBytes) == 0 {
 			dis.handleJumpIntoInstruction(index)
 		}
 
@@ -61,8 +62,13 @@ func (dis *Disasm) handleJumpIntoInstruction(index uint16) {
 	}
 
 	offsetInfo := &dis.offsets[instructionStart]
-	offsetInfo.Comment = fmt.Sprintf("branch into instruction detected: %s", offsetInfo.Code)
-	offsetInfo.Code = ""
+	if offsetInfo.Code == "" { // disambiguous instruction
+		offsetInfo.Comment = fmt.Sprintf("branch into instruction detected: %s", offsetInfo.Comment)
+	} else {
+		offsetInfo.Comment = fmt.Sprintf("branch into instruction detected: %s", offsetInfo.Code)
+		offsetInfo.Code = ""
+	}
+
 	offsetInfo.SetType(program.CodeAsData)
 	dis.changeOffsetRangeToData(offsetInfo.OpcodeBytes, instructionStart)
 }

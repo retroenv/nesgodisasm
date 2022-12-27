@@ -18,6 +18,9 @@ func (dis *Disasm) changeOffsetRangeToData(data []byte, index uint16) {
 				offsetInfoNext.OpcodeBytes = nil
 				offsetInfoNext.SetType(program.CodeAsData | program.DataOffset)
 				noLabelOffsets++
+
+				skipAddressToParse := dis.codeBaseAddress + index + uint16(j)
+				dis.offsetsToParseAdded[skipAddressToParse] = struct{}{}
 				continue
 			}
 			break

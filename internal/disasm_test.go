@@ -234,13 +234,21 @@ func TestDisasmMixedAccess(t *testing.T) {
 
 func TestDisasmDisambiguousInstructions(t *testing.T) {
 	input := []byte{
-		0xeb, 0x04, // sta $04
-		0x04, 0xa9, // lda $04,Y
+		0x4c, 0x05, 0x80, // jmp $8005
+		0x04, 0xa9, // nop $A9
+		0xea,       // nop
+		0x30, 0xFB, // bmi $03
+		0x30, 0xFA, // bmi $04
+		0x40, // rti
 	}
 
 	expected := `Reset:
-        .byte $eb, $04                   ; disambiguous instruction: sbc #$04
-        .byte $04, $a9                   ; disambiguous instruction: nop $A9
+        bmi _label_8003
+        .byte $04                        ; disambiguous instruction: nop $A9
+        
+        _label_8003:
+        lda #$40                       ; branch into instruction detected
+        rti
 `
 
 	runDisasm(t, nil, input, expected)
