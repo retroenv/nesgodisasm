@@ -28,7 +28,9 @@ type variable struct {
 
 // addVariableReference adds a variable reference if the opcode is accessing the given address directly by
 // reading or writing. In a special case like branching into a zeropage address the variable usage can be forced.
-func (dis *Disasm) addVariableReference(address, index uint16, opcode cpu.Opcode, forceVariableUsage bool) bool {
+func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, opcode cpu.Opcode,
+	forceVariableUsage bool) bool {
+
 	var reads, writes bool
 	if opcode.ReadWritesMemory() {
 		reads = true
@@ -41,14 +43,14 @@ func (dis *Disasm) addVariableReference(address, index uint16, opcode cpu.Opcode
 		return false
 	}
 
-	varInfo := dis.variables[address]
+	varInfo := dis.variables[addressReference]
 	if varInfo == nil {
 		varInfo = &variable{
-			address: address,
+			address: addressReference,
 		}
-		dis.variables[address] = varInfo
+		dis.variables[addressReference] = varInfo
 	}
-	varInfo.usageAt = append(varInfo.usageAt, index)
+	varInfo.usageAt = append(varInfo.usageAt, usageAddress)
 
 	if reads {
 		varInfo.reads = true
