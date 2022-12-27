@@ -30,16 +30,6 @@ func (dis *Disasm) readMemoryWord(address uint16) uint16 {
 	return w
 }
 
-// readMemoryWordBug reads a word from a memory address and emulates a 6502 bug that caused
-// the low byte to wrap without incrementing the high byte.
-func (dis *Disasm) readMemoryWordBug(address uint16) uint16 {
-	low := uint16(dis.readMemory(address))
-	address = (address & 0xFF00) | uint16(byte(address)+1)
-	high := uint16(dis.readMemory(address))
-	w := (high << 8) | low
-	return w
-}
-
 // readOpParam reads the opcode parameters after the first opcode byte
 // and translates it into emulator specific types.
 func (dis *Disasm) readOpParam(addressing Mode, address uint16) (any, []byte) {

@@ -95,12 +95,13 @@ func paramReaderRelative(dis *Disasm, address uint16) (any, []byte) {
 }
 
 func paramReaderIndirect(dis *Disasm, address uint16) (any, []byte) {
-	address = dis.readMemoryWordBug(address + 1)
-	b1 := dis.readMemory(address + 1)
-	b2 := dis.readMemory(address + 2)
+	// do not read actual address in disassembler mode
+	b1 := uint16(dis.readMemory(address + 1))
+	b2 := uint16(dis.readMemory(address + 2))
+	w := b2<<8 | b1
 
-	opcodes := []byte{b1, b2}
-	return Indirect(address), opcodes
+	opcodes := []byte{byte(b1), byte(b2)}
+	return Indirect(w), opcodes
 }
 
 func paramReaderIndirectX(dis *Disasm, address uint16) (any, []byte) {

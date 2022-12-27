@@ -48,6 +48,7 @@ func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, 
 	if !options.CodeOnly {
 		writes = []any{
 			customWrite(f.writeChecksums),
+			customWrite(f.writeCodeBaseAddress),
 			lineWrite(cpuSelector),
 			segmentWrite{name: "HEADER"},
 			lineWrite(iNESHeader),
@@ -143,8 +144,15 @@ func (f FileWriter) writeChecksums(_ *disasmoptions.Options, app *program.Progra
 	if _, err := fmt.Fprintf(writer, "; CHR CRC32 checksum: %08x\n", app.Checksums.CHR); err != nil {
 		return fmt.Errorf("writing chr checksum: %w", err)
 	}
-	if _, err := fmt.Fprintf(writer, "; Overall CRC32 checksum: %08x\n\n", app.Checksums.Overall); err != nil {
+	if _, err := fmt.Fprintf(writer, "; Overall CRC32 checksum: %08x\n", app.Checksums.Overall); err != nil {
 		return fmt.Errorf("writing overall checksum: %w", err)
+	}
+	return nil
+}
+
+func (f FileWriter) writeCodeBaseAddress(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+	if _, err := fmt.Fprintf(writer, "; Code base address: $%04x\n\n", app.CodeBaseAddress); err != nil {
+		return fmt.Errorf("writing code base address: %w", err)
 	}
 	return nil
 }

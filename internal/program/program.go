@@ -38,12 +38,13 @@ type Program struct {
 	RAM     byte     // PRG-RAM banks
 	Trainer []byte
 
-	Checksums   Checksums
-	Handlers    Handlers
-	Battery     byte
-	Mirror      cartridge.MirrorMode
-	Mapper      byte
-	VideoFormat byte
+	CodeBaseAddress uint16
+	Checksums       Checksums
+	Handlers        Handlers
+	Battery         byte
+	Mirror          cartridge.MirrorMode
+	Mapper          byte
+	VideoFormat     byte
 
 	Constants map[string]uint16
 	Variables map[string]uint16

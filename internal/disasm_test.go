@@ -286,6 +286,20 @@ func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
 	runDisasm(t, setup, input, expected)
 }
 
+func TestDisasmIndirectJmp(t *testing.T) {
+	input := []byte{
+		0x6c, 0xce, 0x20, // sta $04
+	}
+
+	expected := `Reset:                           ; jump engine detected
+        jmp ($20CE)                    ; $8000  6C CE 20
+`
+
+	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {}
+
+	runDisasm(t, setup, input, expected)
+}
+
 func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
 

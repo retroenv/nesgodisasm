@@ -2,8 +2,10 @@ package disasm
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrogolib/log"
 	. "github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cpu"
 )
@@ -58,8 +60,11 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 		}
 	}
 
+	dis.options.Logger.Debug("Jump engine detected",
+		log.String("address", fmt.Sprintf("0x%04X", offsetInfo.context)))
+
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
-	// in the function, this makes it a likely jump engine
+	// in the function, this makes it likely a jump engine
 	dis.jumpEngines[offsetInfo.context] = struct{}{}
 
 	dis.handleJumpEngineCallers(offsetInfo.context)
