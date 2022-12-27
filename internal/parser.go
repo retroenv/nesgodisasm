@@ -1,6 +1,7 @@
 package disasm
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
@@ -8,6 +9,8 @@ import (
 	"github.com/retroenv/retrogolib/nes/cpu"
 	"github.com/retroenv/retrogolib/nes/parameter"
 )
+
+var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ handler start")
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 func (dis *Disasm) followExecutionFlow() error {
@@ -31,6 +34,10 @@ func (dis *Disasm) followExecutionFlow() error {
 		} else {
 			params, err := dis.processParamInstruction(dis.pc, offsetInfo)
 			if err != nil {
+				if errors.Is(err, errInstructionOverlapsIRQHandlers) {
+					dis.handleInstructionIRQOverlap(address, index, offsetInfo)
+					continue
+				}
 				return err
 			}
 			offsetInfo.Code = fmt.Sprintf("%s %s", instruction.Name, params)
@@ -105,17 +112,21 @@ func (dis *Disasm) initializeOffsetInfo(index uint16) (*offset, bool) {
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
-func (dis *Disasm) processParamInstruction(index uint16, offsetInfo *offset) (string, error) {
+func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (string, error) {
 	opcode := offsetInfo.opcode
 	param, opcodes := dis.readOpParam(opcode.Addressing, dis.pc)
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
+
+	if address+uint16(len(offsetInfo.OpcodeBytes)) > irqStartAddress {
+		return "", errInstructionOverlapsIRQHandlers
+	}
 
 	paramAsString, err := parameter.String(dis.converter, opcode.Addressing, param)
 	if err != nil {
 		return "", fmt.Errorf("getting parameter as string: %w", err)
 	}
 
-	paramAsString = dis.replaceParamByAlias(index, opcode, param, paramAsString)
+	paramAsString = dis.replaceParamByAlias(address, opcode, param, paramAsString)
 
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
@@ -129,27 +140,27 @@ func (dis *Disasm) processParamInstruction(index uint16, offsetInfo *offset) (st
 
 // replaceParamByAlias replaces the absolute address with an alias name if it can match it to
 // a constant, zero page variable or a code reference.
-func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param any, paramAsString string) string {
+func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param any, paramAsString string) string {
 	forceVariableUsage := false
-	address, addressValid := getAddressingParam(param)
-	if !addressValid || address >= irqStartAddress {
+	addressReference, addressValid := getAddressingParam(param)
+	if !addressValid || addressReference >= irqStartAddress {
 		return paramAsString
 	}
 
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		var handleParam bool
-		handleParam, forceVariableUsage = checkBranchingParam(address, opcode)
+		handleParam, forceVariableUsage = checkBranchingParam(addressReference, opcode)
 		if !handleParam {
 			return paramAsString
 		}
 	}
 
-	constantInfo, ok := dis.constants[address]
+	constantInfo, ok := dis.constants[addressReference]
 	if ok {
-		return dis.replaceParamByConstant(opcode, paramAsString, address, constantInfo)
+		return dis.replaceParamByConstant(opcode, paramAsString, addressReference, constantInfo)
 	}
 
-	if !dis.addVariableReference(address, index, opcode, forceVariableUsage) {
+	if !dis.addVariableReference(addressReference, address, opcode, forceVariableUsage) {
 		return paramAsString
 	}
 
@@ -237,6 +248,19 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 		dis.functionReturnsToParseAdded[address] = struct{}{}
 	} else {
 		dis.offsetsToParse = append(dis.offsetsToParse, address)
+	}
+}
+
+// handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
+// The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
+func (dis *Disasm) handleInstructionIRQOverlap(address, index uint16, offsetInfo *offset) {
+	keepLength := int(irqStartAddress - address)
+	offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:keepLength]
+
+	for i := 0; i < keepLength; i++ {
+		offsetInfo = &dis.offsets[index+uint16(i)]
+		offsetInfo.ClearType(program.CodeOffset)
+		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 	}
 }
 
