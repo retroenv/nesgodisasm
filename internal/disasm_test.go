@@ -16,15 +16,17 @@ func TestDisasmZeroDataReference(t *testing.T) {
 	input := []byte{
 		0xad, 0x20, 0x80, // lda a:$8020
 		0xbd, 0x10, 0x80, // lda a:$8010,X
+		0x04, 0xa9, // nop $A9
 		0x40, // rti
 	}
 
 	expected := `Reset:
-        lda a:_data_8020               ; $8000 AD 20 80
-        lda a:_data_8010_indexed,X     ; $8003 BD 10 80
-        rti                            ; $8006 40
+        lda a:_data_8020               ; $8000  AD 20 80
+        lda a:_data_8010_indexed,X     ; $8003  BD 10 80
+        .byte $04, $a9                   ; $8006  04 A9  disambiguous instruction: nop $A9
+        rti                            ; $8008  40
         
-        .byte $00, $00, $00, $00, $00, $00, $00, $00, $00
+        .byte $00, $00, $00, $00, $00, $00, $00
         
         _data_8010_indexed:
         .byte $12, $00, $00, $00, $00, $34, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
@@ -135,17 +137,17 @@ func TestDisasmJumpEngineTableFromCaller(t *testing.T) {
 
 func TestDisasmJumpEngineTableAppended(t *testing.T) {
 	input := []byte{
-		0xa5, 0xd7, //
-		0x0a,             //
-		0xaa,             //
-		0xbd, 0x15, 0x80, //
-		0x8d, 0x00, 0x02, //
-		0xbd, 0x16, 0x80, //
-		0x8d, 0x01, 0x02, //
-		0x6c, 0x00, 0x02, //
-		0x00, 0x00, //
-		0x17, 0x80, //
-		0x40, //
+		0xa5, 0xd7, // lda z:$D7
+		0x0a,             // asl a
+		0xaa,             // tax
+		0xbd, 0x15, 0x80, // lda a:$8015,X
+		0x8d, 0x00, 0x02, // sta a:$0200
+		0xbd, 0x16, 0x80, // lda a:$8016,X
+		0x8d, 0x01, 0x02, // sta a:$0201
+		0x6c, 0x00, 0x02, // jmp ($0200)
+		0x00, 0x00,
+		0x17, 0x80, // .word $8017
+		0x40, // rti
 	}
 
 	expected := `
@@ -173,6 +175,46 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
 	runDisasm(t, nil, input, expected)
 }
 
+func TestDisasmJumpEngineZeroPage(t *testing.T) {
+	input := []byte{
+		0xbd, 0x15, 0x80, // lda a:$8015,X
+		0x85, 0xe4, // sta z:$e4
+		0xbd, 0x16, 0x80, // lda a:$8016,X
+		0x85, 0xe5, // sta z:$e5
+		0xa9, 0x4c, // lda #$4c
+		0x85, 0xe3, // sta z:$e3
+		0x20, 0xe3, 0x00, // jsr $00e3
+		0x60, // rts
+		0x00, 0x00, 0x00,
+		0x17, 0x80, // .word $8017
+		0x60, // rts
+	}
+
+	expected := `
+        _var_00e3 = $00E3
+        
+        Reset:
+        lda a:_data_8015_indexed,X
+        sta z:$E4
+        lda a:_data_8016_indexed,X
+        sta z:$E5
+        lda #$4C
+        sta z:_var_00e3
+        jsr a:_var_00e3
+        rts
+        
+        .byte $00, $00, $00
+        
+        _data_8015_indexed:
+        .byte $17
+        
+        _data_8016_indexed:
+        .byte $80, $60
+`
+
+	runDisasm(t, nil, input, expected)
+}
+
 func TestDisasmMixedAccess(t *testing.T) {
 	input := []byte{
 		0x85, 0x04, // sta $04
@@ -194,23 +236,63 @@ func TestDisasmMixedAccess(t *testing.T) {
 
 func TestDisasmDisambiguousInstructions(t *testing.T) {
 	input := []byte{
-		0xeb, 0x04, // sta $04
-		0x04, 0xa9, // lda $04,Y
+		0x4c, 0x05, 0x80, // jmp $8005
+		0x04, 0xa9, // nop $A9
+		0xea,       // nop
+		0x30, 0xFB, // bmi $03
+		0x30, 0xFA, // bmi $04
+		0x40, // rti
 	}
 
 	expected := `Reset:
-        .byte $eb, $04                   ; disambiguous instruction: sbc #$04
-        .byte $04, $a9                   ; disambiguous instruction: nop $A9
+        jmp _label_8005
+        
+        _label_8003:
+        .byte $04                        ; branch into instruction detected: disambiguous instruction: nop $A9
+        
+        _label_8004:
+        .byte $a9
+        
+        _label_8005:
+        nop
+        bmi _label_8003
+        bmi _label_8004
+        rti
 `
 
 	runDisasm(t, nil, input, expected)
 }
 
+func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
+	input := []byte{
+		0x20, 0x68, 0xa2, // jsr a268
+		0xb9, 0xfe, 0xbf, // lda a:$bffe,Y
+		0x40, // rti
+	}
+
+	expected := `
+        _var_bffe_indexed = $BFFE
+        
+        Reset:
+        jsr $A268                      ; $C000  20 68 A2
+        lda a:_var_bffe_indexed,Y      ; $C003  B9 FE BF
+        rti                            ; $C006  40
+`
+
+	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+		cart.PRG = make([]byte, 0x4000)
+		cart.PRG[0x3FFD] = 0xC0 // reset handler that forces base address to $C000
+	}
+	runDisasm(t, setup, input, expected)
+}
+
 func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
 
-	// point reset handler to offset 0 of PRG buffer, aka 0x8000 address
-	cart.PRG[0x7FFD] = 0x80
+	if len(cart.PRG) == 0x8000 {
+		// point reset handler to offset 0 of PRG buffer, aka 0x8000 address
+		cart.PRG[0x7FFD] = 0x80
+	}
 
 	copy(cart.PRG, code)
 

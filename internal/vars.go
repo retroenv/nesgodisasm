@@ -26,7 +26,11 @@ type variable struct {
 	usageAt      []uint16 // list of all indexes that use this offset
 }
 
-func (dis *Disasm) addVariableReference(index uint16, opcode cpu.Opcode, address uint16) bool {
+// addVariableReference adds a variable reference if the opcode is accessing the given address directly by
+// reading or writing. In a special case like branching into a zeropage address the variable usage can be forced.
+func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, opcode cpu.Opcode,
+	forceVariableUsage bool) bool {
+
 	var reads, writes bool
 	if opcode.ReadWritesMemory() {
 		reads = true
@@ -35,18 +39,18 @@ func (dis *Disasm) addVariableReference(index uint16, opcode cpu.Opcode, address
 		reads = opcode.ReadsMemory()
 		writes = opcode.WritesMemory()
 	}
-	if !reads && !writes {
+	if !reads && !writes && !forceVariableUsage {
 		return false
 	}
 
-	varInfo := dis.variables[address]
+	varInfo := dis.variables[addressReference]
 	if varInfo == nil {
 		varInfo = &variable{
-			address: address,
+			address: addressReference,
 		}
-		dis.variables[address] = varInfo
+		dis.variables[addressReference] = varInfo
 	}
-	varInfo.usageAt = append(varInfo.usageAt, index)
+	varInfo.usageAt = append(varInfo.usageAt, usageAddress)
 
 	if reads {
 		varInfo.reads = true
@@ -85,7 +89,7 @@ func (dis *Disasm) processVariables() error {
 
 		var dataOffsetInfo *offset
 		var addressAdjustment uint16
-		if varInfo.address >= CodeBaseAddress {
+		if varInfo.address >= dis.codeBaseAddress {
 			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(varInfo.address)
 		} else {
 			dis.usedVariables[varInfo.address] = struct{}{}

@@ -50,7 +50,7 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 
 			disasm := Disasm{}
 			disasm.offsets = test.Input()
-			disasm.changeOffsetRangeToData(data, 0)
+			disasm.changeOffsetRangeToCodeAsData(data, 0)
 
 			for i := range test.Expected {
 				assert.Equal(t, test.Expected[i], disasm.offsets[i].OpcodeBytes)

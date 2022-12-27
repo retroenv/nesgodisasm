@@ -11,7 +11,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/log"
-	. "github.com/retroenv/retrogolib/nes/addressing"
+	"github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cartridge"
 	"github.com/retroenv/retrogolib/nes/codedatalog"
 	"github.com/retroenv/retrogolib/nes/cpu"
@@ -58,8 +58,10 @@ type Disasm struct {
 	branchDestinations     map[uint16]struct{} // set of all addresses that are branched to
 	offsets                []offset
 
-	offsetsToParse              []uint16
-	offsetsToParseAdded         map[uint16]struct{}
+	offsetsToParse      []uint16
+	offsetsToParseAdded map[uint16]struct{}
+	offsetsParsed       map[uint16]struct{}
+
 	functionReturnsToParse      []uint16
 	functionReturnsToParseAdded map[uint16]struct{}
 }
@@ -70,7 +72,6 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		logger:                      options.Logger,
 		options:                     options,
 		cart:                        cart,
-		codeBaseAddress:             uint16(0x10000 - len(cart.PRG)),
 		variables:                   map[uint16]*variable{},
 		usedVariables:               map[uint16]struct{}{},
 		usedConstants:               map[uint16]constTranslation{},
@@ -79,6 +80,7 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		jumpEngines:                 map[uint16]struct{}{},
 		branchDestinations:          map[uint16]struct{}{},
 		offsetsToParseAdded:         map[uint16]struct{}{},
+		offsetsParsed:               map[uint16]struct{}{},
 		functionReturnsToParseAdded: map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",
@@ -93,17 +95,18 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		return nil, err
 	}
 
+	if err = dis.initializeCompatibleMode(options.Assembler); err != nil {
+		return nil, fmt.Errorf("initializing compatible mode: %w", err)
+	}
+
+	dis.initializeIrqHandlers()
+
 	if options.CodeDataLog != nil {
 		if err = dis.loadCodeDataLog(); err != nil {
 			return nil, err
 		}
 	}
 
-	if err = dis.initializeCompatibleMode(options.Assembler); err != nil {
-		return nil, fmt.Errorf("initializing compatible mode: %w", err)
-	}
-
-	dis.initializeIrqHandlers()
 	return dis, nil
 }
 
@@ -186,6 +189,25 @@ func (dis *Disasm) initializeIrqHandlers() {
 	if irq == reset {
 		dis.handlers.IRQ = dis.handlers.Reset
 	}
+
+	dis.calculateCodeBaseAddress(reset)
+}
+
+// calculateCodeBaseAddress calculates the code base address that is assumed by the code.
+// If the code size is only 0x4000 it will be mirror-mapped into the 0x8000 byte of RAM starting at
+// 0x8000. The handlers can be set to any of the 2 mirrors as base, based on this the code base
+// address is calculated. This ensures that jsr instructions will result in the same opcode, as it
+// is based on the code base address.
+func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
+	dis.codeBaseAddress = uint16(0x10000 - len(dis.cart.PRG))
+	if resetHandler < dis.codeBaseAddress {
+		dis.codeBaseAddress = addressing.CodeBaseAddress
+	}
+}
+
+// CodeBaseAddress returns the calculated code base address.
+func (dis *Disasm) CodeBaseAddress() uint16 {
+	return dis.codeBaseAddress
 }
 
 // converts the internal disassembly representation to a program type that will be used by
@@ -228,8 +250,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 
 // addressToIndex converts an address if the code base address to an index into the PRG array.
 func (dis *Disasm) addressToIndex(address uint16) uint16 {
-	index := address - CodeBaseAddress
-	index %= uint16(len(dis.cart.PRG))
+	index := address % uint16(len(dis.cart.PRG))
 	return index
 }
 
@@ -266,13 +287,8 @@ func getProgramOffset(offsetInfo offset, address uint16, options *disasmoptions.
 			programOffset.Code = fmt.Sprintf(".word %s", offsetInfo.branchingTo)
 		}
 
-		if options.OffsetComments {
-			setOffsetComment(&programOffset, address)
-		}
-		if options.HexComments {
-			if err := setHexCodeComment(&programOffset); err != nil {
-				return program.Offset{}, err
-			}
+		if err := setComment(&programOffset, address, options); err != nil {
+			return program.Offset{}, err
 		}
 	} else {
 		programOffset.SetType(program.DataOffset)
@@ -281,29 +297,37 @@ func getProgramOffset(offsetInfo offset, address uint16, options *disasmoptions.
 	return programOffset, nil
 }
 
-func setHexCodeComment(offset *program.Offset) error {
+func setComment(programOffset *program.Offset, address uint16, options *disasmoptions.Options) error {
+	var comments []string
+
+	if options.OffsetComments {
+		comments = []string{fmt.Sprintf("$%04X", address)}
+	}
+
+	if options.HexComments {
+		hexCodeComment, err := hexCodeComment(programOffset)
+		if err != nil {
+			return err
+		}
+		comments = append(comments, hexCodeComment)
+	}
+
+	if programOffset.Comment != "" {
+		comments = append(comments, programOffset.Comment)
+	}
+	programOffset.Comment = strings.Join(comments, "  ")
+	return nil
+}
+
+func hexCodeComment(offset *program.Offset) (string, error) {
 	buf := &strings.Builder{}
 
 	for _, b := range offset.OpcodeBytes {
 		if _, err := fmt.Fprintf(buf, "%02X ", b); err != nil {
-			return fmt.Errorf("writing hex comment: %w", err)
+			return "", fmt.Errorf("writing hex comment: %w", err)
 		}
 	}
 
 	comment := strings.TrimRight(buf.String(), " ")
-	if offset.Comment == "" {
-		offset.Comment = comment
-	} else {
-		offset.Comment = fmt.Sprintf("%s %s", offset.Comment, comment)
-	}
-
-	return nil
-}
-
-func setOffsetComment(offset *program.Offset, address uint16) {
-	if offset.Comment == "" {
-		offset.Comment = fmt.Sprintf("$%04X", address)
-	} else {
-		offset.Comment = fmt.Sprintf("$%04X %s", address, offset.Comment)
-	}
+	return comment, nil
 }

@@ -1,6 +1,7 @@
 package disasm
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
@@ -9,10 +10,17 @@ import (
 	"github.com/retroenv/retrogolib/nes/parameter"
 )
 
+var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ handler start")
+
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 func (dis *Disasm) followExecutionFlow() error {
-	for addr := dis.addressToDisassemble(); addr != 0; addr = dis.addressToDisassemble() {
-		dis.pc = addr
+	for address := dis.addressToDisassemble(); address != 0; address = dis.addressToDisassemble() {
+		if _, ok := dis.offsetsParsed[address]; ok {
+			continue
+		}
+		dis.offsetsParsed[address] = struct{}{}
+
+		dis.pc = address
 		index := dis.addressToIndex(dis.pc)
 		offsetInfo, inspectCode := dis.initializeOffsetInfo(index)
 		if !inspectCode {
@@ -26,6 +34,10 @@ func (dis *Disasm) followExecutionFlow() error {
 		} else {
 			params, err := dis.processParamInstruction(dis.pc, offsetInfo)
 			if err != nil {
+				if errors.Is(err, errInstructionOverlapsIRQHandlers) {
+					dis.handleInstructionIRQOverlap(address, index, offsetInfo)
+					continue
+				}
 				return err
 			}
 			offsetInfo.Code = fmt.Sprintf("%s %s", instruction.Name, params)
@@ -36,7 +48,7 @@ func (dis *Disasm) followExecutionFlow() error {
 		} else {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			followingOpcodeAddress := dis.pc + opcodeLength
-			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, addr, instruction, false)
+			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, address, instruction, false)
 			dis.checkForJumpEngineCall(offsetInfo, dis.pc)
 		}
 
@@ -100,17 +112,21 @@ func (dis *Disasm) initializeOffsetInfo(index uint16) (*offset, bool) {
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
-func (dis *Disasm) processParamInstruction(index uint16, offsetInfo *offset) (string, error) {
+func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (string, error) {
 	opcode := offsetInfo.opcode
 	param, opcodes := dis.readOpParam(opcode.Addressing, dis.pc)
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
+
+	if address+uint16(len(offsetInfo.OpcodeBytes)) > irqStartAddress {
+		return "", errInstructionOverlapsIRQHandlers
+	}
 
 	paramAsString, err := parameter.String(dis.converter, opcode.Addressing, param)
 	if err != nil {
 		return "", fmt.Errorf("getting parameter as string: %w", err)
 	}
 
-	paramAsString = dis.replaceParamByAlias(index, opcode, param, paramAsString)
+	paramAsString = dis.replaceParamByAlias(address, opcode, param, paramAsString)
 
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
@@ -124,24 +140,27 @@ func (dis *Disasm) processParamInstruction(index uint16, offsetInfo *offset) (st
 
 // replaceParamByAlias replaces the absolute address with an alias name if it can match it to
 // a constant, zero page variable or a code reference.
-func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param any, paramAsString string) string {
+func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param any, paramAsString string) string {
+	forceVariableUsage := false
+	addressReference, addressValid := getAddressingParam(param)
+	if !addressValid || addressReference >= irqStartAddress {
+		return paramAsString
+	}
+
 	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
-		if opcode.Instruction.Name != cpu.JmpInstruction && opcode.Addressing != IndirectAddressing {
+		var handleParam bool
+		handleParam, forceVariableUsage = checkBranchingParam(addressReference, opcode)
+		if !handleParam {
 			return paramAsString
 		}
 	}
 
-	address, ok := getAddressingParam(param)
-	if !ok || address >= irqStartAddress {
-		return paramAsString
-	}
-
-	constantInfo, ok := dis.constants[address]
+	constantInfo, ok := dis.constants[addressReference]
 	if ok {
-		return dis.replaceParamByConstant(opcode, paramAsString, address, constantInfo)
+		return dis.replaceParamByConstant(opcode, paramAsString, addressReference, constantInfo)
 	}
 
-	if !dis.addVariableReference(index, opcode, address) {
+	if !dis.addVariableReference(addressReference, address, opcode, forceVariableUsage) {
 		return paramAsString
 	}
 
@@ -162,23 +181,23 @@ func (dis *Disasm) replaceParamByAlias(index uint16, opcode cpu.Opcode, param an
 func (dis *Disasm) addressToDisassemble() uint16 {
 	for {
 		if len(dis.offsetsToParse) > 0 {
-			addr := dis.offsetsToParse[0]
+			address := dis.offsetsToParse[0]
 			dis.offsetsToParse = dis.offsetsToParse[1:]
-			return addr
+			return address
 		}
 
 		for len(dis.functionReturnsToParse) > 0 {
-			addr := dis.functionReturnsToParse[0]
+			address := dis.functionReturnsToParse[0]
 			dis.functionReturnsToParse = dis.functionReturnsToParse[1:]
 
-			_, ok := dis.functionReturnsToParseAdded[addr]
+			_, ok := dis.functionReturnsToParseAdded[address]
 			// if the address was removed from the set it marks the address as not being parsed anymore,
 			// this way is more efficient than iterating the slice to delete the element
 			if !ok {
 				continue
 			}
-			delete(dis.functionReturnsToParseAdded, addr)
-			return addr
+			delete(dis.functionReturnsToParseAdded, address)
+			return address
 		}
 
 		if !dis.scanForNewJumpEngineEntry() {
@@ -190,6 +209,12 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 // addAddressToParse adds an address to the list to be processed if the address has not been processed yet.
 func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *cpu.Instruction,
 	isABranchDestination bool) {
+
+	// ignore branching into addresses before the code base address, for example when generating code in
+	// zeropage and branching into it to execute it.
+	if address < dis.codeBaseAddress {
+		return
+	}
 
 	index := dis.addressToIndex(address)
 	offsetInfo := &dis.offsets[index]
@@ -226,6 +251,19 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	}
 }
 
+// handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
+// The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
+func (dis *Disasm) handleInstructionIRQOverlap(address, index uint16, offsetInfo *offset) {
+	keepLength := int(irqStartAddress - address)
+	offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:keepLength]
+
+	for i := 0; i < keepLength; i++ {
+		offsetInfo = &dis.offsets[index+uint16(i)]
+		offsetInfo.ClearType(program.CodeOffset)
+		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
+	}
+}
+
 // getAddressingParam returns the address of the param if it references an address.
 func getAddressingParam(param any) (uint16, bool) {
 	switch val := param.(type) {
@@ -250,4 +288,18 @@ func getAddressingParam(param any) (uint16, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// checkBranchingParam checks whether the branching instruction should do a variable check for the parameter
+// and forces variable usage.
+func checkBranchingParam(address uint16, opcode cpu.Opcode) (bool, bool) {
+	switch {
+	case opcode.Instruction.Name == cpu.JmpInstruction && opcode.Addressing == IndirectAddressing:
+		return true, false
+	case opcode.Instruction.Name == cpu.JmpInstruction || opcode.Instruction.Name == cpu.JsrInstruction:
+		if opcode.Addressing == AbsoluteAddressing && address < CodeBaseAddress {
+			return true, true
+		}
+	}
+	return false, false
 }
