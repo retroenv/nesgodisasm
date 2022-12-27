@@ -58,8 +58,10 @@ type Disasm struct {
 	branchDestinations     map[uint16]struct{} // set of all addresses that are branched to
 	offsets                []offset
 
-	offsetsToParse              []uint16
-	offsetsToParseAdded         map[uint16]struct{}
+	offsetsToParse      []uint16
+	offsetsToParseAdded map[uint16]struct{}
+	offsetsParsed       map[uint16]struct{}
+
 	functionReturnsToParse      []uint16
 	functionReturnsToParseAdded map[uint16]struct{}
 }
@@ -78,6 +80,7 @@ func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, er
 		jumpEngines:                 map[uint16]struct{}{},
 		branchDestinations:          map[uint16]struct{}{},
 		offsetsToParseAdded:         map[uint16]struct{}{},
+		offsetsParsed:               map[uint16]struct{}{},
 		functionReturnsToParseAdded: map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",

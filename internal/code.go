@@ -70,7 +70,7 @@ func (dis *Disasm) handleJumpIntoInstruction(index uint16) {
 	}
 
 	offsetInfo.SetType(program.CodeAsData)
-	dis.changeOffsetRangeToData(offsetInfo.OpcodeBytes, instructionStart)
+	dis.changeOffsetRangeToCodeAsData(offsetInfo.OpcodeBytes, instructionStart)
 }
 
 // handleUnofficialNop translates disambiguous instructions into data bytes as it
@@ -94,7 +94,7 @@ func (dis *Disasm) handleDisambiguousInstructions(offsetInfo *offset, index uint
 
 	offsetInfo.Code = ""
 	offsetInfo.SetType(program.CodeAsData)
-	dis.changeOffsetRangeToData(offsetInfo.OpcodeBytes, index)
+	dis.changeOffsetRangeToCodeAsData(offsetInfo.OpcodeBytes, index)
 	return true
 }
 

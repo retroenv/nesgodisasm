@@ -5,9 +5,9 @@ import (
 	. "github.com/retroenv/retrogolib/nes/addressing"
 )
 
-// changeOffsetRangeToData sets a range of code offsets to data types.
-// It combines all data bytes that are not split by a label.
-func (dis *Disasm) changeOffsetRangeToData(data []byte, index uint16) {
+// changeOffsetRangeToCodeAsData sets a range of code offsets to code as
+// data types. It combines all data bytes that are not split by a label.
+func (dis *Disasm) changeOffsetRangeToCodeAsData(data []byte, index uint16) {
 	for i := 0; i < len(data); i++ {
 		offsetInfo := &dis.offsets[index+uint16(i)]
 
@@ -20,7 +20,7 @@ func (dis *Disasm) changeOffsetRangeToData(data []byte, index uint16) {
 				noLabelOffsets++
 
 				skipAddressToParse := dis.codeBaseAddress + index + uint16(j)
-				dis.offsetsToParseAdded[skipAddressToParse] = struct{}{}
+				dis.offsetsParsed[skipAddressToParse] = struct{}{}
 				continue
 			}
 			break
