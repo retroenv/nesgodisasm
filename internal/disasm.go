@@ -203,6 +203,8 @@ func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
 	if resetHandler < dis.codeBaseAddress {
 		dis.codeBaseAddress = addressing.CodeBaseAddress
 	}
+	dis.options.Logger.Debug("Code base address",
+		log.String("address", fmt.Sprintf("0x%04X", dis.codeBaseAddress)))
 }
 
 // CodeBaseAddress returns the calculated code base address.
@@ -214,6 +216,7 @@ func (dis *Disasm) CodeBaseAddress() uint16 {
 // the chosen assembler output instance to generate the asm file.
 func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app := program.New(dis.cart)
+	app.CodeBaseAddress = dis.codeBaseAddress
 	app.Handlers = dis.handlers
 
 	for i := 0; i < len(dis.offsets); i++ {
