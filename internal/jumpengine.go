@@ -32,38 +32,15 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 	}
 
 	contextOffsets, contextAddresses := dis.jumpContextInfo(offsetInfo, jumpAddress)
-
-	// parse all instructions of the function context until the jump
-	for i, offsetInfoInstruction := range contextOffsets {
-		address := contextAddresses[i]
-		opcode := offsetInfoInstruction.opcode
-
-		// if current function has a branching instruction beside the final jump, it's probably not one
-		// of the common jump engines
-		_, isBranching := cpu.BranchingInstructions[opcode.Instruction.Name]
-		if isBranching && opcode.Instruction.Name != cpu.JsrInstruction {
-			return
-		}
-
-		// look for an instructions that loads data from an address in the code or data
-		// address range. this should be the table containing the function addresses.
-		if !opcode.ReadsMemory() {
-			continue
-		}
-
-		param, _ := dis.readOpParam(opcode.Addressing, address)
-		reference, ok := getAddressingParam(param)
-		if ok && reference > dis.codeBaseAddress {
-			jumpEngine := &jumpEngineCaller{
-				tableStartAddress: reference,
-			}
-			dis.jumpEngineCallersAdded[offsetInfo.context] = jumpEngine
-			dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
-			break
-		}
+	contextSize := jumpAddress - offsetInfo.context + 3
+	dataReferences, ok := dis.getContextDataReferences(contextOffsets, contextAddresses, contextSize)
+	if !ok {
+		return
 	}
 
-	contextSize := jumpAddress - offsetInfo.context + 3
+	if len(dataReferences) > 1 {
+		dis.getFunctionTableReference(offsetInfo.context, dataReferences)
+	}
 
 	dis.options.Logger.Debug("Jump engine detected",
 		log.String("address", fmt.Sprintf("0x%04X", jumpAddress)),
@@ -81,6 +58,59 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 	}
 }
 
+// TODO use jump address as key to be able to handle large function
+// contexts containing multiple jump engines
+func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []uint16) {
+	if len(dataReferences) > 2 {
+		dataReferences = dataReferences[len(dataReferences)-2:]
+	}
+	if dataReferences[0]+1 != dataReferences[1] {
+		return
+	}
+
+	jumpEngine := &jumpEngineCaller{}
+	dis.jumpEngineCallersAdded[context] = jumpEngine
+	dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
+
+	dis.jumpEngineCallersAdded[context].tableStartAddress = dataReferences[0]
+}
+
+// getContextDataReferences parse all instructions of the function context until the jump
+// and returns data references that could point to the function table.
+// It returns the data references and a flag whether the context could be a jump engine.
+func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint16,
+	contextSize uint16) ([]uint16, bool) {
+
+	var dataReferences []uint16
+
+	for i, offsetInfoInstruction := range offsets {
+		address := addresses[i]
+		opcode := offsetInfoInstruction.opcode
+
+		if contextSize < jumpEngineMaxContextSize {
+			// if current function has a branching instruction beside the final jump, it's probably not one
+			// of the common jump engines. this check is skipped if the jump engine is part of a bigger function.
+			_, isBranching := cpu.BranchingInstructions[opcode.Instruction.Name]
+			if isBranching && opcode.Instruction.Name != cpu.JsrInstruction {
+				return nil, false
+			}
+		}
+
+		// look for an instructions that loads data from an address in the code or data
+		// address range. this should be the table containing the function addresses.
+		if !opcode.ReadsMemory() {
+			continue
+		}
+
+		param, _ := dis.readOpParam(opcode.Addressing, address)
+		reference, ok := getAddressingParam(param)
+		if ok && reference > dis.codeBaseAddress {
+			dataReferences = append(dataReferences, reference)
+		}
+	}
+	return dataReferences, true
+}
+
 // jumpContextInfo builds the list of instructions of the current function context.
 // in some ROMs the jump engine can be part of a label inside a larger function,
 // the jump engine detection will use the last instructions before the jmp.
@@ -94,7 +124,8 @@ func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*o
 
 		// skip offsets that have not been processed yet
 		if len(offsetInfoInstruction.OpcodeBytes) == 0 {
-			break
+			address++
+			continue
 		}
 
 		contextOffsets = append(contextOffsets, offsetInfoInstruction)
