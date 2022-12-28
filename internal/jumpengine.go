@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	jumpEngineLastInstructionsCheck = 10
+	jumpEngineLastInstructionsCheck = 16
 	jumpEngineMaxContextSize        = 0x25
 )
 
@@ -33,10 +33,7 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 
 	contextOffsets, contextAddresses := dis.jumpContextInfo(offsetInfo, jumpAddress)
 	contextSize := jumpAddress - offsetInfo.context + 3
-	dataReferences, ok := dis.getContextDataReferences(contextOffsets, contextAddresses, contextSize)
-	if !ok {
-		return
-	}
+	dataReferences := dis.getContextDataReferences(contextOffsets, contextAddresses)
 
 	if len(dataReferences) > 1 {
 		dis.getFunctionTableReference(offsetInfo.context, dataReferences)
@@ -77,24 +74,12 @@ func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []ui
 
 // getContextDataReferences parse all instructions of the function context until the jump
 // and returns data references that could point to the function table.
-// It returns the data references and a flag whether the context could be a jump engine.
-func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint16,
-	contextSize uint16) ([]uint16, bool) {
-
+func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint16) []uint16 {
 	var dataReferences []uint16
 
 	for i, offsetInfoInstruction := range offsets {
 		address := addresses[i]
 		opcode := offsetInfoInstruction.opcode
-
-		if contextSize < jumpEngineMaxContextSize {
-			// if current function has a branching instruction beside the final jump, it's probably not one
-			// of the common jump engines. this check is skipped if the jump engine is part of a bigger function.
-			_, isBranching := cpu.BranchingInstructions[opcode.Instruction.Name]
-			if isBranching && opcode.Instruction.Name != cpu.JsrInstruction {
-				return nil, false
-			}
-		}
 
 		// look for an instructions that loads data from an address in the code or data
 		// address range. this should be the table containing the function addresses.
@@ -104,11 +89,11 @@ func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint1
 
 		param, _ := dis.readOpParam(opcode.Addressing, address)
 		reference, ok := getAddressingParam(param)
-		if ok && reference > dis.codeBaseAddress && reference < irqStartAddress {
+		if ok && reference >= dis.codeBaseAddress && reference < irqStartAddress {
 			dataReferences = append(dataReferences, reference)
 		}
 	}
-	return dataReferences, true
+	return dataReferences
 }
 
 // jumpContextInfo builds the list of instructions of the current function context.
