@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/retroenv/nesgodisasm/internal/program"
 	. "github.com/retroenv/retrogolib/nes/addressing"
 	"github.com/retroenv/retrogolib/nes/cpu"
 	"github.com/retroenv/retrogolib/nes/parameter"
@@ -12,6 +13,7 @@ import (
 const (
 	dataNaming            = "_data_%04x"
 	dataNamingIndexed     = "_data_%04x_indexed"
+	jumpTableNaming       = "_jump_table_%04x"
 	variableNaming        = "_var_%04x"
 	variableNamingIndexed = "_var_%04x_indexed"
 )
@@ -149,8 +151,14 @@ func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addr
 		name = offsetInfo.Label
 	} else {
 		prgAccess := offsetInfo != nil
+		var jumpTable bool
+		if prgAccess {
+			jumpTable = offsetInfo.IsType(program.JumpTable)
+		}
 
 		switch {
+		case jumpTable:
+			name = fmt.Sprintf(jumpTableNaming, address)
 		case prgAccess && indexedUsage:
 			name = fmt.Sprintf(dataNamingIndexed, address)
 		case prgAccess && !indexedUsage:

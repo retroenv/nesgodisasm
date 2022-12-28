@@ -11,6 +11,7 @@ const (
 	CodeAsData      // for branches into instructions and unofficial instructions
 	CallDestination // opcode is the destination of a jsr call, indicating a subroutine
 	JumpEngine
+	JumpTable
 	FunctionReference // reference to a function
 )
 
