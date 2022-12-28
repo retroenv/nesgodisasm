@@ -10,7 +10,10 @@ import (
 	"github.com/retroenv/retrogolib/nes/cpu"
 )
 
-const jumpEngineLastInstructionsCheck = 10
+const (
+	jumpEngineLastInstructionsCheck = 10
+	jumpEngineMaxContextSize        = 0x25
+)
 
 // jumpEngineCaller stores info about a caller of a jump engine, which is followed by a list of function addresses
 type jumpEngineCaller struct {
@@ -60,14 +63,22 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 		}
 	}
 
+	contextSize := jumpAddress - offsetInfo.context + 3
+
 	dis.options.Logger.Debug("Jump engine detected",
-		log.String("address", fmt.Sprintf("0x%04X", offsetInfo.context)))
+		log.String("address", fmt.Sprintf("0x%04X", jumpAddress)),
+		log.String("code_size", fmt.Sprintf("0x%04X", contextSize)),
+	)
 
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
 	// in the function, this makes it likely a jump engine
 	dis.jumpEngines[offsetInfo.context] = struct{}{}
 
-	dis.handleJumpEngineCallers(offsetInfo.context)
+	if contextSize < jumpEngineMaxContextSize {
+		dis.handleJumpEngineCallers(offsetInfo.context)
+	} else {
+		offsetInfo.Comment = "jump engine detected"
+	}
 }
 
 // jumpContextInfo builds the list of instructions of the current function context.
