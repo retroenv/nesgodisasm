@@ -104,7 +104,7 @@ func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint1
 
 		param, _ := dis.readOpParam(opcode.Addressing, address)
 		reference, ok := getAddressingParam(param)
-		if ok && reference > dis.codeBaseAddress {
+		if ok && reference > dis.codeBaseAddress && reference < irqStartAddress {
 			dataReferences = append(dataReferences, reference)
 		}
 	}
@@ -200,7 +200,7 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 	}
 
 	destination := dis.readMemoryWord(address)
-	if destination < dis.codeBaseAddress {
+	if destination < dis.codeBaseAddress || destination >= irqStartAddress {
 		jumpEngine.terminated = true
 		return false
 	}
