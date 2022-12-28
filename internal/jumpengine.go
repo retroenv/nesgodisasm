@@ -200,6 +200,10 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 		return false
 	}
 
+	if jumpEngine.entries == 0 {
+		offsetInfo1.Offset.SetType(program.JumpTable)
+	}
+
 	offsetInfo1.Offset.SetType(program.FunctionReference)
 	offsetInfo2.Offset.SetType(program.FunctionReference)
 

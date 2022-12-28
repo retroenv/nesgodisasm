@@ -157,15 +157,15 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
         lda z:$D7
         asl a
         tax
-        lda a:_data_8015_indexed,X
+        lda a:_jump_table_8015,X
         sta a:_var_0200
-        lda a:_data_8015_indexed+1,X
+        lda a:_jump_table_8015+1,X
         sta a:$0201
         jmp (_var_0200)
         
         .byte $00, $00
         
-        _data_8015_indexed:
+        _jump_table_8015:
         .word _label_8017
         
         _label_8017:
