@@ -41,7 +41,7 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 
 	dis.options.Logger.Debug("Jump engine detected",
 		log.String("address", fmt.Sprintf("0x%04X", jumpAddress)),
-		log.String("code_size", fmt.Sprintf("0x%04X", contextSize)),
+		log.Uint16("code_size", contextSize),
 	)
 
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
@@ -58,10 +58,24 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 // TODO use jump address as key to be able to handle large function
 // contexts containing multiple jump engines
 func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []uint16) {
+	// if there are multiple data references just look at the last 2
 	if len(dataReferences) > 2 {
 		dataReferences = dataReferences[len(dataReferences)-2:]
 	}
-	if dataReferences[0]+1 != dataReferences[1] {
+
+	// get the lowest data pointer, jmp and rts based jump engines have the address accesses reversed
+	var referenceDistance, smallestReference uint16
+	if dataReferences[0] < dataReferences[1] {
+		referenceDistance = dataReferences[1] - dataReferences[0]
+		smallestReference = dataReferences[0]
+	} else {
+		referenceDistance = dataReferences[0] - dataReferences[1]
+		smallestReference = dataReferences[1]
+	}
+
+	// the access to the function tables can be done using the same address and an incremented x register
+	// or to an incremented address and the same x register
+	if referenceDistance != 0 && referenceDistance != 1 {
 		return
 	}
 
@@ -69,7 +83,7 @@ func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []ui
 	dis.jumpEngineCallersAdded[context] = jumpEngine
 	dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
 
-	dis.jumpEngineCallersAdded[context].tableStartAddress = dataReferences[0]
+	dis.jumpEngineCallersAdded[context].tableStartAddress = smallestReference
 }
 
 // getContextDataReferences parse all instructions of the function context until the jump
@@ -100,8 +114,8 @@ func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint1
 // in some ROMs the jump engine can be part of a label inside a larger function,
 // the jump engine detection will use the last instructions before the jmp.
 func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*offset, []uint16) {
-	var contextOffsets []*offset
-	var contextAddresses []uint16
+	var offsets []*offset
+	var addresses []uint16
 
 	for address := offsetInfo.context; address != 0 && address < jumpAddress; {
 		index := dis.addressToIndex(address)
@@ -113,18 +127,18 @@ func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*o
 			continue
 		}
 
-		contextOffsets = append(contextOffsets, offsetInfoInstruction)
-		contextAddresses = append(contextAddresses, address)
+		offsets = append(offsets, offsetInfoInstruction)
+		addresses = append(addresses, address)
 
 		address += uint16(len(offsetInfoInstruction.OpcodeBytes))
 	}
 
-	if len(contextOffsets) > jumpEngineLastInstructionsCheck {
-		contextOffsets = contextOffsets[len(contextOffsets)-jumpEngineLastInstructionsCheck-1:]
-		contextAddresses = contextAddresses[len(contextAddresses)-jumpEngineLastInstructionsCheck-1:]
+	if len(offsets) > jumpEngineLastInstructionsCheck {
+		offsets = offsets[len(offsets)-jumpEngineLastInstructionsCheck-1:]
+		addresses = addresses[len(addresses)-jumpEngineLastInstructionsCheck-1:]
 	}
 
-	return contextOffsets, contextAddresses
+	return offsets, addresses
 }
 
 // checkForJumpEngineCall checks if the current instruction is a call into a jump engine function.
@@ -170,6 +184,7 @@ func (dis *Disasm) handleJumpEngineCaller(caller uint16) {
 	index := dis.addressToIndex(caller)
 	offsetInfo := &dis.offsets[index]
 	address := caller + uint16(len(offsetInfo.OpcodeBytes))
+
 	// remove from code that should be parsed
 	delete(dis.functionReturnsToParseAdded, address)
 	jumpEngine.tableStartAddress = address
@@ -184,6 +199,7 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 		return false
 	}
 
+	// verify that the destination is in valid code address range
 	destination := dis.readMemoryWord(address)
 	if destination < dis.codeBaseAddress || destination >= irqStartAddress {
 		jumpEngine.terminated = true
@@ -195,6 +211,7 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 	indexByte2 := dis.addressToIndex(address + 1)
 	offsetInfo2 := &dis.offsets[indexByte2]
 
+	// if the potential jump table entry is already marked as code, the table end is reached
 	if offsetInfo1.Offset.Type == program.CodeOffset || offsetInfo2.Offset.Type == program.CodeOffset {
 		jumpEngine.terminated = true
 		return false
@@ -250,6 +267,10 @@ func (dis *Disasm) scanForNewJumpEngineEntry() bool {
 			if dis.processJumpEngineEntry(engineCaller, address) {
 				return true
 			}
+			dis.options.Logger.Debug("Jump engine table",
+				log.String("address", fmt.Sprintf("0x%04X", engineCaller.tableStartAddress)),
+				log.Int("entries", engineCaller.entries),
+			)
 
 			// jump engine table is processed, remove it from list to process
 			dis.jumpEngineCallers = append(dis.jumpEngineCallers[:i], dis.jumpEngineCallers[i+1:]...)
