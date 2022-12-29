@@ -175,6 +175,7 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
 	runDisasm(t, nil, input, expected)
 }
 
+// TODO detect jump engine in generated code
 func TestDisasmJumpEngineZeroPage(t *testing.T) {
 	input := []byte{
 		0xbd, 0x15, 0x80, // lda a:$8015,X
@@ -288,7 +289,7 @@ func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
 
 func TestDisasmIndirectJmp(t *testing.T) {
 	input := []byte{
-		0x6c, 0xce, 0x20, // sta $04
+		0x6c, 0xce, 0x20, // jmp ($20CE)
 	}
 
 	expected := `Reset:                           ; jump engine detected
