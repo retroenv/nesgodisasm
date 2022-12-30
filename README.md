@@ -1,4 +1,4 @@
-# nesgodisasm - Disassembler for NES ROMs
+# nesgodisasm - a tracing disassembler for NES ROMs
 
 [![Build status](https://github.com/retroenv/nesgodisasm/actions/workflows/go.yaml/badge.svg?branch=main)](https://github.com/retroenv/nesgodisasm/actions)
 [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/retroenv/nesgodisasm)
@@ -10,7 +10,7 @@ nesgodisasm allows you to disassemble programs for the Nintendo Entertainment Sy
 
 ## Features
 
-* Outputs ca65 compatible .asm files that can be used to reproduce the original NES ROM
+* Outputs ca65 compatible .asm files that can be used to reproduce the same original NES ROM
 * Translates known RAM addresses to aliases
 * Traces the program execution flow to differentiate between code and data
 * Supports undocumented 6502 CPU opcodes
@@ -18,8 +18,6 @@ nesgodisasm allows you to disassemble programs for the Nintendo Entertainment Sy
 * Does not output trailing zero bytes of banks by default
 * Batch processing mode to disassembling multiple ROMs at once
 * Flexible architecture that allows it to create output modules for other assemblers 
-
-Check the [issue tracker](https://github.com/retroenv/nesgodisasm/issues?q=is%3Aissue+is%3Aopen) for planned features or known bugs.
 
 Currently, only ROMs that use mapper 0 are supported.
 
@@ -32,27 +30,21 @@ operating system to run:
 * Windows: 7+
 * macOS: High Sierra 10.13+
 
-There are different options to install nesgodisasm, the binary releases do not have any dependencies, 
-compiling the tool from source code needs to have a recent version of [Golang](https://go.dev/) installed.
-To use the `-verify` option, [cc65](https://github.com/cc65/cc65) needs to be installed.
+There are 2 options to install nesgodisasm:
 
 1. Download and unpack a binary release from [Releases](https://github.com/retroenv/nesgo/releases)
 
-2. Install the latest release from source: 
+or
+
+2. Compile the latest release from source: 
 
 ```
 go install github.com/retroenv/nesgodisasm@latest
 ```
 
-3. Build the current development version:
+Compiling the tool from source code needs to have a recent version of [Golang](https://go.dev/) installed.
 
-```
-git clone https://github.com/retroenv/nesgodisasm.git
-cd nesgodisasm
-go build .
-# use the dev version:
-./nesgodisasm  
-```
+To use the `-verify` option, [cc65](https://github.com/cc65/cc65) needs to be installed.
 
 ## Usage
 
@@ -101,7 +93,7 @@ usage: nesgodisasm [options] <file to disassemble>
   -cdl string
     	name of the .cdl Code/Data log file to load
   -debug
-    	enabled debugging options
+    	enable debugging options
   -nohexcomments
     	do not output opcode bytes as hex values in comments
   -nooffsets
