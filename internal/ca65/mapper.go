@@ -23,8 +23,8 @@ SEGMENTS {
 }
 `
 
-// generateMapperConfig generates a ca65 linker config dynamically based on the passed ROM settings.
-func generateMapperConfig(conf Config) string {
+// GenerateMapperConfig generates a ca65 linker config dynamically based on the passed ROM settings.
+func GenerateMapperConfig(conf Config) string {
 	prgSize := conf.PRGSize
 	vectorStart := conf.PrgBase + prgSize - 6
 

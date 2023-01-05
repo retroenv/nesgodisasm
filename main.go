@@ -80,7 +80,7 @@ func readArguments() (*optionFlags, *disasmoptions.Options) {
 	disasmOptions.Assembler = "ca65"
 
 	flags.StringVar(&options.batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
-	flags.BoolVar(&options.debug, "debug", false, "enable debugging options")
+	flags.BoolVar(&options.debug, "debug", false, "enable debugging options (more logging and printing of ca65 config for the ROM)")
 	flags.StringVar(&options.codeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.BoolVar(&options.noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&options.noOffsets, "nooffsets", false, "do not output offsets in comments")
@@ -188,6 +188,10 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 		return fmt.Errorf("closing file: %w", err)
 	}
 
+	if options.debug {
+		printCa65Config(cart, dis, options)
+	}
+
 	if options.assembleTest {
 		if err = verifyOutput(cart, options, dis.CodeBaseAddress()); err != nil {
 			return fmt.Errorf("output file mismatch: %w", err)
@@ -197,6 +201,17 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 		}
 	}
 	return nil
+}
+
+func printCa65Config(cart *cartridge.Cartridge, dis *disasm.Disasm, options *optionFlags) {
+	ca65Config := ca65.Config{
+		PrgBase: int(dis.CodeBaseAddress()),
+		PRGSize: len(cart.PRG),
+		CHRSize: len(cart.CHR),
+	}
+	cfg := ca65.GenerateMapperConfig(ca65Config)
+	options.logger.Debug("Ca65 config:")
+	fmt.Println(cfg)
 }
 
 func verifyOutput(cart *cartridge.Cartridge, options *optionFlags, codeBaseAddress uint16) error {
