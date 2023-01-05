@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## [v0.1.2] - 2022-12-xx
+## [v0.1.2] - 2023-01-05
+
+Added:
+
+* jump engine detection
+* write CRC32 checksums of segments in the output header as comments
+* batch processing of multiple input files
+* new logger output with different verbosity levels
 
 Changed:
 
@@ -11,6 +18,11 @@ Changed:
 Fixed:
 
 * data references into unofficial instruction opcodes
+* data references before code base start
+* instruction overlap with IRQ handler start address
+* support different code base addresses
+* variable detection for zero page access
+* variable usage detection for indirect jumps
 
 
 ## [v0.1.1] - 2022-08-02

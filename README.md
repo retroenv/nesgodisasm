@@ -93,7 +93,7 @@ usage: nesgodisasm [options] <file to disassemble>
   -cdl string
     	name of the .cdl Code/Data log file to load
   -debug
-    	enable debugging options
+    	enable debugging options (more logging and printing of ca65 config for the ROM)
   -nohexcomments
     	do not output opcode bytes as hex values in comments
   -nooffsets
