@@ -27,7 +27,7 @@ type jumpEngineCaller struct {
 // This can be found in some official games like Super Mario Bros.
 func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16) {
 	instruction := offsetInfo.opcode.Instruction
-	if instruction.Name != cpu.JmpInstruction || offsetInfo.opcode.Addressing != IndirectAddressing {
+	if instruction.Name != cpu.Jmp.Name || offsetInfo.opcode.Addressing != IndirectAddressing {
 		return
 	}
 
@@ -144,7 +144,7 @@ func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*o
 // checkForJumpEngineCall checks if the current instruction is a call into a jump engine function.
 func (dis *Disasm) checkForJumpEngineCall(offsetInfo *offset, address uint16) {
 	instruction := offsetInfo.opcode.Instruction
-	if instruction.Name != cpu.JsrInstruction || offsetInfo.opcode.Addressing != AbsoluteAddressing {
+	if instruction.Name != cpu.Jsr.Name || offsetInfo.opcode.Addressing != AbsoluteAddressing {
 		return
 	}
 

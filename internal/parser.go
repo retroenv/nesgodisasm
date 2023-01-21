@@ -219,7 +219,7 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	index := dis.addressToIndex(address)
 	offsetInfo := &dis.offsets[index]
 
-	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
+	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == cpu.Jsr.Name {
 		offsetInfo.SetType(program.CallDestination)
 		if offsetInfo.context == 0 {
 			offsetInfo.context = address // begin a new context
@@ -243,7 +243,7 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	// add instructions that follow a function call to a special queue with lower priority, to allow the
 	// jump engine be detected before trying to parse the data following the call, which in case of a jump
 	// engine is not code but pointers to functions.
-	if currentInstruction != nil && currentInstruction.Name == cpu.JsrInstruction {
+	if currentInstruction != nil && currentInstruction.Name == cpu.Jsr.Name {
 		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
 		dis.functionReturnsToParseAdded[address] = struct{}{}
 	} else {
@@ -294,9 +294,9 @@ func getAddressingParam(param any) (uint16, bool) {
 // and forces variable usage.
 func checkBranchingParam(address uint16, opcode cpu.Opcode) (bool, bool) {
 	switch {
-	case opcode.Instruction.Name == cpu.JmpInstruction && opcode.Addressing == IndirectAddressing:
+	case opcode.Instruction.Name == cpu.Jmp.Name && opcode.Addressing == IndirectAddressing:
 		return true, false
-	case opcode.Instruction.Name == cpu.JmpInstruction || opcode.Instruction.Name == cpu.JsrInstruction:
+	case opcode.Instruction.Name == cpu.Jmp.Name || opcode.Instruction.Name == cpu.Jsr.Name:
 		if opcode.Addressing == AbsoluteAddressing && address < CodeBaseAddress {
 			return true, true
 		}

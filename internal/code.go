@@ -82,7 +82,7 @@ func (dis *Disasm) handleDisambiguousInstructions(offsetInfo *offset, index uint
 		return false
 	}
 
-	if instruction.Name != cpu.NopInstruction && instruction.Name != cpu.SbcInstruction {
+	if instruction.Name != cpu.Nop.Name && instruction.Name != cpu.Sbc.Name {
 		return false
 	}
 
