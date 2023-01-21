@@ -1,4 +1,4 @@
-github.com/retroenv/retrogolib v0.0.0-20230121020516-78a82ca107b2 h1:axVgS+1l3vBXUxM252ZRyJlRpPhsJdgmm2DfS9e3paI=
-github.com/retroenv/retrogolib v0.0.0-20230121020516-78a82ca107b2/go.mod h1:qtX54XkWhbADqI6hD1mlflCJrrZuMaSrcp2ItBYcSaE=
+github.com/retroenv/retrogolib v0.0.0-20230121064946-2dacb539f7b5 h1:lLhWSUUZWaDDk2xF2lddhsSGLuuA/RdL4fEeAWtFnyo=
+github.com/retroenv/retrogolib v0.0.0-20230121064946-2dacb539f7b5/go.mod h1:qtX54XkWhbADqI6hD1mlflCJrrZuMaSrcp2ItBYcSaE=
 golang.org/x/exp v0.0.0-20230118134722-a68e582fa157 h1:fiNkyhJPUvxbRPbCqY/D9qdjmPzfHcpK3P4bM4gioSY=
 golang.org/x/exp v0.0.0-20230118134722-a68e582fa157/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
