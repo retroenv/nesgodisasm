@@ -3,7 +3,10 @@ package disasm
 import (
 	"testing"
 
+	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/retrogolib/assert"
+	"github.com/retroenv/retrogolib/log"
+	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
 func TestChangeOffsetRangeToData(t *testing.T) {
@@ -44,12 +47,19 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 		},
 	}
 
+	cart := cartridge.New()
+	options := &disasmoptions.Options{
+		Assembler: "ca65",
+		Logger:    log.NewTestLogger(t),
+	}
+
 	for _, test := range tests {
 		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			t.Parallel()
 
-			disasm := Disasm{}
+			disasm, err := New(cart, options)
+			assert.NoError(t, err)
 			disasm.offsets = test.Input()
 			disasm.changeOffsetRangeToCodeAsData(data, 0)
 
