@@ -22,7 +22,7 @@ archives:
   - id: nesgodisasm
     builds: ['nesgodisasm']
     name_template: >-
-      {{ .ProjectName }}_{{ .Version }}_
+      {{ .ProjectName }}_v{{ .Version }}_
       {{- if eq .Os "darwin" }}macos
       {{- else }}{{ .Os }}{{ end }}_
       {{- if eq .Arch "amd64" }}64bit
