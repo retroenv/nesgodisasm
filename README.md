@@ -32,7 +32,7 @@ operating system to run:
 
 There are 2 options to install nesgodisasm:
 
-1. Download and unpack a binary release from [Releases](https://github.com/retroenv/nesgo/releases)
+1. Download and unpack a binary release from [Releases](https://github.com/retroenv/nesgodisasm/releases)
 
 or
 
