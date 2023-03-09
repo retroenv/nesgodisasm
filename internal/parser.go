@@ -254,6 +254,10 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 // handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
 // The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
 func (dis *Disasm) handleInstructionIRQOverlap(address, index uint16, offsetInfo *offset) {
+	if address > irqStartAddress {
+		return
+	}
+
 	keepLength := int(irqStartAddress - address)
 	offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:keepLength]
 

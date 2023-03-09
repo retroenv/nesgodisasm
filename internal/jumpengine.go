@@ -97,7 +97,7 @@ func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint1
 
 		// look for an instructions that loads data from an address in the code or data
 		// address range. this should be the table containing the function addresses.
-		if !opcode.ReadsMemory() {
+		if opcode.Instruction == nil || !opcode.ReadsMemory() {
 			continue
 		}
 
