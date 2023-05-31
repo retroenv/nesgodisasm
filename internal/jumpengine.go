@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
+	. "github.com/retroenv/retrogolib/addressing"
+	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/log"
-	. "github.com/retroenv/retrogolib/nes/addressing"
-	"github.com/retroenv/retrogolib/nes/cpu"
 )
 
 const (
@@ -27,7 +27,7 @@ type jumpEngineCaller struct {
 // This can be found in some official games like Super Mario Bros.
 func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16) {
 	instruction := offsetInfo.opcode.Instruction
-	if instruction.Name != cpu.Jmp.Name || offsetInfo.opcode.Addressing != IndirectAddressing {
+	if instruction.Name != m6502.Jmp.Name || offsetInfo.opcode.Addressing != IndirectAddressing {
 		return
 	}
 
@@ -97,7 +97,7 @@ func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint1
 
 		// look for an instructions that loads data from an address in the code or data
 		// address range. this should be the table containing the function addresses.
-		if opcode.Instruction == nil || !opcode.ReadsMemory() {
+		if opcode.Instruction == nil || !opcode.ReadsMemory(m6502.MemoryReadInstructions) {
 			continue
 		}
 
@@ -144,7 +144,7 @@ func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*o
 // checkForJumpEngineCall checks if the current instruction is a call into a jump engine function.
 func (dis *Disasm) checkForJumpEngineCall(offsetInfo *offset, address uint16) {
 	instruction := offsetInfo.opcode.Instruction
-	if instruction.Name != cpu.Jsr.Name || offsetInfo.opcode.Addressing != AbsoluteAddressing {
+	if instruction.Name != m6502.Jsr.Name || offsetInfo.opcode.Addressing != AbsoluteAddressing {
 		return
 	}
 

@@ -2,7 +2,7 @@ package disasm
 
 import (
 	"github.com/retroenv/nesgodisasm/internal/program"
-	. "github.com/retroenv/retrogolib/nes/addressing"
+	"github.com/retroenv/retrogolib/arch/nes"
 )
 
 // changeOffsetRangeToCodeAsData sets a range of code offsets to code as
@@ -42,7 +42,7 @@ func (dis *Disasm) processData() {
 			continue
 		}
 
-		address := uint16(i + CodeBaseAddress)
+		address := uint16(i + nes.CodeBaseAddress)
 		b := dis.readMemory(address)
 		dis.offsets[i].OpcodeBytes = []byte{b}
 	}

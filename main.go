@@ -13,9 +13,9 @@ import (
 	disasm "github.com/retroenv/nesgodisasm/internal"
 	"github.com/retroenv/nesgodisasm/internal/ca65"
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
+	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/buildinfo"
 	"github.com/retroenv/retrogolib/log"
-	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
 var (

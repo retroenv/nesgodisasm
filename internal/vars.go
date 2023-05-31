@@ -5,9 +5,11 @@ import (
 	"sort"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
-	. "github.com/retroenv/retrogolib/nes/addressing"
-	"github.com/retroenv/retrogolib/nes/cpu"
-	"github.com/retroenv/retrogolib/nes/parameter"
+	. "github.com/retroenv/retrogolib/addressing"
+	"github.com/retroenv/retrogolib/arch/cpu/m6502"
+	"github.com/retroenv/retrogolib/arch/nes"
+	"github.com/retroenv/retrogolib/arch/nes/parameter"
+	"github.com/retroenv/retrogolib/cpu"
 )
 
 const (
@@ -34,12 +36,12 @@ func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, o
 	forceVariableUsage bool) bool {
 
 	var reads, writes bool
-	if opcode.ReadWritesMemory() {
+	if opcode.ReadWritesMemory(m6502.MemoryReadWriteInstructions) {
 		reads = true
 		writes = true
 	} else {
-		reads = opcode.ReadsMemory()
-		writes = opcode.WritesMemory()
+		reads = opcode.ReadsMemory(m6502.MemoryReadInstructions)
+		writes = opcode.WritesMemory(m6502.MemoryWriteInstructions)
 	}
 	if !reads && !writes && !forceVariableUsage {
 		return false
@@ -83,7 +85,7 @@ func (dis *Disasm) processVariables() error {
 	})
 
 	for _, varInfo := range variables {
-		if len(varInfo.usageAt) == 1 && !varInfo.indexedUsage && varInfo.address < CodeBaseAddress {
+		if len(varInfo.usageAt) == 1 && !varInfo.indexedUsage && varInfo.address < nes.CodeBaseAddress {
 			if !varInfo.reads || !varInfo.writes {
 				continue // ignore only once usages or ones that are not read and write
 			}

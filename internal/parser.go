@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
-	. "github.com/retroenv/retrogolib/nes/addressing"
-	"github.com/retroenv/retrogolib/nes/cpu"
-	"github.com/retroenv/retrogolib/nes/parameter"
+	. "github.com/retroenv/retrogolib/addressing"
+	"github.com/retroenv/retrogolib/arch/cpu/m6502"
+	"github.com/retroenv/retrogolib/arch/nes"
+	"github.com/retroenv/retrogolib/arch/nes/parameter"
+	"github.com/retroenv/retrogolib/cpu"
 )
 
 var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ handler start")
@@ -43,7 +45,7 @@ func (dis *Disasm) followExecutionFlow() error {
 			offsetInfo.Code = fmt.Sprintf("%s %s", instruction.Name, params)
 		}
 
-		if _, ok := cpu.NotExecutingFollowingOpcodeInstructions[instruction.Name]; ok {
+		if _, ok := m6502.NotExecutingFollowingOpcodeInstructions[instruction.Name]; ok {
 			dis.checkForJumpEngineJmp(offsetInfo, dis.pc)
 		} else {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
@@ -99,7 +101,7 @@ func (dis *Disasm) initializeOffsetInfo(index uint16) (*offset, bool) {
 		return offsetInfo, false // was set by CDL
 	}
 
-	opcode := cpu.Opcodes[b]
+	opcode := m6502.Opcodes[b]
 	if opcode.Instruction == nil {
 		// consider an unknown instruction as start of data
 		offsetInfo.SetType(program.DataOffset)
@@ -128,7 +130,7 @@ func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (
 
 	paramAsString = dis.replaceParamByAlias(address, opcode, param, paramAsString)
 
-	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
+	if _, ok := m6502.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
 		if ok {
 			dis.addAddressToParse(uint16(addr), offsetInfo.context, dis.pc, opcode.Instruction, true)
@@ -147,7 +149,7 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param 
 		return paramAsString
 	}
 
-	if _, ok := cpu.BranchingInstructions[opcode.Instruction.Name]; ok {
+	if _, ok := m6502.BranchingInstructions[opcode.Instruction.Name]; ok {
 		var handleParam bool
 		handleParam, forceVariableUsage = checkBranchingParam(addressReference, opcode)
 		if !handleParam {
@@ -219,7 +221,7 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	index := dis.addressToIndex(address)
 	offsetInfo := &dis.offsets[index]
 
-	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == cpu.Jsr.Name {
+	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == m6502.Jsr.Name {
 		offsetInfo.SetType(program.CallDestination)
 		if offsetInfo.context == 0 {
 			offsetInfo.context = address // begin a new context
@@ -243,7 +245,7 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	// add instructions that follow a function call to a special queue with lower priority, to allow the
 	// jump engine be detected before trying to parse the data following the call, which in case of a jump
 	// engine is not code but pointers to functions.
-	if currentInstruction != nil && currentInstruction.Name == cpu.Jsr.Name {
+	if currentInstruction != nil && currentInstruction.Name == m6502.Jsr.Name {
 		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
 		dis.functionReturnsToParseAdded[address] = struct{}{}
 	} else {
@@ -298,10 +300,10 @@ func getAddressingParam(param any) (uint16, bool) {
 // and forces variable usage.
 func checkBranchingParam(address uint16, opcode cpu.Opcode) (bool, bool) {
 	switch {
-	case opcode.Instruction.Name == cpu.Jmp.Name && opcode.Addressing == IndirectAddressing:
+	case opcode.Instruction.Name == m6502.Jmp.Name && opcode.Addressing == IndirectAddressing:
 		return true, false
-	case opcode.Instruction.Name == cpu.Jmp.Name || opcode.Instruction.Name == cpu.Jsr.Name:
-		if opcode.Addressing == AbsoluteAddressing && address < CodeBaseAddress {
+	case opcode.Instruction.Name == m6502.Jmp.Name || opcode.Instruction.Name == m6502.Jsr.Name:
+		if opcode.Addressing == AbsoluteAddressing && address < nes.CodeBaseAddress {
 			return true, true
 		}
 	}

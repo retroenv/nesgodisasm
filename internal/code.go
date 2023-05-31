@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
-	"github.com/retroenv/retrogolib/nes/cpu"
+	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 )
 
 const (
@@ -58,6 +58,7 @@ func (dis *Disasm) processJumpDestinations() {
 func (dis *Disasm) handleJumpIntoInstruction(index uint16) {
 	// look backwards for instruction start
 	instructionStart := index - 1
+	//nolint: revive
 	for ; len(dis.offsets[instructionStart].OpcodeBytes) == 0; instructionStart-- {
 	}
 
@@ -82,7 +83,7 @@ func (dis *Disasm) handleDisambiguousInstructions(offsetInfo *offset, index uint
 		return false
 	}
 
-	if instruction.Name != cpu.Nop.Name && instruction.Name != cpu.Sbc.Name {
+	if instruction.Name != m6502.Nop.Name && instruction.Name != m6502.Sbc.Name {
 		return false
 	}
 

@@ -3,7 +3,8 @@ package disasm
 import (
 	"fmt"
 
-	. "github.com/retroenv/retrogolib/nes/addressing"
+	. "github.com/retroenv/retrogolib/addressing"
+	"github.com/retroenv/retrogolib/arch/nes"
 )
 
 func (dis *Disasm) readMemory(address uint16) byte {
@@ -13,7 +14,7 @@ func (dis *Disasm) readMemory(address uint16) byte {
 	case address < 0x2000:
 		value = dis.cart.CHR[address]
 
-	case address >= CodeBaseAddress:
+	case address >= nes.CodeBaseAddress:
 		index := dis.addressToIndex(address)
 		value = dis.cart.PRG[index]
 

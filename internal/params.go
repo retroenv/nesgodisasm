@@ -1,7 +1,7 @@
 package disasm
 
 import (
-	. "github.com/retroenv/retrogolib/nes/addressing"
+	. "github.com/retroenv/retrogolib/addressing"
 )
 
 type paramReaderFunc func(dis *Disasm, address uint16) (any, []byte)

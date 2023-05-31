@@ -10,12 +10,12 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/ca65"
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrogolib/arch/nes"
+	"github.com/retroenv/retrogolib/arch/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
+	"github.com/retroenv/retrogolib/arch/nes/parameter"
+	"github.com/retroenv/retrogolib/cpu"
 	"github.com/retroenv/retrogolib/log"
-	"github.com/retroenv/retrogolib/nes/addressing"
-	"github.com/retroenv/retrogolib/nes/cartridge"
-	"github.com/retroenv/retrogolib/nes/codedatalog"
-	"github.com/retroenv/retrogolib/nes/cpu"
-	"github.com/retroenv/retrogolib/nes/parameter"
 )
 
 const irqStartAddress = 0xfffa
@@ -201,7 +201,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
 	dis.codeBaseAddress = uint16(0x10000 - len(dis.cart.PRG))
 	if resetHandler < dis.codeBaseAddress {
-		dis.codeBaseAddress = addressing.CodeBaseAddress
+		dis.codeBaseAddress = nes.CodeBaseAddress
 	}
 	dis.options.Logger.Debug("Code base address",
 		log.String("address", fmt.Sprintf("0x%04X", dis.codeBaseAddress)))

@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	. "github.com/retroenv/retrogolib/nes/addressing"
-	"github.com/retroenv/retrogolib/nes/cpu"
-	"github.com/retroenv/retrogolib/nes/register"
+	. "github.com/retroenv/retrogolib/addressing"
+	"github.com/retroenv/retrogolib/arch/cpu/m6502"
+	"github.com/retroenv/retrogolib/arch/nes/register"
+	"github.com/retroenv/retrogolib/cpu"
 )
 
 type constTranslation struct {
@@ -20,12 +21,12 @@ func (dis *Disasm) replaceParamByConstant(opcode cpu.Opcode, paramAsString strin
 	// split parameter string in case of x/y indexing, only the first part will be replaced by a const name
 	paramParts := strings.Split(paramAsString, ",")
 
-	if constantInfo.Read != "" && opcode.ReadsMemory() {
+	if constantInfo.Read != "" && opcode.ReadsMemory(m6502.MemoryReadInstructions) {
 		dis.usedConstants[address] = constantInfo
 		paramParts[0] = constantInfo.Read
 		return strings.Join(paramParts, ",")
 	}
-	if constantInfo.Write != "" && opcode.WritesMemory() {
+	if constantInfo.Write != "" && opcode.WritesMemory(m6502.MemoryWriteInstructions) {
 		dis.usedConstants[address] = constantInfo
 		paramParts[0] = constantInfo.Write
 		return strings.Join(paramParts, ",")

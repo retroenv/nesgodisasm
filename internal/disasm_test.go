@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
+	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/assert"
 	"github.com/retroenv/retrogolib/log"
-	"github.com/retroenv/retrogolib/nes/cartridge"
 )
 
 func TestDisasmZeroDataReference(t *testing.T) {
