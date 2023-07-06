@@ -60,7 +60,7 @@ func main() {
 		}
 
 		if err := disasmFile(options, disasmOptions); err != nil {
-			options.logger.Error("Disassembling failed", err)
+			options.logger.Error("Disassembling failed", log.Err(err))
 		}
 	}
 }
@@ -69,6 +69,9 @@ func createLogger(options *optionFlags) *log.Logger {
 	cfg := log.DefaultConfig()
 	if options.debug {
 		cfg.Level = log.DebugLevel
+	}
+	if options.quiet {
+		cfg.Level = log.ErrorLevel
 	}
 	return log.NewWithConfig(cfg)
 }
@@ -286,7 +289,7 @@ func checkBufferEqual(logger *log.Logger, input, output []byte) error {
 
 		diffs++
 		if diffs < 10 {
-			logger.Error("Offset mismatch", nil,
+			logger.Error("Offset mismatch",
 				log.String("offset", fmt.Sprintf("0x%04X", i)),
 				log.String("expected", fmt.Sprintf("0x%02X", input[i])),
 				log.String("got", fmt.Sprintf("0x%02X", output[i])))

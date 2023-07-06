@@ -27,4 +27,4 @@ release: ## build release binaries for current git tag and publish on github
 	goreleaser release
 
 release-snapshot: ## build release binaries from current git state as snapshot
-	goreleaser release --snapshot --rm-dist
+	goreleaser release --snapshot --clean
