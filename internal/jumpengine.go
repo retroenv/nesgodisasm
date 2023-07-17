@@ -39,7 +39,7 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 		dis.getFunctionTableReference(offsetInfo.context, dataReferences)
 	}
 
-	dis.options.Logger.Debug("Jump engine detected",
+	dis.logger.Debug("Jump engine detected",
 		log.String("address", fmt.Sprintf("0x%04X", jumpAddress)),
 		log.Uint16("code_size", contextSize),
 	)
@@ -267,7 +267,7 @@ func (dis *Disasm) scanForNewJumpEngineEntry() bool {
 			if dis.processJumpEngineEntry(engineCaller, address) {
 				return true
 			}
-			dis.options.Logger.Debug("Jump engine table",
+			dis.logger.Debug("Jump engine table",
 				log.String("address", fmt.Sprintf("0x%04X", engineCaller.tableStartAddress)),
 				log.Int("entries", engineCaller.entries),
 			)

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
+	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/assert"
 	"github.com/retroenv/retrogolib/log"
@@ -35,7 +35,7 @@ func TestDisasmZeroDataReference(t *testing.T) {
         .byte $00
 `
 
-	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+	setup := func(options *options.Disassembler, cart *cartridge.Cartridge) {
 		cart.PRG[0x0010] = 0x12
 		cart.PRG[0x0015] = 0x34
 	}
@@ -280,7 +280,7 @@ func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
         rti                            ; $C006  40
 `
 
-	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {
+	setup := func(options *options.Disassembler, cart *cartridge.Cartridge) {
 		cart.PRG = make([]byte, 0x4000)
 		cart.PRG[0x3FFD] = 0xC0 // reset handler that forces base address to $C000
 	}
@@ -296,12 +296,12 @@ func TestDisasmIndirectJmp(t *testing.T) {
         jmp ($20CE)                    ; $8000  6C CE 20
 `
 
-	setup := func(options *disasmoptions.Options, cart *cartridge.Cartridge) {}
+	setup := func(options *options.Disassembler, cart *cartridge.Cartridge) {}
 
 	runDisasm(t, setup, input, expected)
 }
 
-func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.Cartridge, code []byte) *Disasm {
+func testProgram(t *testing.T, options *options.Disassembler, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
 
 	if len(cart.PRG) == 0x8000 {
@@ -311,7 +311,8 @@ func testProgram(t *testing.T, options *disasmoptions.Options, cart *cartridge.C
 
 	copy(cart.PRG, code)
 
-	disasm, err := New(cart, options)
+	logger := log.NewTestLogger(t)
+	disasm, err := New(logger, cart, options)
 	assert.NoError(t, err)
 
 	return disasm
@@ -326,24 +327,23 @@ func trimStringList(s string) string {
 	return s
 }
 
-func runDisasm(t *testing.T, setup func(options *disasmoptions.Options, cart *cartridge.Cartridge), input []byte, expected string) {
+func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *cartridge.Cartridge), input []byte, expected string) {
 	t.Helper()
 
-	options := disasmoptions.New()
-	options.Logger = log.NewTestLogger(t)
-	options.CodeOnly = true
-	options.Assembler = "ca65"
+	opts := options.NewDisassembler()
+	opts.CodeOnly = true
+	opts.Assembler = "ca65"
 
 	cart := cartridge.New()
 
 	if setup != nil {
-		setup(&options, cart)
+		setup(&opts, cart)
 	} else {
-		options.OffsetComments = false
-		options.HexComments = false
+		opts.OffsetComments = false
+		opts.HexComments = false
 	}
 
-	disasm := testProgram(t, &options, cart, input)
+	disasm := testProgram(t, &opts, cart, input)
 
 	var buffer bytes.Buffer
 	writer := bufio.NewWriter(&buffer)

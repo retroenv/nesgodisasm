@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/retroenv/nesgodisasm/internal/ca65"
-	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
+	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
@@ -21,7 +21,7 @@ import (
 const irqStartAddress = 0xfffa
 
 type fileWriter interface {
-	Write(options *disasmoptions.Options, app *program.Program, writer io.Writer) error
+	Write(options *options.Disassembler, app *program.Program, writer io.Writer) error
 }
 
 // offset defines the content of an offset in a program that can represent data or code.
@@ -38,7 +38,7 @@ type offset struct {
 // Disasm implements a NES disassembler.
 type Disasm struct {
 	logger  *log.Logger
-	options *disasmoptions.Options
+	options *options.Disassembler
 
 	pc         uint16 // program counter
 	converter  parameter.Converter
@@ -67,9 +67,9 @@ type Disasm struct {
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
-func New(cart *cartridge.Cartridge, options *disasmoptions.Options) (*Disasm, error) {
+func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disassembler) (*Disasm, error) {
 	dis := &Disasm{
-		logger:                      options.Logger,
+		logger:                      logger,
 		options:                     options,
 		cart:                        cart,
 		variables:                   map[uint16]*variable{},
@@ -203,7 +203,7 @@ func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
 	if resetHandler < dis.codeBaseAddress {
 		dis.codeBaseAddress = nes.CodeBaseAddress
 	}
-	dis.options.Logger.Debug("Code base address",
+	dis.logger.Debug("Code base address",
 		log.String("address", fmt.Sprintf("0x%04X", dis.codeBaseAddress)))
 }
 
@@ -275,7 +275,7 @@ func (dis *Disasm) loadCodeDataLog() error {
 	return nil
 }
 
-func getProgramOffset(offsetInfo offset, address uint16, options *disasmoptions.Options) (program.Offset, error) {
+func getProgramOffset(offsetInfo offset, address uint16, options *options.Disassembler) (program.Offset, error) {
 	programOffset := offsetInfo.Offset
 	if offsetInfo.branchingTo != "" {
 		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code, offsetInfo.branchingTo)
@@ -300,7 +300,7 @@ func getProgramOffset(offsetInfo offset, address uint16, options *disasmoptions.
 	return programOffset, nil
 }
 
-func setComment(programOffset *program.Offset, address uint16, options *disasmoptions.Options) error {
+func setComment(programOffset *program.Offset, address uint16, options *options.Disassembler) error {
 	var comments []string
 
 	if options.OffsetComments {

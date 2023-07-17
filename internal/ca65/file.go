@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
+	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 )
@@ -33,14 +33,14 @@ type segmentWrite struct {
 	name string
 }
 
-type customWrite func(options *disasmoptions.Options, app *program.Program, writer io.Writer) error
+type customWrite func(options *options.Disassembler, app *program.Program, writer io.Writer) error
 
 type lineWrite string
 
 const dataBytesPerLine = 16
 
 // Write writes the assembly file content including header, footer, code and data.
-func (f FileWriter) Write(options *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+func (f FileWriter) Write(options *options.Disassembler, app *program.Program, writer io.Writer) error {
 	control1, control2 := cartridge.ControlBytes(app.Battery, byte(app.Mirror), app.Mapper, len(app.Trainer) > 0)
 
 	var writes []any
@@ -119,7 +119,7 @@ func (f FileWriter) writeSegment(writer io.Writer, name string) error {
 }
 
 // writeConstants writes constant aliases to the output.
-func (f FileWriter) writeConstants(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+func (f FileWriter) writeConstants(_ *options.Disassembler, app *program.Program, writer io.Writer) error {
 	if len(app.Constants) == 0 {
 		return nil
 	}
@@ -128,7 +128,7 @@ func (f FileWriter) writeConstants(_ *disasmoptions.Options, app *program.Progra
 }
 
 // writeVariables writes variable aliases to the output.
-func (f FileWriter) writeVariables(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+func (f FileWriter) writeVariables(_ *options.Disassembler, app *program.Program, writer io.Writer) error {
 	if len(app.Variables) == 0 {
 		return nil
 	}
@@ -137,7 +137,7 @@ func (f FileWriter) writeVariables(_ *disasmoptions.Options, app *program.Progra
 }
 
 // writeChecksums writes the CRC32 checksums as comments to the output.
-func (f FileWriter) writeChecksums(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+func (f FileWriter) writeChecksums(_ *options.Disassembler, app *program.Program, writer io.Writer) error {
 	if _, err := fmt.Fprintf(writer, "; PRG CRC32 checksum: %08x\n", app.Checksums.PRG); err != nil {
 		return fmt.Errorf("writing prg checksum: %w", err)
 	}
@@ -150,7 +150,7 @@ func (f FileWriter) writeChecksums(_ *disasmoptions.Options, app *program.Progra
 	return nil
 }
 
-func (f FileWriter) writeCodeBaseAddress(_ *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+func (f FileWriter) writeCodeBaseAddress(_ *options.Disassembler, app *program.Program, writer io.Writer) error {
 	if _, err := fmt.Fprintf(writer, "; Code base address: $%04x\n\n", app.CodeBaseAddress); err != nil {
 		return fmt.Errorf("writing code base address: %w", err)
 	}
@@ -183,7 +183,7 @@ func outputAliasMap(aliases map[string]uint16, writer io.Writer) error {
 }
 
 // writeCHR writes the CHR content to the output.
-func (f FileWriter) writeCHR(options *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+func (f FileWriter) writeCHR(options *options.Disassembler, app *program.Program, writer io.Writer) error {
 	if err := f.writeSegment(writer, "TILES"); err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (f FileWriter) writeCHR(options *disasmoptions.Options, app *program.Progra
 }
 
 // writeCode writes the code to the output.
-func (f FileWriter) writeCode(options *disasmoptions.Options, app *program.Program, writer io.Writer) error {
+func (f FileWriter) writeCode(options *options.Disassembler, app *program.Program, writer io.Writer) error {
 	if !options.CodeOnly {
 		if err := f.writeSegment(writer, "CODE"); err != nil {
 			return err
@@ -390,7 +390,7 @@ func bundleDataWrites(writer io.Writer, data []byte, returnLine bool) (string, e
 }
 
 // getLastNonZeroPRGByte searches for the last byte in PRG that is not zero.
-func getLastNonZeroPRGByte(options *disasmoptions.Options, app *program.Program) (int, error) {
+func getLastNonZeroPRGByte(options *options.Disassembler, app *program.Program) (int, error) {
 	endIndex := len(app.PRG) - 6 // leave space for vectors
 	if options.ZeroBytes {
 		return endIndex, nil

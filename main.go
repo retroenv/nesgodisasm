@@ -2,7 +2,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,7 +11,8 @@ import (
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
 	"github.com/retroenv/nesgodisasm/internal/ca65"
-	"github.com/retroenv/nesgodisasm/internal/disasmoptions"
+	"github.com/retroenv/nesgodisasm/internal/options"
+	"github.com/retroenv/nesgodisasm/internal/verification"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/buildinfo"
 	"github.com/retroenv/retrogolib/log"
@@ -24,113 +24,93 @@ var (
 	date    = ""
 )
 
-type optionFlags struct {
-	logger *log.Logger
-
-	batch       string
-	input       string
-	output      string
-	codeDataLog string
-
-	assembleTest bool
-	debug        bool
-	quiet        bool
-
-	noHexComments bool
-	noOffsets     bool
-}
-
 func main() {
-	options, disasmOptions := readArguments()
-
-	if !options.quiet {
-		printBanner(options)
+	logger, opts, disasmOptions := initializeApp()
+	if !opts.Quiet {
+		printBanner(logger, opts)
 	}
 
-	files, err := getFiles(options)
+	files, err := getFiles(opts)
 	if err != nil {
-		options.logger.Fatal(err.Error())
+		logger.Fatal(err.Error())
 	}
 
 	for _, file := range files {
-		options.input = file
-		if len(files) > 1 || options.output == "" {
+		opts.Input = file
+		if len(files) > 1 || opts.Output == "" {
 			// create output file name by replacing file extension with .asm
-			options.output = file[:len(file)-len(filepath.Ext(file))] + ".asm"
+			opts.Output = file[:len(file)-len(filepath.Ext(file))] + ".asm"
 		}
 
-		if err := disasmFile(options, disasmOptions); err != nil {
-			options.logger.Error("Disassembling failed", log.Err(err))
+		if err := disasmFile(logger, opts, disasmOptions); err != nil {
+			logger.Error("Disassembling failed", log.Err(err))
 		}
 	}
 }
 
-func createLogger(options *optionFlags) *log.Logger {
-	cfg := log.DefaultConfig()
-	if options.debug {
-		cfg.Level = log.DebugLevel
-	}
-	if options.quiet {
-		cfg.Level = log.ErrorLevel
-	}
-	return log.NewWithConfig(cfg)
-}
-
-func readArguments() (*optionFlags, *disasmoptions.Options) {
+func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	options := &optionFlags{}
-	disasmOptions := disasmoptions.New()
+	opts := &options.Program{}
+	disasmOptions := options.NewDisassembler()
 	disasmOptions.Assembler = "ca65"
 
-	flags.StringVar(&options.batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
-	flags.BoolVar(&options.debug, "debug", false, "enable debugging options (more logging and printing of ca65 config for the ROM)")
-	flags.StringVar(&options.codeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
-	flags.BoolVar(&options.noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
-	flags.BoolVar(&options.noOffsets, "nooffsets", false, "do not output offsets in comments")
-	flags.StringVar(&options.output, "o", "", "name of the output .asm file, printed on console if no name given")
-	flags.BoolVar(&options.quiet, "q", false, "perform operations quietly")
-	flags.BoolVar(&options.assembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
+	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
+	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options (more logging and printing of ca65 config for the ROM)")
+	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
+	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
+	flags.BoolVar(&opts.NoOffsets, "nooffsets", false, "do not output offsets in comments")
+	flags.StringVar(&opts.Output, "o", "", "name of the output .asm file, printed on console if no name given")
+	flags.BoolVar(&opts.Quiet, "q", false, "perform operations quietly")
+	flags.BoolVar(&opts.AssembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
 	flags.BoolVar(&disasmOptions.ZeroBytes, "z", false, "output the trailing zero bytes of banks")
 
 	err := flags.Parse(os.Args[1:])
 	args := flags.Args()
+	logger := createLogger(opts)
 
-	logger := createLogger(options)
-	options.logger = logger
-	disasmOptions.Logger = logger
-
-	if err != nil || (len(args) == 0 && options.batch == "") {
-		printBanner(options)
+	if err != nil || (len(args) == 0 && opts.Batch == "") {
+		printBanner(logger, opts)
 		fmt.Printf("usage: nesgodisasm [options] <file to disassemble>\n\n")
 		flags.PrintDefaults()
 		fmt.Println()
 		os.Exit(1)
 	}
 
-	if options.batch == "" {
-		options.input = args[0]
+	if opts.Batch == "" {
+		opts.Input = args[0]
 	}
 
-	return options, &disasmOptions
+	return logger, opts, &disasmOptions
 }
 
-func printBanner(options *optionFlags) {
-	if !options.quiet {
+func createLogger(options *options.Program) *log.Logger {
+	cfg := log.DefaultConfig()
+	if options.Debug {
+		cfg.Level = log.DebugLevel
+	}
+	if options.Quiet {
+		cfg.Level = log.ErrorLevel
+	}
+	return log.NewWithConfig(cfg)
+}
+
+func printBanner(logger *log.Logger, options *options.Program) {
+	if !options.Quiet {
 		fmt.Println("[------------------------------------]")
 		fmt.Println("[ nesgodisasm - NES ROM disassembler ]")
 		fmt.Printf("[------------------------------------]\n\n")
-		options.logger.Info("Build info", log.String("version", buildinfo.Version(version, commit, date)))
+		logger.Info("Build info", log.String("version", buildinfo.Version(version, commit, date)))
 	}
 }
 
 // getFiles returns the list of files to process, either a single file or the matched files for
 // batch processing.
-func getFiles(options *optionFlags) ([]string, error) {
-	if options.batch == "" {
-		return []string{options.input}, nil
+func getFiles(options *options.Program) ([]string, error) {
+	if options.Batch == "" {
+		return []string{options.Input}, nil
 	}
 
-	files, err := filepath.Glob(options.batch)
+	files, err := filepath.Glob(options.Batch)
 	if err != nil {
 		return nil, fmt.Errorf("finding batch files failed: %w", err)
 	}
@@ -139,18 +119,18 @@ func getFiles(options *optionFlags) ([]string, error) {
 		return nil, errors.New("no input files matched")
 	}
 
-	options.output = ""
+	options.Output = ""
 	return files, nil
 }
 
-func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) error {
-	if !options.quiet {
-		options.logger.Info("Processing ROM", log.String("file", options.input))
+func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *options.Disassembler) error {
+	if !opts.Quiet {
+		logger.Info("Processing ROM", log.String("file", opts.Input))
 	}
 
-	file, err := os.Open(options.input)
+	file, err := os.Open(opts.Input)
 	if err != nil {
-		return fmt.Errorf("opening file '%s': %w", options.input, err)
+		return fmt.Errorf("opening file '%s': %w", opts.Input, err)
 	}
 
 	cart, err := cartridge.LoadFile(file)
@@ -159,14 +139,14 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 	}
 	_ = file.Close()
 
-	if err := openCodeDataLog(options, disasmOptions); err != nil {
+	if err := openCodeDataLog(opts, disasmOptions); err != nil {
 		return err
 	}
 
-	disasmOptions.HexComments = !options.noHexComments
-	disasmOptions.OffsetComments = !options.noOffsets
+	disasmOptions.HexComments = !opts.NoHexComments
+	disasmOptions.OffsetComments = !opts.NoOffsets
 
-	dis, err := disasm.New(cart, disasmOptions)
+	dis, err := disasm.New(logger, cart, disasmOptions)
 	if err != nil {
 		return fmt.Errorf("initializing disassembler: %w", err)
 	}
@@ -176,12 +156,12 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 	}
 
 	var outputFile io.WriteCloser
-	if options.output == "" {
+	if opts.Output == "" {
 		outputFile = os.Stdout
 	} else {
-		outputFile, err = os.Create(options.output)
+		outputFile, err = os.Create(opts.Output)
 		if err != nil {
-			return fmt.Errorf("creating file '%s': %w", options.output, err)
+			return fmt.Errorf("creating file '%s': %w", opts.Output, err)
 		}
 	}
 	if err = dis.Process(outputFile); err != nil {
@@ -191,158 +171,40 @@ func disasmFile(options *optionFlags, disasmOptions *disasmoptions.Options) erro
 		return fmt.Errorf("closing file: %w", err)
 	}
 
-	if options.debug {
-		printCa65Config(cart, dis, options)
+	if opts.Debug {
+		printCa65Config(logger, cart, dis)
 	}
 
-	if options.assembleTest {
-		if err = verifyOutput(cart, options, dis.CodeBaseAddress()); err != nil {
+	if opts.AssembleTest {
+		if err = verification.VerifyOutput(logger, cart, opts, dis.CodeBaseAddress()); err != nil {
 			return fmt.Errorf("output file mismatch: %w", err)
 		}
-		if !options.quiet {
-			options.logger.Info("Output file matched input file")
+		if !opts.Quiet {
+			logger.Info("Output file matched input file")
 		}
 	}
 	return nil
 }
 
-func printCa65Config(cart *cartridge.Cartridge, dis *disasm.Disasm, options *optionFlags) {
+func printCa65Config(logger *log.Logger, cart *cartridge.Cartridge, dis *disasm.Disasm) {
 	ca65Config := ca65.Config{
 		PrgBase: int(dis.CodeBaseAddress()),
 		PRGSize: len(cart.PRG),
 		CHRSize: len(cart.CHR),
 	}
 	cfg := ca65.GenerateMapperConfig(ca65Config)
-	options.logger.Debug("Ca65 config:")
+	logger.Debug("Ca65 config:")
 	fmt.Println(cfg)
 }
 
-func verifyOutput(cart *cartridge.Cartridge, options *optionFlags, codeBaseAddress uint16) error {
-	if options.output == "" {
-		return errors.New("can not verify console output")
-	}
-
-	filePart := filepath.Ext(options.output)
-	objectFile, err := os.CreateTemp("", filePart+".*.o")
-	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
-	}
-	defer func() {
-		_ = os.Remove(objectFile.Name())
-	}()
-
-	var outputFile *os.File
-	if options.debug {
-		outputFile, err = os.Create("debug.asm")
-		if err != nil {
-			return fmt.Errorf("creating file '%s': %w", options.output, err)
-		}
-		defer func() {
-			_ = outputFile.Close()
-		}()
-	} else {
-		outputFile, err = os.CreateTemp("", filePart+".*.nes")
-		if err != nil {
-			return fmt.Errorf("creating temp file: %w", err)
-		}
-		defer func() {
-			_ = os.Remove(outputFile.Name())
-		}()
-	}
-
-	ca65Config := ca65.Config{
-		PrgBase: int(codeBaseAddress),
-		PRGSize: len(cart.PRG),
-		CHRSize: len(cart.CHR),
-	}
-	if err = ca65.AssembleUsingExternalApp(options.output, objectFile.Name(), outputFile.Name(), ca65Config); err != nil {
-		return fmt.Errorf("reassembling .nes file failed: %w", err)
-	}
-
-	source, err := os.ReadFile(options.input)
-	if err != nil {
-		return fmt.Errorf("reading file for comparison: %w", err)
-	}
-
-	destination, err := os.ReadFile(outputFile.Name())
-	if err != nil {
-		return fmt.Errorf("reading file for comparison: %w", err)
-	}
-
-	if err = compareCartridgeDetails(options.logger, source, destination); err != nil {
-		return fmt.Errorf("comparing cartridge details: %w", err)
-	}
-
-	return nil
-}
-
-func checkBufferEqual(logger *log.Logger, input, output []byte) error {
-	if len(input) != len(output) {
-		return fmt.Errorf("mismatched lengths, %d != %d", len(input), len(output))
-	}
-
-	var diffs uint64
-	for i := range input {
-		if input[i] == output[i] {
-			continue
-		}
-
-		diffs++
-		if diffs < 10 {
-			logger.Error("Offset mismatch",
-				log.String("offset", fmt.Sprintf("0x%04X", i)),
-				log.String("expected", fmt.Sprintf("0x%02X", input[i])),
-				log.String("got", fmt.Sprintf("0x%02X", output[i])))
-		}
-	}
-	if diffs == 0 {
-		return nil
-	}
-	return fmt.Errorf("%d offset mismatches", diffs)
-}
-
-func compareCartridgeDetails(logger *log.Logger, input, output []byte) error {
-	inputReader := bytes.NewReader(input)
-	outputReader := bytes.NewReader(output)
-
-	cart1, err := cartridge.LoadFile(inputReader)
-	if err != nil {
-		return fmt.Errorf("loading cartridge file: %w", err)
-	}
-	cart2, err := cartridge.LoadFile(outputReader)
-	if err != nil {
-		return fmt.Errorf("loading cartridge file: %w", err)
-	}
-
-	if err := checkBufferEqual(logger, cart1.PRG, cart2.PRG); err != nil {
-		return fmt.Errorf("segment PRG mismatch: %w", err)
-	}
-	if err := checkBufferEqual(logger, cart1.CHR, cart2.CHR); err != nil {
-		return fmt.Errorf("segment CHR mismatch: %w", err)
-	}
-	if err := checkBufferEqual(logger, cart1.Trainer, cart2.Trainer); err != nil {
-		return fmt.Errorf("trainer mismatch: %w", err)
-	}
-	if cart1.Mapper != cart2.Mapper {
-		return fmt.Errorf("mapper mismatch, expected %d but got %d", cart1.Mapper, cart2.Mapper)
-	}
-	if cart1.Mirror != cart2.Mirror {
-		return fmt.Errorf("mirror mismatch, expected %d but got %d", cart1.Mirror, cart2.Mirror)
-	}
-	if cart1.Battery != cart2.Battery {
-		return fmt.Errorf("battery mismatch, expected %d but got %d", cart1.Battery, cart2.Battery)
-	}
-	return nil
-}
-
-func openCodeDataLog(options *optionFlags, disasmOptions *disasmoptions.Options) error {
-	if options.codeDataLog == "" {
+func openCodeDataLog(options *options.Program, disasmOptions *options.Disassembler) error {
+	if options.CodeDataLog == "" {
 		return nil
 	}
 
-	logFile, err := os.Open(options.codeDataLog)
+	logFile, err := os.Open(options.CodeDataLog)
 	if err != nil {
-		return fmt.Errorf("opening file '%s': %w", options.codeDataLog, err)
+		return fmt.Errorf("opening file '%s': %w", options.CodeDataLog, err)
 	}
 	disasmOptions.CodeDataLog = logFile
 	return nil
