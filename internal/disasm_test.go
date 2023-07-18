@@ -330,9 +330,8 @@ func trimStringList(s string) string {
 func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *cartridge.Cartridge), input []byte, expected string) {
 	t.Helper()
 
-	opts := options.NewDisassembler()
+	opts := options.NewDisassembler("ca65")
 	opts.CodeOnly = true
-	opts.Assembler = "ca65"
 
 	cart := cartridge.New()
 

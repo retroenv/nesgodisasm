@@ -1,7 +1,10 @@
 // Package options contains the program options.
 package options
 
-import "io"
+import (
+	"io"
+	"strings"
+)
 
 // Program options of the disassembler.
 type Program struct {
@@ -21,8 +24,9 @@ type Program struct {
 
 // Disassembler defines options to control the disassembler.
 type Disassembler struct {
-	Assembler   string        // what assembler to use
-	CodeDataLog io.ReadCloser // Code/Data log file to parse
+	Assembler      string        // what assembler to use
+	CodeDataLog    io.ReadCloser // Code/Data log file to parse
+	ZeroPagePrefix string
 
 	CodeOnly       bool
 	HexComments    bool
@@ -31,9 +35,16 @@ type Disassembler struct {
 }
 
 // NewDisassembler returns a new options instance with default options.
-func NewDisassembler() Disassembler {
-	return Disassembler{
+func NewDisassembler(assembler string) Disassembler {
+	opts := Disassembler{
+		Assembler:      strings.ToLower(assembler),
 		HexComments:    true,
 		OffsetComments: true,
 	}
+
+	if opts.Assembler == "ca65" {
+		opts.ZeroPagePrefix = "z:"
+	}
+
+	return opts
 }

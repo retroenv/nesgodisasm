@@ -113,7 +113,7 @@ func (dis *Disasm) processVariables() error {
 
 			switch offsetInfo.opcode.Addressing {
 			case ZeroPageAddressing, ZeroPageXAddressing, ZeroPageYAddressing:
-				offsetInfo.Code = fmt.Sprintf("%s z:%s", offsetInfo.opcode.Instruction.Name, converted)
+				offsetInfo.Code = fmt.Sprintf("%s %s%s", offsetInfo.opcode.Instruction.Name, dis.options.ZeroPagePrefix, converted)
 			case AbsoluteAddressing, AbsoluteXAddressing, AbsoluteYAddressing:
 				offsetInfo.Code = fmt.Sprintf("%s a:%s", offsetInfo.opcode.Instruction.Name, converted)
 			case IndirectAddressing, IndirectXAddressing, IndirectYAddressing:

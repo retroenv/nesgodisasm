@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
-	"github.com/retroenv/nesgodisasm/internal/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/verification"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
@@ -51,21 +51,26 @@ func main() {
 func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	opts := &options.Program{}
-	disasmOptions := options.NewDisassembler()
-	disasmOptions.Assembler = "ca65"
+	var zeroBytes bool
 
+	flags.StringVar(&opts.Assembler, "a", "", "Assembler compatibility of the generated .asm file (asm6/ca65)")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
-	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options (more logging and printing of ca65 config for the ROM)")
+	// TODO add config option to generate ca65 config for the ROM
+	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging)")
 	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&opts.NoOffsets, "nooffsets", false, "do not output offsets in comments")
 	flags.StringVar(&opts.Output, "o", "", "name of the output .asm file, printed on console if no name given")
 	flags.BoolVar(&opts.Quiet, "q", false, "perform operations quietly")
 	flags.BoolVar(&opts.AssembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
-	flags.BoolVar(&disasmOptions.ZeroBytes, "z", false, "output the trailing zero bytes of banks")
+	flags.BoolVar(&zeroBytes, "z", false, "output the trailing zero bytes of banks")
 
 	err := flags.Parse(os.Args[1:])
 	args := flags.Args()
+
+	disasmOptions := options.NewDisassembler(opts.Assembler)
+	disasmOptions.ZeroBytes = zeroBytes
+
 	logger := createLogger(opts)
 
 	if err != nil || (len(args) == 0 && opts.Batch == "") {
@@ -123,6 +128,7 @@ func getFiles(options *options.Program) ([]string, error) {
 	return files, nil
 }
 
+// nolint: cyclop
 func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *options.Disassembler) error {
 	if !opts.Quiet {
 		logger.Info("Processing ROM", log.String("file", opts.Input))
@@ -171,7 +177,7 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 		return fmt.Errorf("closing file: %w", err)
 	}
 
-	if opts.Debug {
+	if opts.Debug && opts.Assembler == "ca65" {
 		printCa65Config(logger, cart, dis)
 	}
 

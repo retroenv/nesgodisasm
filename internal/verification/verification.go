@@ -8,7 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/retroenv/nesgodisasm/internal/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
+	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/log"
@@ -21,15 +22,11 @@ func VerifyOutput(logger *log.Logger, cart *cartridge.Cartridge, options *option
 	}
 
 	filePart := filepath.Ext(options.Output)
-	objectFile, err := os.CreateTemp("", filePart+".*.o")
-	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
-	}
-	defer func() {
-		_ = os.Remove(objectFile.Name())
-	}()
+	var (
+		err        error
+		outputFile *os.File
+	)
 
-	var outputFile *os.File
 	if options.Debug {
 		outputFile, err = os.Create("debug.asm")
 		if err != nil {
@@ -48,27 +45,52 @@ func VerifyOutput(logger *log.Logger, cart *cartridge.Cartridge, options *option
 		}()
 	}
 
-	ca65Config := ca65.Config{
-		PrgBase: int(codeBaseAddress),
-		PRGSize: len(cart.PRG),
-		CHRSize: len(cart.CHR),
-	}
-	if err = ca65.AssembleUsingExternalApp(options.Output, objectFile.Name(), outputFile.Name(), ca65Config); err != nil {
-		return fmt.Errorf("reassembling .nes file failed: %w", err)
+	if err := assembleFile(cart, options, codeBaseAddress, filePart, outputFile.Name()); err != nil {
+		return err
 	}
 
 	source, err := os.ReadFile(options.Input)
 	if err != nil {
-		return fmt.Errorf("reading file for comparison: %w", err)
+		return fmt.Errorf("reading source file for comparison: %w", err)
 	}
 
 	destination, err := os.ReadFile(outputFile.Name())
 	if err != nil {
-		return fmt.Errorf("reading file for comparison: %w", err)
+		return fmt.Errorf("reading destination file for comparison: %w", err)
 	}
 
 	if err = compareCartridgeDetails(logger, source, destination); err != nil {
 		return fmt.Errorf("comparing cartridge details: %w", err)
+	}
+
+	return nil
+}
+
+func assembleFile(cart *cartridge.Cartridge, options *options.Program, codeBaseAddress uint16,
+	filePart, outputFile string) error {
+
+	switch options.Assembler {
+	case "asm6":
+		if err := asm6.AssembleUsingExternalApp(options.Output, outputFile); err != nil {
+			return fmt.Errorf("reassembling .nes file using asm6 failed: %w", err)
+		}
+	case "ca65":
+		objectFile, err := os.CreateTemp("", filePart+".*.o")
+		if err != nil {
+			return fmt.Errorf("creating temp file: %w", err)
+		}
+		defer func() {
+			_ = os.Remove(objectFile.Name())
+		}()
+
+		ca65Config := ca65.Config{
+			PrgBase: int(codeBaseAddress),
+			PRGSize: len(cart.PRG),
+			CHRSize: len(cart.CHR),
+		}
+		if err = ca65.AssembleUsingExternalApp(options.Output, objectFile.Name(), outputFile, ca65Config); err != nil {
+			return fmt.Errorf("reassembling .nes file using ca65 failed: %w", err)
+		}
 	}
 
 	return nil

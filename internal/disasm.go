@@ -7,7 +7,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/retroenv/nesgodisasm/internal/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
+	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/nes"
@@ -136,6 +137,10 @@ func (dis *Disasm) Process(writer io.Writer) error {
 // compatible code.
 func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 	switch strings.ToLower(assembler) {
+	case "asm6":
+		dis.converter = parameter.Ca65Converter{}
+		dis.fileWriter = asm6.FileWriter{}
+
 	case "ca65":
 		dis.converter = parameter.Ca65Converter{}
 		dis.fileWriter = ca65.FileWriter{}

@@ -10,7 +10,7 @@ nesgodisasm allows you to disassemble programs for the Nintendo Entertainment Sy
 
 ## Features
 
-* Outputs ca65 compatible .asm files that can be used to reproduce the same original NES ROM
+* Outputs asm6/ca65 compatible .asm files that can be used to reproduce the same original NES ROM
 * Translates known RAM addresses to aliases
 * Traces the program execution flow to differentiate between code and data
 * Supports undocumented 6502 CPU opcodes
@@ -51,7 +51,7 @@ To use the `-verify` option, [cc65](https://github.com/cc65/cc65) needs to be in
 Disassemble a ROM:
 
 ```
-nesgodisasm -o example.asm example.nes
+nesgodisasm -a asm6 -o example.asm example.nes
 ```
 
 The generated assembly file content will look like:
@@ -88,12 +88,14 @@ ld65 example.o -t nes -o example.nes
 ```
 usage: nesgodisasm [options] <file to disassemble>
 
+  -a string
+    	assembler compatibility of the generated .asm file (asm6/ca65)
   -batch string
     	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
   -cdl string
     	name of the .cdl Code/Data log file to load
   -debug
-    	enable debugging options (more logging and printing of ca65 config for the ROM)
+    	enable debugging options for extended logging)
   -nohexcomments
     	do not output opcode bytes as hex values in comments
   -nooffsets
