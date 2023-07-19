@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.2.1] - 2023-07-19
+
+Added:
+
+* added asm6 output compatibility support
+
+Fixed:
+
+* fix crashes when disassembling nesfab generated roms
+
+
 ## [v0.2.0] - 2023-01-05
 
 Added:
