@@ -196,7 +196,10 @@ func (f FileWriter) writeVectors(options *options.Disassembler, app *program.Pro
 		return nil
 	}
 
-	if err := f.writeSegment(writer, "$fffa"); err != nil {
+	vectorStart := int(app.CodeBaseAddress) + len(app.PRG) - 6
+	addr := fmt.Sprintf("$%04X", vectorStart)
+
+	if err := f.writeSegment(writer, addr); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(writer, vectors, app.Handlers.NMI, app.Handlers.Reset, app.Handlers.IRQ); err != nil {
