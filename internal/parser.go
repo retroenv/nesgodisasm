@@ -169,7 +169,7 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param 
 	// force using absolute address to not generate a different opcode by using zeropage access mode
 	switch opcode.Addressing {
 	case ZeroPageAddressing, ZeroPageXAddressing, ZeroPageYAddressing:
-		return "z:" + paramAsString
+		return dis.options.ZeroPagePrefix + paramAsString
 	case AbsoluteAddressing, AbsoluteXAddressing, AbsoluteYAddressing:
 		return "a:" + paramAsString
 	default: // indirect x, ...
