@@ -11,6 +11,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/nesgodisasm/internal/writer"
 	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
@@ -20,10 +21,6 @@ import (
 )
 
 const irqStartAddress = 0xfffa
-
-type fileWriter interface {
-	Write(options *options.Disassembler, app *program.Program, writer io.Writer) error
-}
 
 // offset defines the content of an offset in a program that can represent data or code.
 type offset struct {
@@ -41,11 +38,11 @@ type Disasm struct {
 	logger  *log.Logger
 	options *options.Disassembler
 
-	pc         uint16 // program counter
-	converter  parameter.Converter
-	fileWriter fileWriter
-	cart       *cartridge.Cartridge
-	handlers   program.Handlers
+	pc                    uint16 // program counter
+	converter             parameter.Converter
+	fileWriterConstructor func(app *program.Program, options *options.Disassembler, ioWriter io.Writer) writer.AssemblerWriter
+	cart                  *cartridge.Cartridge
+	handlers              program.Handlers
 
 	codeBaseAddress uint16 // codebase address of the cartridge, as it can be different from 0x8000
 	constants       map[uint16]constTranslation
@@ -112,7 +109,7 @@ func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disasse
 }
 
 // Process disassembles the cartridge.
-func (dis *Disasm) Process(writer io.Writer) error {
+func (dis *Disasm) Process(ioWriter io.Writer) error {
 	if err := dis.followExecutionFlow(); err != nil {
 		return err
 	}
@@ -127,7 +124,8 @@ func (dis *Disasm) Process(writer io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err = dis.fileWriter.Write(dis.options, app, writer); err != nil {
+	fileWriter := dis.fileWriterConstructor(app, dis.options, ioWriter)
+	if err = fileWriter.Write(); err != nil {
 		return fmt.Errorf("writing app to file: %w", err)
 	}
 	return nil
@@ -139,11 +137,11 @@ func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 	switch strings.ToLower(assembler) {
 	case "asm6":
 		dis.converter = parameter.Ca65Converter{}
-		dis.fileWriter = asm6.FileWriter{}
+		dis.fileWriterConstructor = asm6.New
 
 	case "ca65":
 		dis.converter = parameter.Ca65Converter{}
-		dis.fileWriter = ca65.FileWriter{}
+		dis.fileWriterConstructor = ca65.New
 
 	default:
 		return fmt.Errorf("unsupported assembler '%s'", assembler)

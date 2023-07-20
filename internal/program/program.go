@@ -2,6 +2,9 @@
 package program
 
 import (
+	"errors"
+
+	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 )
 
@@ -63,4 +66,35 @@ func New(cart *cartridge.Cartridge) *Program {
 		Constants: map[string]uint16{},
 		Variables: map[string]uint16{},
 	}
+}
+
+// GetLastNonZeroPRGByte searches for the last byte in PRG that is not zero.
+func (app *Program) GetLastNonZeroPRGByte(options *options.Disassembler) (int, error) {
+	endIndex := len(app.PRG) - 6 // leave space for vectors
+	if options.ZeroBytes {
+		return endIndex, nil
+	}
+
+	start := len(app.PRG) - 1 - 6 // skip irq pointers
+
+	for i := start; i >= 0; i-- {
+		offset := app.PRG[i]
+		if (len(offset.OpcodeBytes) == 0 || offset.OpcodeBytes[0] == 0) && offset.Label == "" {
+			continue
+		}
+		return i + 1, nil
+	}
+	return 0, errors.New("could not find last zero byte")
+}
+
+// GetLastNonZeroCHRByte searches for the last byte in CHR that is not zero.
+func (app *Program) GetLastNonZeroCHRByte() int {
+	for i := len(app.CHR) - 1; i >= 0; i-- {
+		b := app.CHR[i]
+		if b == 0 {
+			continue
+		}
+		return i + 1
+	}
+	return 0
 }
