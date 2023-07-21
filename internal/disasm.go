@@ -155,7 +155,6 @@ func (dis *Disasm) initializeIrqHandlers() {
 	nmi := dis.readMemoryWord(irqStartAddress)
 	if nmi != 0 {
 		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
-		dis.addAddressToParse(nmi, nmi, 0, nil, false)
 		index := dis.addressToIndex(nmi)
 		dis.offsets[index].Label = "NMI"
 		dis.offsets[index].SetType(program.CallDestination)
@@ -164,7 +163,6 @@ func (dis *Disasm) initializeIrqHandlers() {
 
 	reset := dis.readMemoryWord(irqStartAddress + 2)
 	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
-	dis.addAddressToParse(reset, reset, 0, nil, false)
 	index := dis.addressToIndex(reset)
 	if dis.offsets[index].Label != "" {
 		dis.handlers.NMI = "Reset"
@@ -175,7 +173,6 @@ func (dis *Disasm) initializeIrqHandlers() {
 	irq := dis.readMemoryWord(irqStartAddress + 4)
 	if irq != 0 {
 		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
-		dis.addAddressToParse(irq, irq, 0, nil, false)
 		index = dis.addressToIndex(irq)
 		if dis.offsets[index].Label == "" {
 			dis.offsets[index].Label = "IRQ"
@@ -194,6 +191,11 @@ func (dis *Disasm) initializeIrqHandlers() {
 	}
 
 	dis.calculateCodeBaseAddress(reset)
+
+	// add IRQ handlers to be parsed after the code base address has been calculated
+	dis.addAddressToParse(nmi, nmi, 0, nil, false)
+	dis.addAddressToParse(reset, reset, 0, nil, false)
+	dis.addAddressToParse(irq, irq, 0, nil, false)
 }
 
 // calculateCodeBaseAddress calculates the code base address that is assumed by the code.
@@ -202,7 +204,11 @@ func (dis *Disasm) initializeIrqHandlers() {
 // address is calculated. This ensures that jsr instructions will result in the same opcode, as it
 // is based on the code base address.
 func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
-	dis.codeBaseAddress = uint16(0x10000 - len(dis.cart.PRG))
+	halfPrg := len(dis.cart.PRG) % 0x8000
+	dis.codeBaseAddress = uint16(0x8000 + halfPrg)
+
+	// fix up calculated code base address for half sized PRG ROMs that have a different
+	// code base address configured in the assembler, like "M.U.S.C.L.E."
 	if resetHandler < dis.codeBaseAddress {
 		dis.codeBaseAddress = nes.CodeBaseAddress
 	}
@@ -256,8 +262,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 
 // addressToIndex converts an address if the code base address to an index into the PRG array.
 func (dis *Disasm) addressToIndex(address uint16) uint16 {
-	index := address % uint16(len(dis.cart.PRG))
-	return index
+	index := int(address) % len(dis.cart.PRG)
+	return uint16(index)
 }
 
 func (dis *Disasm) loadCodeDataLog() error {
