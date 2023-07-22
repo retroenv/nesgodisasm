@@ -136,11 +136,9 @@ func (dis *Disasm) Process(ioWriter io.Writer) error {
 func (dis *Disasm) initializeCompatibleMode(assembler string) error {
 	switch strings.ToLower(assembler) {
 	case "asm6":
-		dis.converter = parameter.Ca65Converter{}
 		dis.fileWriterConstructor = asm6.New
 
 	case "ca65":
-		dis.converter = parameter.Ca65Converter{}
 		dis.fileWriterConstructor = ca65.New
 
 	default:
