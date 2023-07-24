@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/log"
@@ -70,11 +72,12 @@ func assembleFile(cart *cartridge.Cartridge, options *options.Program, codeBaseA
 	filePart, outputFile string) error {
 
 	switch options.Assembler {
-	case "asm6":
+	case assembler.Asm6:
 		if err := asm6.AssembleUsingExternalApp(options.Output, outputFile); err != nil {
 			return fmt.Errorf("reassembling .nes file using asm6 failed: %w", err)
 		}
-	case "ca65":
+
+	case assembler.Ca65:
 		objectFile, err := os.CreateTemp("", filePart+".*.o")
 		if err != nil {
 			return fmt.Errorf("creating temp file: %w", err)
@@ -91,6 +94,14 @@ func assembleFile(cart *cartridge.Cartridge, options *options.Program, codeBaseA
 		if err = ca65.AssembleUsingExternalApp(options.Output, objectFile.Name(), outputFile, ca65Config); err != nil {
 			return fmt.Errorf("reassembling .nes file using ca65 failed: %w", err)
 		}
+
+	case assembler.Nesasm:
+		if err := nesasm.AssembleUsingExternalApp(options.Output, outputFile); err != nil {
+			return fmt.Errorf("reassembling .nes file using nesasm failed: %w", err)
+		}
+
+	default:
+		return fmt.Errorf("unsupported assembler '%s'", options.Assembler)
 	}
 
 	return nil

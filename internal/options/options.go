@@ -4,6 +4,8 @@ package options
 import (
 	"io"
 	"strings"
+
+	"github.com/retroenv/nesgodisasm/internal/assembler"
 )
 
 // Program options of the disassembler.
@@ -24,8 +26,10 @@ type Program struct {
 
 // Disassembler defines options to control the disassembler.
 type Disassembler struct {
-	Assembler      string        // what assembler to use
-	CodeDataLog    io.ReadCloser // Code/Data log file to parse
+	Assembler   string        // what assembler to use
+	CodeDataLog io.ReadCloser // Code/Data log file to parse
+
+	AbsolutePrefix string
 	ZeroPagePrefix string
 
 	CodeOnly       bool
@@ -35,15 +39,25 @@ type Disassembler struct {
 }
 
 // NewDisassembler returns a new options instance with default options.
-func NewDisassembler(assembler string) Disassembler {
+func NewDisassembler(assemblerName string) Disassembler {
 	opts := Disassembler{
-		Assembler:      strings.ToLower(assembler),
+		Assembler:      strings.ToLower(assemblerName),
 		HexComments:    true,
 		OffsetComments: true,
 	}
 
-	if opts.Assembler == "ca65" {
+	switch opts.Assembler {
+	case assembler.Asm6:
+		opts.AbsolutePrefix = "a:"
+		opts.ZeroPagePrefix = ""
+
+	case assembler.Ca65:
+		opts.AbsolutePrefix = "a:"
 		opts.ZeroPagePrefix = "z:"
+
+	case assembler.Nesasm:
+		opts.AbsolutePrefix = ""
+		opts.ZeroPagePrefix = "<"
 	}
 
 	return opts

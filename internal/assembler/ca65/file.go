@@ -42,11 +42,12 @@ type lineWrite string
 // New creates a new file writer.
 // nolint: ireturn
 func New(app *program.Program, options *options.Disassembler, ioWriter io.Writer) writer.AssemblerWriter {
+	opts := writer.Options{}
 	return FileWriter{
 		app:      app,
 		options:  options,
 		ioWriter: ioWriter,
-		writer:   writer.New(app, ioWriter),
+		writer:   writer.New(app, ioWriter, opts),
 	}
 }
 

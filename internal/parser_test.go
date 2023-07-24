@@ -3,6 +3,7 @@ package disasm
 import (
 	"testing"
 
+	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/assert"
@@ -49,7 +50,7 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 
 	cart := cartridge.New()
 	opts := &options.Disassembler{
-		Assembler: "ca65",
+		Assembler: assembler.Ca65,
 	}
 	logger := log.NewTestLogger(t)
 

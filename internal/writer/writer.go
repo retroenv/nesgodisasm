@@ -21,15 +21,22 @@ type AssemblerWriter interface {
 
 // Writer implements common assembly file writing functionality.
 type Writer struct {
-	app    *program.Program
-	writer io.Writer
+	app     *program.Program
+	options Options
+	writer  io.Writer
+}
+
+// Options of the writer.
+type Options struct {
+	DirectivePrefix string // nesasm requires a space before a directive
 }
 
 // New creates a new writer.
-func New(app *program.Program, writer io.Writer) *Writer {
+func New(app *program.Program, writer io.Writer, options Options) *Writer {
 	return &Writer{
-		app:    app,
-		writer: writer,
+		app:     app,
+		options: options,
+		writer:  writer,
 	}
 }
 
@@ -71,7 +78,7 @@ func (w Writer) BundleDataWrites(data []byte, returnLine bool) (string, error) {
 		}
 
 		buf := &strings.Builder{}
-		if _, err := buf.WriteString(".byte "); err != nil {
+		if _, err := fmt.Fprintf(buf, "%s.byte ", w.options.DirectivePrefix); err != nil {
 			return "", fmt.Errorf("writing data prefix: %w", err)
 		}
 
@@ -234,7 +241,7 @@ func (w Writer) bundlePRGDataWrites(startIndex, endIndex int) (int, error) {
 		return 0, nil
 
 	case 1:
-		line = fmt.Sprintf(".byte $%02x", data[0])
+		line = fmt.Sprintf("%s.byte $%02x", w.options.DirectivePrefix, data[0])
 
 	default:
 		line, err = w.BundleDataWrites(data, offset.Comment != "")

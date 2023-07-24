@@ -10,7 +10,8 @@ nesgodisasm allows you to disassemble programs for the Nintendo Entertainment Sy
 
 ## Features
 
-* Outputs [asm6](https://github.com/freem/asm6f)/[ca65](https://github.com/cc65/cc65) compatible .asm files that can be used to reproduce the same original NES ROM
+* Outputs [asm6](https://github.com/freem/asm6f)/[ca65](https://github.com/cc65/cc65)/
+[nesasm](https://github.com/ClusterM/nesasm) compatible .asm files that can be used to reproduce the same original NES ROM
 * Translates known RAM addresses to aliases
 * Traces the program execution flow to differentiate between code and data
 * Supports undocumented 6502 CPU opcodes
@@ -44,14 +45,14 @@ go install github.com/retroenv/nesgodisasm@latest
 
 Compiling the tool from source code needs to have a recent version of [Golang](https://go.dev/) installed.
 
-To use the `-verify` option, [cc65](https://github.com/cc65/cc65) needs to be installed.
+To use the `-verify` option, the chosen assembler needs to be installed.
 
 ## Usage
 
 Disassemble a ROM:
 
 ```
-nesgodisasm -a asm6 -o example.asm example.nes
+nesgodisasm -a ca65 -o example.asm example.nes
 ```
 
 The generated assembly file content will look like:
@@ -89,7 +90,7 @@ ld65 example.o -t nes -o example.nes
 usage: nesgodisasm [options] <file to disassemble>
 
   -a string
-    	assembler compatibility of the generated .asm file (asm6/ca65)
+    	Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)
   -batch string
     	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
   -cdl string

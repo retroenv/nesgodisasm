@@ -171,7 +171,7 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param 
 	case ZeroPageAddressing, ZeroPageXAddressing, ZeroPageYAddressing:
 		return dis.options.ZeroPagePrefix + paramAsString
 	case AbsoluteAddressing, AbsoluteXAddressing, AbsoluteYAddressing:
-		return "a:" + paramAsString
+		return dis.options.AbsolutePrefix + paramAsString
 	default: // indirect x, ...
 		return paramAsString
 	}

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
+	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/verification"
@@ -53,7 +54,7 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	opts := &options.Program{}
 	var zeroBytes bool
 
-	flags.StringVar(&opts.Assembler, "a", "", "Assembler compatibility of the generated .asm file (asm6/ca65)")
+	flags.StringVar(&opts.Assembler, "a", "", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
 	// TODO add config option to generate ca65 config for the ROM
 	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging)")
@@ -177,7 +178,7 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 		return fmt.Errorf("closing file: %w", err)
 	}
 
-	if opts.Debug && opts.Assembler == "ca65" {
+	if opts.Debug && opts.Assembler == assembler.Ca65 {
 		printCa65Config(logger, cart, dis)
 	}
 

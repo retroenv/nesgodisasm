@@ -7,8 +7,10 @@ import (
 	"io"
 	"strings"
 
+	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/writer"
@@ -133,17 +135,21 @@ func (dis *Disasm) Process(ioWriter io.Writer) error {
 
 // initializeCompatibleMode sets the chosen assembler specific instances to be used to output
 // compatible code.
-func (dis *Disasm) initializeCompatibleMode(assembler string) error {
-	switch strings.ToLower(assembler) {
-	case "asm6":
+func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
+	switch strings.ToLower(assemblerName) {
+	case assembler.Asm6:
 		dis.fileWriterConstructor = asm6.New
 
-	case "ca65":
+	case assembler.Ca65:
 		dis.fileWriterConstructor = ca65.New
 
+	case assembler.Nesasm:
+		dis.fileWriterConstructor = nesasm.New
+
 	default:
-		return fmt.Errorf("unsupported assembler '%s'", assembler)
+		return fmt.Errorf("unsupported assembler '%s'", assemblerName)
 	}
+
 	return nil
 }
 
