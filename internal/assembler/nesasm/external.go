@@ -4,16 +4,22 @@ package nesasm
 import (
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
 const (
-	assembler = "nesasm"
+	assemblerName = "nesasm"
 )
 
 // AssembleUsingExternalApp calls the external assembler and linker to generate a .nes
 // ROM from the given asm file.
 func AssembleUsingExternalApp(asmFile, outputFile string) error {
+	assembler := assemblerName
+	if runtime.GOOS == "windows" {
+		assembler += ".exe"
+	}
+
 	if _, err := exec.LookPath(assembler); err != nil {
 		return fmt.Errorf("%s is not installed", assembler)
 	}

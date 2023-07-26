@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 )
 
 const (
-	assembler = "ca65"
-	linker    = "ld65"
+	assemblerName = "ca65"
+	linkerName    = "ld65"
 )
 
 // Config holds the ROM building configuration.
@@ -23,6 +24,13 @@ type Config struct {
 // AssembleUsingExternalApp calls the external assembler and linker to generate a .nes
 // ROM from the given asm file.
 func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Config) error {
+	assembler := assemblerName
+	linker := linkerName
+	if runtime.GOOS == "windows" {
+		assembler += ".exe"
+		linker += ".exe"
+	}
+
 	if _, err := exec.LookPath(assembler); err != nil {
 		return fmt.Errorf("%s is not installed", assembler)
 	}
