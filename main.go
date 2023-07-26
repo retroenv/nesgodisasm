@@ -129,12 +129,8 @@ func getFiles(options *options.Program) ([]string, error) {
 	return files, nil
 }
 
-// nolint: cyclop
+// nolint: cyclop, funlen
 func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *options.Disassembler) error {
-	if !opts.Quiet {
-		logger.Info("Processing ROM", log.String("file", opts.Input))
-	}
-
 	file, err := os.Open(opts.Input)
 	if err != nil {
 		return fmt.Errorf("opening file '%s': %w", opts.Input, err)
@@ -145,6 +141,15 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 		return fmt.Errorf("reading file: %w", err)
 	}
 	_ = file.Close()
+
+	if !opts.Quiet {
+		logger.Info("Processing ROM",
+			log.String("file", opts.Input),
+			log.Uint8("mapper", cart.Mapper))
+	}
+	if cart.Mapper != 0 {
+		logger.Warn("Only NROM (mapper 0) is currently supported, multi bank mapper support is still in development")
+	}
 
 	if err := openCodeDataLog(opts, disasmOptions); err != nil {
 		return err
