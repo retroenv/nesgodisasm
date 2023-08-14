@@ -55,7 +55,7 @@ func (dis *Disasm) processJumpDestinations() {
 // its second or third opcode bytes into data.
 func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 	// look backwards for instruction start
-	address -= 1
+	address--
 
 	for offsetInfo := dis.mapper.offsetInfo(address); len(offsetInfo.OpcodeBytes) == 0; {
 		address--

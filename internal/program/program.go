@@ -45,16 +45,23 @@ type Program struct {
 	Mirror          cartridge.MirrorMode
 	Mapper          byte
 	VideoFormat     byte
+
+	// keep constants and variables in the banks and global in the app to let the chosen assembler decide
+	// how to output them
+	Constants map[string]uint16
+	Variables map[string]uint16
 }
 
 // New creates a new program initialize with a program code size.
 func New(cart *cartridge.Cartridge) *Program {
 	return &Program{
-		CHR:     cart.CHR,
-		RAM:     cart.RAM,
-		Battery: cart.Battery,
-		Mapper:  cart.Mapper,
-		Mirror:  cart.Mirror,
-		Trainer: cart.Trainer,
+		CHR:       cart.CHR,
+		RAM:       cart.RAM,
+		Battery:   cart.Battery,
+		Mapper:    cart.Mapper,
+		Mirror:    cart.Mirror,
+		Trainer:   cart.Trainer,
+		Constants: map[string]uint16{},
+		Variables: map[string]uint16{},
 	}
 }

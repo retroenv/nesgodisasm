@@ -46,12 +46,12 @@ func (dis *Disasm) followExecutionFlow() error {
 		}
 
 		if _, ok := m6502.NotExecutingFollowingOpcodeInstructions[instruction.Name]; ok {
-			dis.checkForJumpEngineJmp(offsetInfo, dis.pc)
+			dis.checkForJumpEngineJmp(dis.pc, offsetInfo)
 		} else {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			followingOpcodeAddress := dis.pc + opcodeLength
 			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, address, instruction, false)
-			dis.checkForJumpEngineCall(offsetInfo, dis.pc)
+			dis.checkForJumpEngineCall(dis.pc, offsetInfo)
 		}
 
 		dis.checkInstructionOverlap(address, offsetInfo)
@@ -157,7 +157,7 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param 
 
 	constantInfo, ok := dis.constants[addressReference]
 	if ok {
-		return dis.replaceParamByConstant(opcode, paramAsString, addressReference, constantInfo)
+		return dis.replaceParamByConstant(addressReference, opcode, paramAsString, constantInfo)
 	}
 
 	if !dis.addVariableReference(addressReference, address, opcode, forceVariableUsage) {

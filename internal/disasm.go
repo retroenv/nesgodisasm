@@ -131,6 +131,7 @@ func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBank
 	if err := dis.processVariables(); err != nil {
 		return err
 	}
+	dis.processConstants()
 	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
@@ -264,7 +265,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 
 		for i := 0; i < len(bnk.offsets); i++ {
 			offsetInfo := bnk.offsets[i]
-			programOffsetInfo, err := getProgramOffset(offsetInfo, dis.codeBaseAddress+uint16(i), dis.options)
+			programOffsetInfo, err := getProgramOffset(dis.codeBaseAddress+uint16(i), offsetInfo, dis.options)
 			if err != nil {
 				return nil, err
 			}
@@ -272,8 +273,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 			prgBank.PRG[i] = programOffsetInfo
 		}
 
-		for address := range dis.usedConstants {
-			constantInfo := dis.constants[address]
+		for address := range bnk.usedConstants {
+			constantInfo := bnk.constants[address]
 			if constantInfo.Read != "" {
 				prgBank.Constants[constantInfo.Read] = address
 			}
@@ -289,18 +290,26 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		app.PRG = append(app.PRG, prgBank)
 	}
 
+	for address := range dis.usedConstants {
+		constantInfo := dis.constants[address]
+		if constantInfo.Read != "" {
+			app.Constants[constantInfo.Read] = address
+		}
+		if constantInfo.Write != "" {
+			app.Constants[constantInfo.Write] = address
+		}
+	}
+	for address := range dis.usedVariables {
+		varInfo := dis.variables[address]
+		app.Variables[varInfo.name] = address
+	}
+
 	crc32q := crc32.MakeTable(crc32.IEEE)
 	app.Checksums.PRG = crc32.Checksum(dis.cart.PRG, crc32q)
 	app.Checksums.CHR = crc32.Checksum(dis.cart.CHR, crc32q)
 	app.Checksums.Overall = crc32.Checksum(append(dis.cart.PRG, dis.cart.CHR...), crc32q)
 
 	return app, nil
-}
-
-// addressToIndex converts an address if the code base address to an index into the PRG array.
-func (dis *Disasm) addressToIndex(bnk *bank, address uint16) uint16 {
-	index := int(address) % len(bnk.offsets)
-	return uint16(index)
 }
 
 func (dis *Disasm) loadCodeDataLog() error {
@@ -327,7 +336,7 @@ func (dis *Disasm) loadCodeDataLog() error {
 	return nil
 }
 
-func getProgramOffset(offsetInfo offset, address uint16, options *options.Disassembler) (program.Offset, error) {
+func getProgramOffset(address uint16, offsetInfo offset, options *options.Disassembler) (program.Offset, error) {
 	programOffset := offsetInfo.Offset
 	if offsetInfo.branchingTo != "" {
 		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code, offsetInfo.branchingTo)
@@ -342,7 +351,7 @@ func getProgramOffset(offsetInfo offset, address uint16, options *options.Disass
 			programOffset.Code = fmt.Sprintf(".word %s", offsetInfo.branchingTo)
 		}
 
-		if err := setComment(&programOffset, address, options); err != nil {
+		if err := setComment(address, &programOffset, options); err != nil {
 			return program.Offset{}, err
 		}
 	} else {
@@ -352,7 +361,7 @@ func getProgramOffset(offsetInfo offset, address uint16, options *options.Disass
 	return programOffset, nil
 }
 
-func setComment(programOffset *program.Offset, address uint16, options *options.Disassembler) error {
+func setComment(address uint16, programOffset *program.Offset, options *options.Disassembler) error {
 	var comments []string
 
 	if options.OffsetComments {

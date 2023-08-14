@@ -124,8 +124,38 @@ func (dis *Disasm) processVariables() error {
 				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
 			}
 		}
+
+		for _, bankRef := range varInfo.usageAt {
+			bankRef.bank.variables[varInfo.address] = varInfo
+			bankRef.bank.usedVariables[varInfo.address] = struct{}{}
+		}
 	}
 	return nil
+}
+
+// processConstants processes all constants and updates all banks with the used ones. There is currently no tracking
+// for in which bank a constant is used, it will be added to all banks for now.
+// TODO fix constants to only output in used banks
+func (dis *Disasm) processConstants() {
+	constants := make([]constTranslation, 0, len(dis.constants))
+	for _, translation := range dis.constants {
+		constants = append(constants, translation)
+	}
+	sort.Slice(constants, func(i, j int) bool {
+		return constants[i].address < constants[j].address
+	})
+
+	for _, constInfo := range constants {
+		_, used := dis.usedConstants[constInfo.address]
+		if !used {
+			continue
+		}
+
+		for _, bnk := range dis.banks {
+			bnk.constants[constInfo.address] = constInfo
+			bnk.usedConstants[constInfo.address] = constInfo
+		}
+	}
 }
 
 // getOpcodeStart returns a reference to the opcode start of the given address.
