@@ -15,10 +15,9 @@ const (
 
 // processJumpDestinations processes all jump destinations and updates the callers with
 // the generated jump destination label name.
-func (dis *Disasm) processJumpDestinations(bnk *bank) {
-	for address := range bnk.branchDestinations {
-		index := dis.addressToIndex(bnk, address)
-		offsetInfo := &bnk.offsets[index]
+func (dis *Disasm) processJumpDestinations() {
+	for address := range dis.branchDestinations {
+		offsetInfo := dis.mapper.offsetInfo(address)
 
 		name := offsetInfo.Label
 		if name == "" {
@@ -37,12 +36,11 @@ func (dis *Disasm) processJumpDestinations(bnk *bank) {
 		// is inside the second or third byte of an instruction.
 		if (offsetInfo.IsType(program.CodeOffset) || offsetInfo.IsType(program.CodeAsData)) &&
 			len(offsetInfo.OpcodeBytes) == 0 {
-			dis.handleJumpIntoInstruction(bnk, index)
+			dis.handleJumpIntoInstruction(address)
 		}
 
-		for _, caller := range offsetInfo.branchFrom {
-			index = dis.addressToIndex(bnk, caller)
-			offsetInfo = &bnk.offsets[index]
+		for _, bankRef := range offsetInfo.branchFrom {
+			offsetInfo = bankRef.bank.offsetInfo(bankRef.index)
 			offsetInfo.branchingTo = name
 
 			// reference can be a function address of a jump engine
@@ -55,14 +53,16 @@ func (dis *Disasm) processJumpDestinations(bnk *bank) {
 
 // handleJumpIntoInstruction converts an instruction that has a jump destination label inside
 // its second or third opcode bytes into data.
-func (dis *Disasm) handleJumpIntoInstruction(bnk *bank, index uint16) {
+func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 	// look backwards for instruction start
-	instructionStart := index - 1
-	//nolint: revive
-	for ; len(bnk.offsets[instructionStart].OpcodeBytes) == 0; instructionStart-- {
+	address -= 1
+
+	for offsetInfo := dis.mapper.offsetInfo(address); len(offsetInfo.OpcodeBytes) == 0; {
+		address--
+		offsetInfo = dis.mapper.offsetInfo(address)
 	}
 
-	offsetInfo := &bnk.offsets[instructionStart]
+	offsetInfo := dis.mapper.offsetInfo(address)
 	if offsetInfo.Code == "" { // disambiguous instruction
 		offsetInfo.Comment = fmt.Sprintf("branch into instruction detected: %s", offsetInfo.Comment)
 	} else {
@@ -71,13 +71,13 @@ func (dis *Disasm) handleJumpIntoInstruction(bnk *bank, index uint16) {
 	}
 
 	offsetInfo.SetType(program.CodeAsData)
-	dis.changeOffsetRangeToCodeAsData(bnk, offsetInfo.OpcodeBytes, instructionStart)
+	dis.changeAddressRangeToCodeAsData(address, offsetInfo.OpcodeBytes)
 }
 
 // handleUnofficialNop translates disambiguous instructions into data bytes as it
 // has multiple opcodes for the same addressing mode which can result in different
 // bytes being assembled and make the resulting ROM not matching the original.
-func (dis *Disasm) handleDisambiguousInstructions(bnk *bank, offsetInfo *offset, index uint16) bool {
+func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *offset) bool {
 	instruction := offsetInfo.opcode.Instruction
 	if !instruction.Unofficial {
 		return false
@@ -95,14 +95,14 @@ func (dis *Disasm) handleDisambiguousInstructions(bnk *bank, offsetInfo *offset,
 
 	offsetInfo.Code = ""
 	offsetInfo.SetType(program.CodeAsData)
-	dis.changeOffsetRangeToCodeAsData(bnk, offsetInfo.OpcodeBytes, index)
+	dis.changeAddressRangeToCodeAsData(address, offsetInfo.OpcodeBytes)
 	return true
 }
 
 // changeIndexRangeToCode sets a range of code offsets to code types.
-func (dis *Disasm) changeIndexRangeToCode(bnk *bank, data []byte, index uint16) {
-	for i := 0; i < len(data) && int(index)+i < len(bnk.offsets); i++ {
-		offsetInfo := &bnk.offsets[index+uint16(i)]
+func (dis *Disasm) changeIndexRangeToCode(address uint16, data []byte) {
+	for i := 0; i < len(data) && int(address)+i < irqStartAddress; i++ {
+		offsetInfo := dis.mapper.offsetInfo(address + uint16(i))
 		offsetInfo.SetType(program.CodeOffset)
 	}
 }

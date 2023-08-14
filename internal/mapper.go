@@ -2,6 +2,8 @@ package disasm
 
 import "fmt"
 
+var emptyMappedBank = mappedBank{}
+
 type mappedBank struct {
 	bank      *bank
 	dataStart int
@@ -69,6 +71,11 @@ func (m *mapper) getMappedBank(address uint16) *bank {
 	return bnk.bank
 }
 
+func (m *mapper) getMappedBankIndex(address uint16) uint16 {
+	index := int(address) % bankWindowSize
+	return uint16(index)
+}
+
 func (m *mapper) readMemory(address uint16) byte {
 	bankWindow := address >> m.addressShifts
 	bnk := m.mapped[bankWindow]
@@ -76,6 +83,19 @@ func (m *mapper) readMemory(address uint16) byte {
 	pointer := bnk.dataStart + index
 	b := bnk.bank.prg[pointer]
 	return b
+}
+
+func (m *mapper) offsetInfo(address uint16) *offset {
+	bankWindow := address >> m.addressShifts
+	bnk := m.mapped[bankWindow]
+	if bnk == emptyMappedBank {
+		return nil
+	}
+
+	index := int(address) % bankWindowSize
+	pointer := bnk.dataStart + index
+	offsetInfo := &bnk.bank.offsets[pointer]
+	return offsetInfo
 }
 
 // log2 computes the binary logarithm of x, rounded up to the next integer.

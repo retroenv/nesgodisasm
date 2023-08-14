@@ -66,7 +66,7 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 			b := make([]byte, len(input))
 			bank := newBank(b)
 			bank.offsets = input
-			disasm.changeOffsetRangeToCodeAsData(bank, data, 0)
+			disasm.changeAddressRangeToCodeAsData(0x8000, data)
 
 			for i := range test.Expected {
 				assert.Equal(t, test.Expected[i], bank.offsets[i].OpcodeBytes)

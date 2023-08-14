@@ -26,13 +26,13 @@ type variable struct {
 
 	address      uint16
 	name         string
-	indexedUsage bool     // access with X/Y registers indicates table
-	usageAt      []uint16 // list of all indexes that use this offset
+	indexedUsage bool            // access with X/Y registers indicates table
+	usageAt      []bankReference // list of all indexes that use this offset
 }
 
 // addVariableReference adds a variable reference if the opcode is accessing the given address directly by
 // reading or writing. In a special case like branching into a zeropage address the variable usage can be forced.
-func (dis *Disasm) addVariableReference(bnk *bank, addressReference, usageAddress uint16, opcode cpu.Opcode,
+func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, opcode cpu.Opcode,
 	forceVariableUsage bool) bool {
 
 	var reads, writes bool
@@ -47,14 +47,20 @@ func (dis *Disasm) addVariableReference(bnk *bank, addressReference, usageAddres
 		return false
 	}
 
-	varInfo := bnk.variables[addressReference]
+	varInfo := dis.variables[addressReference]
 	if varInfo == nil {
 		varInfo = &variable{
 			address: addressReference,
 		}
-		bnk.variables[addressReference] = varInfo
+		dis.variables[addressReference] = varInfo
 	}
-	varInfo.usageAt = append(varInfo.usageAt, usageAddress)
+
+	bankRef := bankReference{
+		bank:    dis.mapper.getMappedBank(usageAddress),
+		address: usageAddress,
+		index:   dis.mapper.getMappedBankIndex(usageAddress),
+	}
+	varInfo.usageAt = append(varInfo.usageAt, bankRef)
 
 	if reads {
 		varInfo.reads = true
@@ -75,9 +81,9 @@ func (dis *Disasm) addVariableReference(bnk *bank, addressReference, usageAddres
 
 // processVariables processes all variables and updates the instructions that use them
 // with a generated alias name.
-func (dis *Disasm) processVariables(bnk *bank) error {
-	variables := make([]*variable, 0, len(bnk.variables))
-	for _, varInfo := range bnk.variables {
+func (dis *Disasm) processVariables() error {
+	variables := make([]*variable, 0, len(dis.variables))
+	for _, varInfo := range dis.variables {
 		variables = append(variables, varInfo)
 	}
 	sort.Slice(variables, func(i, j int) bool {
@@ -94,18 +100,16 @@ func (dis *Disasm) processVariables(bnk *bank) error {
 		var dataOffsetInfo *offset
 		var addressAdjustment uint16
 		if varInfo.address >= dis.codeBaseAddress {
-			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(bnk, varInfo.address)
+			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(varInfo.address)
 		} else {
-			bnk.usedVariables[varInfo.address] = struct{}{}
+			dis.usedVariables[varInfo.address] = struct{}{}
 		}
 
 		var reference string
 		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
 
-		for _, usedAddress := range varInfo.usageAt {
-			index := dis.addressToIndex(bnk, usedAddress)
-			offsetInfo := &bnk.offsets[index]
-
+		for _, bankRef := range varInfo.usageAt {
+			offsetInfo := bankRef.bank.offsetInfo(bankRef.index)
 			converted, err := parameter.String(dis.converter, offsetInfo.opcode.Addressing, reference)
 			if err != nil {
 				return fmt.Errorf("getting parameter as string: %w", err)
@@ -127,12 +131,11 @@ func (dis *Disasm) processVariables(bnk *bank) error {
 // getOpcodeStart returns a reference to the opcode start of the given address.
 // In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
 // converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.
-func (dis *Disasm) getOpcodeStart(bnk *bank, address uint16) (*offset, uint16, uint16) {
+func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 	var addressAdjustment uint16
-	for {
-		index := dis.addressToIndex(bnk, address)
-		offsetInfo := &bnk.offsets[index]
 
+	for {
+		offsetInfo := dis.mapper.offsetInfo(address)
 		if len(offsetInfo.OpcodeBytes) == 0 {
 			address--
 			addressAdjustment++

@@ -12,13 +12,18 @@ type bank struct {
 	branchDestinations     map[uint16]struct{} // set of all addresses that are branched to
 	offsets                []offset
 
-	// TODO add to disasm as well and clear on every bank
 	offsetsToParse      []uint16
 	offsetsToParseAdded map[uint16]struct{}
 	offsetsParsed       map[uint16]struct{}
 
 	functionReturnsToParse      []uint16
 	functionReturnsToParseAdded map[uint16]struct{}
+}
+
+type bankReference struct {
+	bank    *bank
+	address uint16
+	index   uint16
 }
 
 func newBank(prg []byte) *bank {
@@ -34,4 +39,10 @@ func newBank(prg []byte) *bank {
 		offsetsParsed:               map[uint16]struct{}{},
 		functionReturnsToParseAdded: map[uint16]struct{}{},
 	}
+}
+
+// TODO gets passed address
+func (b *bank) offsetInfo(index uint16) *offset {
+	offsetInfo := &b.offsets[index]
+	return offsetInfo
 }

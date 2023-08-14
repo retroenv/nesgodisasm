@@ -33,9 +33,9 @@ type offset struct {
 
 	opcode cpu.Opcode // opcode that the byte at this offset represents
 
-	branchFrom  []uint16 // list of all addresses that branch to this offset
-	branchingTo string   // label to jump to if instruction branches
-	context     uint16   // function or interrupt context that the offset is part of
+	branchFrom  []bankReference // list of all addresses that branch to this offset
+	branchingTo string          // label to jump to if instruction branches
+	context     uint16          // function or interrupt context that the offset is part of
 }
 
 // Disasm implements a NES disassembler.
@@ -53,6 +53,21 @@ type Disasm struct {
 
 	constants     map[uint16]constTranslation
 	usedConstants map[uint16]constTranslation
+	variables     map[uint16]*variable
+	usedVariables map[uint16]struct{}
+
+	jumpEngines            map[uint16]struct{} // set of all jump engine functions addresses
+	jumpEngineCallers      []*jumpEngineCaller // jump engine caller tables to process
+	jumpEngineCallersAdded map[uint16]*jumpEngineCaller
+	branchDestinations     map[uint16]struct{} // set of all addresses that are branched to
+
+	// TODO handle bank switch
+	offsetsToParse      []uint16
+	offsetsToParseAdded map[uint16]struct{}
+	offsetsParsed       map[uint16]struct{}
+
+	functionReturnsToParse      []uint16
+	functionReturnsToParseAdded map[uint16]struct{}
 
 	banks  []*bank
 	mapper *mapper
@@ -61,15 +76,23 @@ type Disasm struct {
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
 func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disassembler) (*Disasm, error) {
 	dis := &Disasm{
-		logger:  logger,
-		options: options,
-		cart:    cart,
+		logger:                      logger,
+		options:                     options,
+		cart:                        cart,
+		variables:                   map[uint16]*variable{},
+		usedVariables:               map[uint16]struct{}{},
+		usedConstants:               map[uint16]constTranslation{},
+		jumpEngineCallersAdded:      map[uint16]*jumpEngineCaller{},
+		jumpEngines:                 map[uint16]struct{}{},
+		branchDestinations:          map[uint16]struct{}{},
+		offsetsToParseAdded:         map[uint16]struct{}{},
+		offsetsParsed:               map[uint16]struct{}{},
+		functionReturnsToParseAdded: map[uint16]struct{}{},
 		handlers: program.Handlers{
 			NMI:   "0",
 			Reset: "Reset",
 			IRQ:   "0",
 		},
-		usedConstants: map[uint16]constTranslation{},
 	}
 
 	var err error
@@ -100,17 +123,15 @@ func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disasse
 
 // Process disassembles the cartridge.
 func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBankWriter) error {
-	for _, bnk := range dis.banks {
-		if err := dis.followExecutionFlow(bnk); err != nil {
-			return err
-		}
-
-		dis.processData(bnk)
-		if err := dis.processVariables(bnk); err != nil {
-			return err
-		}
-		dis.processJumpDestinations(bnk)
+	if err := dis.followExecutionFlow(); err != nil {
+		return err
 	}
+
+	dis.processData()
+	if err := dis.processVariables(); err != nil {
+		return err
+	}
+	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
 	if err != nil {
@@ -160,40 +181,37 @@ func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
 // initializeIrqHandlers reads the 3 IRQ handler addresses and adds them to the addresses to be
 // followed for execution flow. Multiple handler can point to the same address.
 func (dis *Disasm) initializeIrqHandlers() {
-	var nmiBank, irqBank, resetBank *bank
-
 	nmi := dis.readMemoryWord(irqStartAddress)
 	if nmi != 0 {
 		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
-		nmiBank = dis.mapper.getMappedBank(nmi)
-		index := dis.addressToIndex(nmiBank, nmi)
-		nmiBank.offsets[index].Label = "NMI"
-		nmiBank.offsets[index].SetType(program.CallDestination)
+		offsetInfo := dis.mapper.offsetInfo(nmi)
+		offsetInfo.Label = "NMI"
+		offsetInfo.SetType(program.CallDestination)
 		dis.handlers.NMI = "NMI"
 	}
 
 	reset := dis.readMemoryWord(irqStartAddress + 2)
 	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
-	resetBank = dis.mapper.getMappedBank(nmi)
-	index := dis.addressToIndex(resetBank, reset)
-	if resetBank.offsets[index].Label != "" {
-		dis.handlers.NMI = "Reset"
+	offsetInfo := dis.mapper.offsetInfo(reset)
+	if offsetInfo != nil {
+		if offsetInfo.Label != "" {
+			dis.handlers.NMI = "Reset"
+		}
+		offsetInfo.Label = "Reset"
+		offsetInfo.SetType(program.CallDestination)
 	}
-	resetBank.offsets[index].Label = "Reset"
-	resetBank.offsets[index].SetType(program.CallDestination)
 
 	irq := dis.readMemoryWord(irqStartAddress + 4)
 	if irq != 0 {
 		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
-		irqBank = dis.mapper.getMappedBank(nmi)
-		index = dis.addressToIndex(irqBank, irq)
-		if irqBank.offsets[index].Label == "" {
-			irqBank.offsets[index].Label = "IRQ"
+		offsetInfo = dis.mapper.offsetInfo(irq)
+		if offsetInfo.Label == "" {
+			offsetInfo.Label = "IRQ"
 			dis.handlers.IRQ = "IRQ"
 		} else {
-			dis.handlers.IRQ = irqBank.offsets[index].Label
+			dis.handlers.IRQ = offsetInfo.Label
 		}
-		irqBank.offsets[index].SetType(program.CallDestination)
+		offsetInfo.SetType(program.CallDestination)
 	}
 
 	if nmi == reset {
@@ -203,12 +221,12 @@ func (dis *Disasm) initializeIrqHandlers() {
 		dis.handlers.IRQ = dis.handlers.Reset
 	}
 
-	dis.calculateCodeBaseAddress(resetBank, reset)
+	dis.calculateCodeBaseAddress(reset)
 
 	// add IRQ handlers to be parsed after the code base address has been calculated
-	dis.addAddressToParse(nmiBank, nmi, nmi, 0, nil, false)
-	dis.addAddressToParse(resetBank, reset, reset, 0, nil, false)
-	dis.addAddressToParse(irqBank, irq, irq, 0, nil, false)
+	dis.addAddressToParse(nmi, nmi, 0, nil, false)
+	dis.addAddressToParse(reset, reset, 0, nil, false)
+	dis.addAddressToParse(irq, irq, 0, nil, false)
 }
 
 // calculateCodeBaseAddress calculates the code base address that is assumed by the code.
@@ -216,8 +234,8 @@ func (dis *Disasm) initializeIrqHandlers() {
 // 0x8000. The handlers can be set to any of the 2 mirrors as base, based on this the code base
 // address is calculated. This ensures that jsr instructions will result in the same opcode, as it
 // is based on the code base address.
-func (dis *Disasm) calculateCodeBaseAddress(bnk *bank, resetHandler uint16) {
-	halfPrg := len(bnk.prg) % 0x8000
+func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
+	halfPrg := len(dis.cart.PRG) % 0x8000
 	dis.codeBaseAddress = uint16(0x8000 + halfPrg)
 
 	// fix up calculated code base address for half sized PRG ROMs that have a different
@@ -299,7 +317,7 @@ func (dis *Disasm) loadCodeDataLog() error {
 		}
 
 		if flags&codedatalog.Code != 0 {
-			dis.addAddressToParse(bank0, dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
+			dis.addAddressToParse(dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
 		}
 		if flags&codedatalog.SubEntryPoint != 0 {
 			bank0.offsets[index].SetType(program.CallDestination)
