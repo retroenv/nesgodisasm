@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/writer"
@@ -18,10 +19,11 @@ var vectors = ".dw %s, %s, %s\n\n"
 
 // FileWriter writes the assembly file content.
 type FileWriter struct {
-	app      *program.Program
-	options  *options.Disassembler
-	ioWriter io.Writer
-	writer   *writer.Writer
+	app           *program.Program
+	options       *options.Disassembler
+	mainWriter    io.Writer
+	newBankWriter assembler.NewBankWriter
+	writer        *writer.Writer
 }
 
 type headerByteWrite struct {
@@ -33,27 +35,33 @@ type segmentWrite struct {
 	address string
 }
 
+type prgBankWrite struct {
+	bank *program.PRGBank
+}
+
 type customWrite func() error
 
 type lineWrite string
 
 // New creates a new file writer.
 // nolint: ireturn
-func New(app *program.Program, options *options.Disassembler, ioWriter io.Writer) writer.AssemblerWriter {
+func New(app *program.Program, options *options.Disassembler, mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter {
 	opts := writer.Options{}
 	return FileWriter{
-		app:      app,
-		options:  options,
-		ioWriter: ioWriter,
-		writer:   writer.New(app, ioWriter, opts),
+		app:           app,
+		options:       options,
+		mainWriter:    mainWriter,
+		newBankWriter: newBankWriter,
+		writer:        writer.New(app, mainWriter, opts),
 	}
 }
 
 // Write writes the assembly file content including header, footer, code and data.
+// nolint:funlen, cyclop
 func (f FileWriter) Write() error {
 	control1, control2 := cartridge.ControlBytes(f.app.Battery, byte(f.app.Mirror), f.app.Mapper, len(f.app.Trainer) > 0)
 
-	var writes []any
+	var writes []any // nolint:prealloc
 
 	if !f.options.CodeOnly {
 		writes = []any{
@@ -70,10 +78,13 @@ func (f FileWriter) Write() error {
 		}
 	}
 
+	for _, bank := range f.app.PRG {
+		writes = append(writes,
+			prgBankWrite{bank: bank},
+		)
+	}
+
 	writes = append(writes,
-		customWrite(f.writeConstants),
-		customWrite(f.writeVariables),
-		customWrite(f.writeCode),
 		customWrite(f.writeVectors),
 		customWrite(f.writeCHR),
 	)
@@ -81,7 +92,7 @@ func (f FileWriter) Write() error {
 	for _, write := range writes {
 		switch t := write.(type) {
 		case headerByteWrite:
-			if _, err := fmt.Fprintf(f.ioWriter, headerByte, t.value, "", t.comment); err != nil {
+			if _, err := fmt.Fprintf(f.mainWriter, headerByte, t.value, "", t.comment); err != nil {
 				return fmt.Errorf("writing header: %w", err)
 			}
 
@@ -91,12 +102,25 @@ func (f FileWriter) Write() error {
 			}
 
 		case lineWrite:
-			if _, err := fmt.Fprintln(f.ioWriter, t); err != nil {
+			if _, err := fmt.Fprintln(f.mainWriter, t); err != nil {
 				return fmt.Errorf("writing line: %w", err)
 			}
 
 		case customWrite:
 			if err := t(); err != nil {
+				return err
+			}
+
+		case prgBankWrite:
+			// TODO reference https://github.com/tboronczyk/supermariobros2/blob/main/smb2/smb2.asm
+
+			if err := f.writeConstants(t.bank); err != nil {
+				return err
+			}
+			if err := f.writeVariables(t.bank); err != nil {
+				return err
+			}
+			if err := f.writeCode(t.bank); err != nil {
 				return err
 			}
 		}
@@ -107,7 +131,7 @@ func (f FileWriter) Write() error {
 
 // writeSegment writes a segment header to the output.
 func (f FileWriter) writeSegment(address string) error {
-	_, err := fmt.Fprintf(f.ioWriter, "\n.org %s\n\n", address)
+	_, err := fmt.Fprintf(f.mainWriter, "\n.org %s\n\n", address)
 	if err != nil {
 		return fmt.Errorf("writing segment: %w", err)
 	}
@@ -115,16 +139,16 @@ func (f FileWriter) writeSegment(address string) error {
 }
 
 // writeConstants writes constant aliases to the output.
-func (f FileWriter) writeConstants() error {
-	if err := f.writer.OutputAliasMap(f.app.Constants); err != nil {
+func (f FileWriter) writeConstants(bank *program.PRGBank) error {
+	if err := f.writer.OutputAliasMap(bank.Constants); err != nil {
 		return fmt.Errorf("writing constants output alias map: %w", err)
 	}
 	return nil
 }
 
 // writeVariables writes variable aliases to the output.
-func (f FileWriter) writeVariables() error {
-	if err := f.writer.OutputAliasMap(f.app.Variables); err != nil {
+func (f FileWriter) writeVariables(bank *program.PRGBank) error {
+	if err := f.writer.OutputAliasMap(bank.Variables); err != nil {
 		return fmt.Errorf("writing variables output alias map: %w", err)
 	}
 	return nil
@@ -139,7 +163,7 @@ func (f FileWriter) writeCHR() error {
 		return nil
 	}
 
-	lastNonZeroByte := f.app.GetLastNonZeroCHRByte()
+	lastNonZeroByte := f.app.CHR.GetLastNonZeroByte()
 	_, err := f.writer.BundleDataWrites(f.app.CHR[:lastNonZeroByte], false)
 	if err != nil {
 		return fmt.Errorf("writing CHR data: %w", err)
@@ -147,7 +171,7 @@ func (f FileWriter) writeCHR() error {
 
 	remaining := len(f.app.CHR) - lastNonZeroByte
 	if remaining > 0 {
-		if _, err := fmt.Fprintf(f.ioWriter, "\n.dsb %d\n", remaining); err != nil {
+		if _, err := fmt.Fprintf(f.mainWriter, "\n.dsb %d\n", remaining); err != nil {
 			return fmt.Errorf("writing CHR remainder: %w", err)
 		}
 	}
@@ -167,20 +191,20 @@ func (f FileWriter) writeVectors() error {
 	if err := f.writeSegment(addr); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(f.ioWriter, vectors, f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
+	if _, err := fmt.Fprintf(f.mainWriter, vectors, f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
 		return fmt.Errorf("writing vectors: %w", err)
 	}
 	return nil
 }
 
 // writeCode writes the code to the output.
-func (f FileWriter) writeCode() error {
-	endIndex, err := f.app.GetLastNonZeroPRGByte(f.options)
+func (f FileWriter) writeCode(bank *program.PRGBank) error {
+	endIndex, err := bank.GetLastNonZeroByte(f.options)
 	if err != nil {
 		return fmt.Errorf("getting last non zero PRG byte: %w", err)
 	}
 
-	if err := f.writer.ProcessPRG(endIndex); err != nil {
+	if err := f.writer.ProcessPRG(bank, endIndex); err != nil {
 		return fmt.Errorf("writing PRG: %w", err)
 	}
 	return nil

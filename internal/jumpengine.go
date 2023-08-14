@@ -25,18 +25,18 @@ type jumpEngineCaller struct {
 // checkForJumpEngineJmp checks if the current instruction is the jump instruction inside a jump engine function.
 // The function offsets after the call to the jump engine will be used as destinations to disassemble as code.
 // This can be found in some official games like Super Mario Bros.
-func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16) {
+func (dis *Disasm) checkForJumpEngineJmp(bnk *bank, offsetInfo *offset, jumpAddress uint16) {
 	instruction := offsetInfo.opcode.Instruction
 	if instruction.Name != m6502.Jmp.Name || offsetInfo.opcode.Addressing != IndirectAddressing {
 		return
 	}
 
-	contextOffsets, contextAddresses := dis.jumpContextInfo(offsetInfo, jumpAddress)
+	contextOffsets, contextAddresses := dis.jumpContextInfo(bnk, offsetInfo, jumpAddress)
 	contextSize := jumpAddress - offsetInfo.context + 3
 	dataReferences := dis.getContextDataReferences(contextOffsets, contextAddresses)
 
 	if len(dataReferences) > 1 {
-		dis.getFunctionTableReference(offsetInfo.context, dataReferences)
+		dis.getFunctionTableReference(bnk, offsetInfo.context, dataReferences)
 	}
 
 	dis.logger.Debug("Jump engine detected",
@@ -46,10 +46,10 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
 	// in the function, this makes it likely a jump engine
-	dis.jumpEngines[offsetInfo.context] = struct{}{}
+	bnk.jumpEngines[offsetInfo.context] = struct{}{}
 
 	if contextSize < jumpEngineMaxContextSize {
-		dis.handleJumpEngineCallers(offsetInfo.context)
+		dis.handleJumpEngineCallers(bnk, offsetInfo.context)
 	} else {
 		offsetInfo.Comment = "jump engine detected"
 	}
@@ -57,7 +57,7 @@ func (dis *Disasm) checkForJumpEngineJmp(offsetInfo *offset, jumpAddress uint16)
 
 // TODO use jump address as key to be able to handle large function
 // contexts containing multiple jump engines
-func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []uint16) {
+func (dis *Disasm) getFunctionTableReference(bnk *bank, context uint16, dataReferences []uint16) {
 	// if there are multiple data references just look at the last 2
 	if len(dataReferences) > 2 {
 		dataReferences = dataReferences[len(dataReferences)-2:]
@@ -80,10 +80,10 @@ func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []ui
 	}
 
 	jumpEngine := &jumpEngineCaller{}
-	dis.jumpEngineCallersAdded[context] = jumpEngine
-	dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
+	bnk.jumpEngineCallersAdded[context] = jumpEngine
+	bnk.jumpEngineCallers = append(bnk.jumpEngineCallers, jumpEngine)
 
-	dis.jumpEngineCallersAdded[context].tableStartAddress = smallestReference
+	bnk.jumpEngineCallersAdded[context].tableStartAddress = smallestReference
 }
 
 // getContextDataReferences parse all instructions of the function context until the jump
@@ -113,13 +113,13 @@ func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint1
 // jumpContextInfo builds the list of instructions of the current function context.
 // in some ROMs the jump engine can be part of a label inside a larger function,
 // the jump engine detection will use the last instructions before the jmp.
-func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*offset, []uint16) {
+func (dis *Disasm) jumpContextInfo(bnk *bank, offsetInfo *offset, jumpAddress uint16) ([]*offset, []uint16) {
 	var offsets []*offset
 	var addresses []uint16
 
 	for address := offsetInfo.context; address != 0 && address < jumpAddress; {
-		index := dis.addressToIndex(address)
-		offsetInfoInstruction := &dis.offsets[index]
+		index := dis.addressToIndex(bnk, address)
+		offsetInfoInstruction := &bnk.offsets[index]
 
 		// skip offsets that have not been processed yet
 		if len(offsetInfoInstruction.OpcodeBytes) == 0 {
@@ -142,7 +142,7 @@ func (dis *Disasm) jumpContextInfo(offsetInfo *offset, jumpAddress uint16) ([]*o
 }
 
 // checkForJumpEngineCall checks if the current instruction is a call into a jump engine function.
-func (dis *Disasm) checkForJumpEngineCall(offsetInfo *offset, address uint16) {
+func (dis *Disasm) checkForJumpEngineCall(bnk *bank, offsetInfo *offset, address uint16) {
 	instruction := offsetInfo.opcode.Instruction
 	if instruction.Name != m6502.Jsr.Name || offsetInfo.opcode.Addressing != AbsoluteAddressing {
 		return
@@ -150,51 +150,51 @@ func (dis *Disasm) checkForJumpEngineCall(offsetInfo *offset, address uint16) {
 
 	_, opcodes := dis.readOpParam(offsetInfo.opcode.Addressing, dis.pc)
 	destination := binary.LittleEndian.Uint16(opcodes)
-	for addr := range dis.jumpEngines {
+	for addr := range bnk.jumpEngines {
 		if addr == destination {
-			dis.handleJumpEngineCaller(address)
+			dis.handleJumpEngineCaller(bnk, address)
 			return
 		}
 	}
 }
 
 // handleJumpEngineCallers processes all callers of a newly detected jump engine function.
-func (dis *Disasm) handleJumpEngineCallers(context uint16) {
-	index := dis.addressToIndex(context)
-	offsetInfo := &dis.offsets[index]
+func (dis *Disasm) handleJumpEngineCallers(bnk *bank, context uint16) {
+	index := dis.addressToIndex(bnk, context)
+	offsetInfo := &bnk.offsets[index]
 	offsetInfo.LabelComment = "jump engine detected"
 	offsetInfo.SetType(program.JumpEngine)
 
 	for _, caller := range offsetInfo.branchFrom {
-		dis.handleJumpEngineCaller(caller)
+		dis.handleJumpEngineCaller(bnk, caller)
 	}
 }
 
 // handleJumpEngineCaller processes a newly detected jump engine caller, the return address of the call is
 // marked as function reference instead of code. The first entry of the function table is processed.
-func (dis *Disasm) handleJumpEngineCaller(caller uint16) {
-	jumpEngine, ok := dis.jumpEngineCallersAdded[caller]
+func (dis *Disasm) handleJumpEngineCaller(bnk *bank, caller uint16) {
+	jumpEngine, ok := bnk.jumpEngineCallersAdded[caller]
 	if !ok {
 		jumpEngine = &jumpEngineCaller{}
-		dis.jumpEngineCallersAdded[caller] = jumpEngine
-		dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
+		bnk.jumpEngineCallersAdded[caller] = jumpEngine
+		bnk.jumpEngineCallers = append(bnk.jumpEngineCallers, jumpEngine)
 	}
 
 	// get the address of the function pointers after the jump engine call
-	index := dis.addressToIndex(caller)
-	offsetInfo := &dis.offsets[index]
+	index := dis.addressToIndex(bnk, caller)
+	offsetInfo := &bnk.offsets[index]
 	address := caller + uint16(len(offsetInfo.OpcodeBytes))
 
 	// remove from code that should be parsed
-	delete(dis.functionReturnsToParseAdded, address)
+	delete(bnk.functionReturnsToParseAdded, address)
 	jumpEngine.tableStartAddress = address
 
-	dis.processJumpEngineEntry(jumpEngine, address)
+	dis.processJumpEngineEntry(bnk, jumpEngine, address)
 }
 
 // processJumpEngineEntry processes a potential function reference in a jump engine table.
 // It returns whether the entry was a valid function reference address and has been added for processing.
-func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address uint16) bool {
+func (dis *Disasm) processJumpEngineEntry(bnk *bank, jumpEngine *jumpEngineCaller, address uint16) bool {
 	if jumpEngine.terminated {
 		return false
 	}
@@ -206,10 +206,10 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 		return false
 	}
 
-	indexByte1 := dis.addressToIndex(address)
-	offsetInfo1 := &dis.offsets[indexByte1]
-	indexByte2 := dis.addressToIndex(address + 1)
-	offsetInfo2 := &dis.offsets[indexByte2]
+	indexByte1 := dis.addressToIndex(bnk, address)
+	offsetInfo1 := &bnk.offsets[indexByte1]
+	indexByte2 := dis.addressToIndex(bnk, address+1)
+	offsetInfo2 := &bnk.offsets[indexByte2]
 
 	// if the potential jump table entry is already marked as code, the table end is reached
 	if offsetInfo1.Offset.Type == program.CodeOffset || offsetInfo2.Offset.Type == program.CodeOffset {
@@ -229,23 +229,23 @@ func (dis *Disasm) processJumpEngineEntry(jumpEngine *jumpEngineCaller, address 
 
 	jumpEngine.entries++
 
-	dis.addAddressToParse(destination, destination, address, nil, true)
+	dis.addAddressToParse(bnk, destination, destination, address, nil, true)
 	return true
 }
 
 // scanForNewJumpEngineEntry scans all jump engine calls for an unprocessed entry in the function address table that
 // follows the call. It returns whether a new address to parse was added.
-func (dis *Disasm) scanForNewJumpEngineEntry() bool {
-	for len(dis.jumpEngineCallers) != 0 {
+func (dis *Disasm) scanForNewJumpEngineEntry(bnk *bank) bool {
+	for len(bnk.jumpEngineCallers) != 0 {
 		minEntries := -1
 
 		// find the jump engine table with the smallest number of processed entries,
 		// this conservative approach avoids interpreting code in the table area as function references
-		for i := 0; i < len(dis.jumpEngineCallers); i++ {
-			engineCaller := dis.jumpEngineCallers[i]
+		for i := 0; i < len(bnk.jumpEngineCallers); i++ {
+			engineCaller := bnk.jumpEngineCallers[i]
 			if engineCaller.terminated {
 				// jump engine table is processed, remove it from list to process
-				dis.jumpEngineCallers = append(dis.jumpEngineCallers[:i], dis.jumpEngineCallers[i+1:]...)
+				bnk.jumpEngineCallers = append(bnk.jumpEngineCallers[:i], bnk.jumpEngineCallers[i+1:]...)
 			}
 
 			if i := engineCaller.entries; !engineCaller.terminated && (i < minEntries || minEntries == -1) {
@@ -256,15 +256,15 @@ func (dis *Disasm) scanForNewJumpEngineEntry() bool {
 			return false
 		}
 
-		for i := 0; i < len(dis.jumpEngineCallers); i++ {
-			engineCaller := dis.jumpEngineCallers[i]
+		for i := 0; i < len(bnk.jumpEngineCallers); i++ {
+			engineCaller := bnk.jumpEngineCallers[i]
 			if engineCaller.entries != minEntries {
 				continue
 			}
 
 			// calculate next address in table to process
 			address := engineCaller.tableStartAddress + uint16(2*engineCaller.entries)
-			if dis.processJumpEngineEntry(engineCaller, address) {
+			if dis.processJumpEngineEntry(bnk, engineCaller, address) {
 				return true
 			}
 			dis.logger.Debug("Jump engine table",
@@ -273,7 +273,7 @@ func (dis *Disasm) scanForNewJumpEngineEntry() bool {
 			)
 
 			// jump engine table is processed, remove it from list to process
-			dis.jumpEngineCallers = append(dis.jumpEngineCallers[:i], dis.jumpEngineCallers[i+1:]...)
+			bnk.jumpEngineCallers = append(bnk.jumpEngineCallers[:i], bnk.jumpEngineCallers[i+1:]...)
 			i--
 		}
 	}

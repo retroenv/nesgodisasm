@@ -15,16 +15,16 @@ import (
 var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ handler start")
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
-func (dis *Disasm) followExecutionFlow() error {
-	for address := dis.addressToDisassemble(); address != 0; address = dis.addressToDisassemble() {
-		if _, ok := dis.offsetsParsed[address]; ok {
+func (dis *Disasm) followExecutionFlow(bnk *bank) error {
+	for address := dis.addressToDisassemble(bnk); address != 0; address = dis.addressToDisassemble(bnk) {
+		if _, ok := bnk.offsetsParsed[address]; ok {
 			continue
 		}
-		dis.offsetsParsed[address] = struct{}{}
+		bnk.offsetsParsed[address] = struct{}{}
 
 		dis.pc = address
-		index := dis.addressToIndex(dis.pc)
-		offsetInfo, inspectCode := dis.initializeOffsetInfo(index)
+		index := dis.addressToIndex(bnk, dis.pc)
+		offsetInfo, inspectCode := dis.initializeOffsetInfo(bnk, index)
 		if !inspectCode {
 			continue
 		}
@@ -34,10 +34,10 @@ func (dis *Disasm) followExecutionFlow() error {
 		if offsetInfo.opcode.Addressing == ImpliedAddressing {
 			offsetInfo.Code = instruction.Name
 		} else {
-			params, err := dis.processParamInstruction(dis.pc, offsetInfo)
+			params, err := dis.processParamInstruction(bnk, dis.pc, offsetInfo)
 			if err != nil {
 				if errors.Is(err, errInstructionOverlapsIRQHandlers) {
-					dis.handleInstructionIRQOverlap(address, index, offsetInfo)
+					dis.handleInstructionIRQOverlap(bnk, address, index, offsetInfo)
 					continue
 				}
 				return err
@@ -46,30 +46,30 @@ func (dis *Disasm) followExecutionFlow() error {
 		}
 
 		if _, ok := m6502.NotExecutingFollowingOpcodeInstructions[instruction.Name]; ok {
-			dis.checkForJumpEngineJmp(offsetInfo, dis.pc)
+			dis.checkForJumpEngineJmp(bnk, offsetInfo, dis.pc)
 		} else {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			followingOpcodeAddress := dis.pc + opcodeLength
-			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, address, instruction, false)
-			dis.checkForJumpEngineCall(offsetInfo, dis.pc)
+			dis.addAddressToParse(bnk, followingOpcodeAddress, offsetInfo.context, address, instruction, false)
+			dis.checkForJumpEngineCall(bnk, offsetInfo, dis.pc)
 		}
 
-		dis.checkInstructionOverlap(offsetInfo, index)
+		dis.checkInstructionOverlap(bnk, offsetInfo, index)
 
-		if dis.handleDisambiguousInstructions(offsetInfo, index) {
+		if dis.handleDisambiguousInstructions(bnk, offsetInfo, index) {
 			continue
 		}
 
-		dis.changeIndexRangeToCode(offsetInfo.OpcodeBytes, index)
+		dis.changeIndexRangeToCode(bnk, offsetInfo.OpcodeBytes, index)
 	}
 	return nil
 }
 
 // in case the current instruction overlaps with an already existing instruction,
 // cut the current one short.
-func (dis *Disasm) checkInstructionOverlap(offsetInfo *offset, index uint16) {
-	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(index)+i < len(dis.offsets); i++ {
-		offsetInfoFollowing := &dis.offsets[index+uint16(i)]
+func (dis *Disasm) checkInstructionOverlap(bnk *bank, offsetInfo *offset, index uint16) {
+	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(index)+i < len(bnk.offsets); i++ {
+		offsetInfoFollowing := &bnk.offsets[index+uint16(i)]
 		if !offsetInfoFollowing.IsType(program.CodeOffset) {
 			continue
 		}
@@ -86,8 +86,8 @@ func (dis *Disasm) checkInstructionOverlap(offsetInfo *offset, index uint16) {
 
 // initializeOffsetInfo initializes the offset info for the given offset and returns
 // whether the offset should process inspection for code parameters.
-func (dis *Disasm) initializeOffsetInfo(index uint16) (*offset, bool) {
-	offsetInfo := &dis.offsets[index]
+func (dis *Disasm) initializeOffsetInfo(bnk *bank, index uint16) (*offset, bool) {
+	offsetInfo := &bnk.offsets[index]
 
 	if offsetInfo.IsType(program.CodeOffset) {
 		return offsetInfo, false // was set by CDL
@@ -114,7 +114,7 @@ func (dis *Disasm) initializeOffsetInfo(index uint16) (*offset, bool) {
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
-func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (string, error) {
+func (dis *Disasm) processParamInstruction(bnk *bank, address uint16, offsetInfo *offset) (string, error) {
 	opcode := offsetInfo.opcode
 	param, opcodes := dis.readOpParam(opcode.Addressing, dis.pc)
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
@@ -128,12 +128,12 @@ func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (
 		return "", fmt.Errorf("getting parameter as string: %w", err)
 	}
 
-	paramAsString = dis.replaceParamByAlias(address, opcode, param, paramAsString)
+	paramAsString = dis.replaceParamByAlias(bnk, address, opcode, param, paramAsString)
 
 	if _, ok := m6502.BranchingInstructions[opcode.Instruction.Name]; ok {
 		addr, ok := param.(Absolute)
 		if ok {
-			dis.addAddressToParse(uint16(addr), offsetInfo.context, dis.pc, opcode.Instruction, true)
+			dis.addAddressToParse(bnk, uint16(addr), offsetInfo.context, dis.pc, opcode.Instruction, true)
 		}
 	}
 
@@ -142,7 +142,7 @@ func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (
 
 // replaceParamByAlias replaces the absolute address with an alias name if it can match it to
 // a constant, zero page variable or a code reference.
-func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param any, paramAsString string) string {
+func (dis *Disasm) replaceParamByAlias(bnk *bank, address uint16, opcode cpu.Opcode, param any, paramAsString string) string {
 	forceVariableUsage := false
 	addressReference, addressValid := getAddressingParam(param)
 	if !addressValid || addressReference >= irqStartAddress {
@@ -162,7 +162,7 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param 
 		return dis.replaceParamByConstant(opcode, paramAsString, addressReference, constantInfo)
 	}
 
-	if !dis.addVariableReference(addressReference, address, opcode, forceVariableUsage) {
+	if !dis.addVariableReference(bnk, addressReference, address, opcode, forceVariableUsage) {
 		return paramAsString
 	}
 
@@ -180,36 +180,36 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param 
 // addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
 // 0 will be returned. Return address from function addresses have the lowest priority, to be able to
 // handle jump table functions correctly.
-func (dis *Disasm) addressToDisassemble() uint16 {
+func (dis *Disasm) addressToDisassemble(bnk *bank) uint16 {
 	for {
-		if len(dis.offsetsToParse) > 0 {
-			address := dis.offsetsToParse[0]
-			dis.offsetsToParse = dis.offsetsToParse[1:]
+		if len(bnk.offsetsToParse) > 0 {
+			address := bnk.offsetsToParse[0]
+			bnk.offsetsToParse = bnk.offsetsToParse[1:]
 			return address
 		}
 
-		for len(dis.functionReturnsToParse) > 0 {
-			address := dis.functionReturnsToParse[0]
-			dis.functionReturnsToParse = dis.functionReturnsToParse[1:]
+		for len(bnk.functionReturnsToParse) > 0 {
+			address := bnk.functionReturnsToParse[0]
+			bnk.functionReturnsToParse = bnk.functionReturnsToParse[1:]
 
-			_, ok := dis.functionReturnsToParseAdded[address]
+			_, ok := bnk.functionReturnsToParseAdded[address]
 			// if the address was removed from the set it marks the address as not being parsed anymore,
 			// this way is more efficient than iterating the slice to delete the element
 			if !ok {
 				continue
 			}
-			delete(dis.functionReturnsToParseAdded, address)
+			delete(bnk.functionReturnsToParseAdded, address)
 			return address
 		}
 
-		if !dis.scanForNewJumpEngineEntry() {
+		if !dis.scanForNewJumpEngineEntry(bnk) {
 			return 0
 		}
 	}
 }
 
 // addAddressToParse adds an address to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *cpu.Instruction,
+func (dis *Disasm) addAddressToParse(bnk *bank, address, context, from uint16, currentInstruction *cpu.Instruction,
 	isABranchDestination bool) {
 
 	// ignore branching into addresses before the code base address, for example when generating code in
@@ -218,8 +218,8 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 		return
 	}
 
-	index := dis.addressToIndex(address)
-	offsetInfo := &dis.offsets[index]
+	index := dis.addressToIndex(bnk, address)
+	offsetInfo := &bnk.offsets[index]
 
 	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == m6502.Jsr.Name {
 		offsetInfo.SetType(program.CallDestination)
@@ -234,28 +234,28 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 		if from > 0 {
 			offsetInfo.branchFrom = append(offsetInfo.branchFrom, from)
 		}
-		dis.branchDestinations[address] = struct{}{}
+		bnk.branchDestinations[address] = struct{}{}
 	}
 
-	if _, ok := dis.offsetsToParseAdded[address]; ok {
+	if _, ok := bnk.offsetsToParseAdded[address]; ok {
 		return
 	}
-	dis.offsetsToParseAdded[address] = struct{}{}
+	bnk.offsetsToParseAdded[address] = struct{}{}
 
 	// add instructions that follow a function call to a special queue with lower priority, to allow the
 	// jump engine be detected before trying to parse the data following the call, which in case of a jump
 	// engine is not code but pointers to functions.
 	if currentInstruction != nil && currentInstruction.Name == m6502.Jsr.Name {
-		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
-		dis.functionReturnsToParseAdded[address] = struct{}{}
+		bnk.functionReturnsToParse = append(bnk.functionReturnsToParse, address)
+		bnk.functionReturnsToParseAdded[address] = struct{}{}
 	} else {
-		dis.offsetsToParse = append(dis.offsetsToParse, address)
+		bnk.offsetsToParse = append(bnk.offsetsToParse, address)
 	}
 }
 
 // handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
 // The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
-func (dis *Disasm) handleInstructionIRQOverlap(address, index uint16, offsetInfo *offset) {
+func (dis *Disasm) handleInstructionIRQOverlap(bnk *bank, address, index uint16, offsetInfo *offset) {
 	if address > irqStartAddress {
 		return
 	}
@@ -264,7 +264,7 @@ func (dis *Disasm) handleInstructionIRQOverlap(address, index uint16, offsetInfo
 	offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:keepLength]
 
 	for i := 0; i < keepLength; i++ {
-		offsetInfo = &dis.offsets[index+uint16(i)]
+		offsetInfo = &bnk.offsets[index+uint16(i)]
 		offsetInfo.ClearType(program.CodeOffset)
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 	}

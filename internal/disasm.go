@@ -24,6 +24,9 @@ import (
 
 const irqStartAddress = 0xfffa
 
+type fileWriterConstructor func(app *program.Program, options *options.Disassembler,
+	mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter
+
 // offset defines the content of an offset in a program that can represent data or code.
 type offset struct {
 	program.Offset
@@ -42,51 +45,31 @@ type Disasm struct {
 
 	pc                    uint16 // program counter
 	converter             parameter.Converter
-	fileWriterConstructor func(app *program.Program, options *options.Disassembler, ioWriter io.Writer) writer.AssemblerWriter
+	fileWriterConstructor fileWriterConstructor
 	cart                  *cartridge.Cartridge
 	handlers              program.Handlers
 
 	codeBaseAddress uint16 // codebase address of the cartridge, as it can be different from 0x8000
-	constants       map[uint16]constTranslation
-	usedConstants   map[uint16]constTranslation
-	variables       map[uint16]*variable
-	usedVariables   map[uint16]struct{}
 
-	jumpEngines            map[uint16]struct{} // set of all jump engine functions addresses
-	jumpEngineCallers      []*jumpEngineCaller // jump engine caller tables to process
-	jumpEngineCallersAdded map[uint16]*jumpEngineCaller
-	branchDestinations     map[uint16]struct{} // set of all addresses that are branched to
-	offsets                []offset
+	constants     map[uint16]constTranslation
+	usedConstants map[uint16]constTranslation
 
-	offsetsToParse      []uint16
-	offsetsToParseAdded map[uint16]struct{}
-	offsetsParsed       map[uint16]struct{}
-
-	functionReturnsToParse      []uint16
-	functionReturnsToParseAdded map[uint16]struct{}
+	banks  []*bank
+	mapper *mapper
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
 func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disassembler) (*Disasm, error) {
 	dis := &Disasm{
-		logger:                      logger,
-		options:                     options,
-		cart:                        cart,
-		variables:                   map[uint16]*variable{},
-		usedVariables:               map[uint16]struct{}{},
-		usedConstants:               map[uint16]constTranslation{},
-		offsets:                     make([]offset, len(cart.PRG)),
-		jumpEngineCallersAdded:      map[uint16]*jumpEngineCaller{},
-		jumpEngines:                 map[uint16]struct{}{},
-		branchDestinations:          map[uint16]struct{}{},
-		offsetsToParseAdded:         map[uint16]struct{}{},
-		offsetsParsed:               map[uint16]struct{}{},
-		functionReturnsToParseAdded: map[uint16]struct{}{},
+		logger:  logger,
+		options: options,
+		cart:    cart,
 		handlers: program.Handlers{
 			NMI:   "0",
 			Reset: "Reset",
 			IRQ:   "0",
 		},
+		usedConstants: map[uint16]constTranslation{},
 	}
 
 	var err error
@@ -99,6 +82,11 @@ func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disasse
 		return nil, fmt.Errorf("initializing compatible mode: %w", err)
 	}
 
+	dis.initializeBanks(cart.PRG)
+	dis.mapper, err = newMapper(dis.banks, len(cart.PRG))
+	if err != nil {
+		return nil, fmt.Errorf("creating mapper: %w", err)
+	}
 	dis.initializeIrqHandlers()
 
 	if options.CodeDataLog != nil {
@@ -111,26 +99,42 @@ func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disasse
 }
 
 // Process disassembles the cartridge.
-func (dis *Disasm) Process(ioWriter io.Writer) error {
-	if err := dis.followExecutionFlow(); err != nil {
-		return err
-	}
+func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBankWriter) error {
+	for _, bnk := range dis.banks {
+		if err := dis.followExecutionFlow(bnk); err != nil {
+			return err
+		}
 
-	dis.processData()
-	if err := dis.processVariables(); err != nil {
-		return err
+		dis.processData(bnk)
+		if err := dis.processVariables(bnk); err != nil {
+			return err
+		}
+		dis.processJumpDestinations(bnk)
 	}
-	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
 	if err != nil {
 		return err
 	}
-	fileWriter := dis.fileWriterConstructor(app, dis.options, ioWriter)
+	fileWriter := dis.fileWriterConstructor(app, dis.options, mainWriter, newBankWriter)
 	if err = fileWriter.Write(); err != nil {
 		return fmt.Errorf("writing app to file: %w", err)
 	}
 	return nil
+}
+
+func (dis *Disasm) initializeBanks(prg []byte) {
+	for i := 0; i < len(prg); {
+		size := len(prg) - i
+		if size > 0x8000 {
+			size = 0x8000
+		}
+
+		b := prg[i : i+size]
+		bnk := newBank(b)
+		dis.banks = append(dis.banks, bnk)
+		i += size
+	}
 }
 
 // initializeCompatibleMode sets the chosen assembler specific instances to be used to output
@@ -156,35 +160,40 @@ func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
 // initializeIrqHandlers reads the 3 IRQ handler addresses and adds them to the addresses to be
 // followed for execution flow. Multiple handler can point to the same address.
 func (dis *Disasm) initializeIrqHandlers() {
+	var nmiBank, irqBank, resetBank *bank
+
 	nmi := dis.readMemoryWord(irqStartAddress)
 	if nmi != 0 {
 		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
-		index := dis.addressToIndex(nmi)
-		dis.offsets[index].Label = "NMI"
-		dis.offsets[index].SetType(program.CallDestination)
+		nmiBank = dis.mapper.getMappedBank(nmi)
+		index := dis.addressToIndex(nmiBank, nmi)
+		nmiBank.offsets[index].Label = "NMI"
+		nmiBank.offsets[index].SetType(program.CallDestination)
 		dis.handlers.NMI = "NMI"
 	}
 
 	reset := dis.readMemoryWord(irqStartAddress + 2)
 	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
-	index := dis.addressToIndex(reset)
-	if dis.offsets[index].Label != "" {
+	resetBank = dis.mapper.getMappedBank(nmi)
+	index := dis.addressToIndex(resetBank, reset)
+	if resetBank.offsets[index].Label != "" {
 		dis.handlers.NMI = "Reset"
 	}
-	dis.offsets[index].Label = "Reset"
-	dis.offsets[index].SetType(program.CallDestination)
+	resetBank.offsets[index].Label = "Reset"
+	resetBank.offsets[index].SetType(program.CallDestination)
 
 	irq := dis.readMemoryWord(irqStartAddress + 4)
 	if irq != 0 {
 		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
-		index = dis.addressToIndex(irq)
-		if dis.offsets[index].Label == "" {
-			dis.offsets[index].Label = "IRQ"
+		irqBank = dis.mapper.getMappedBank(nmi)
+		index = dis.addressToIndex(irqBank, irq)
+		if irqBank.offsets[index].Label == "" {
+			irqBank.offsets[index].Label = "IRQ"
 			dis.handlers.IRQ = "IRQ"
 		} else {
-			dis.handlers.IRQ = dis.offsets[index].Label
+			dis.handlers.IRQ = irqBank.offsets[index].Label
 		}
-		dis.offsets[index].SetType(program.CallDestination)
+		irqBank.offsets[index].SetType(program.CallDestination)
 	}
 
 	if nmi == reset {
@@ -194,12 +203,12 @@ func (dis *Disasm) initializeIrqHandlers() {
 		dis.handlers.IRQ = dis.handlers.Reset
 	}
 
-	dis.calculateCodeBaseAddress(reset)
+	dis.calculateCodeBaseAddress(resetBank, reset)
 
 	// add IRQ handlers to be parsed after the code base address has been calculated
-	dis.addAddressToParse(nmi, nmi, 0, nil, false)
-	dis.addAddressToParse(reset, reset, 0, nil, false)
-	dis.addAddressToParse(irq, irq, 0, nil, false)
+	dis.addAddressToParse(nmiBank, nmi, nmi, 0, nil, false)
+	dis.addAddressToParse(resetBank, reset, reset, 0, nil, false)
+	dis.addAddressToParse(irqBank, irq, irq, 0, nil, false)
 }
 
 // calculateCodeBaseAddress calculates the code base address that is assumed by the code.
@@ -207,8 +216,8 @@ func (dis *Disasm) initializeIrqHandlers() {
 // 0x8000. The handlers can be set to any of the 2 mirrors as base, based on this the code base
 // address is calculated. This ensures that jsr instructions will result in the same opcode, as it
 // is based on the code base address.
-func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
-	halfPrg := len(dis.cart.PRG) % 0x8000
+func (dis *Disasm) calculateCodeBaseAddress(bnk *bank, resetHandler uint16) {
+	halfPrg := len(bnk.prg) % 0x8000
 	dis.codeBaseAddress = uint16(0x8000 + halfPrg)
 
 	// fix up calculated code base address for half sized PRG ROMs that have a different
@@ -232,28 +241,34 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app.CodeBaseAddress = dis.codeBaseAddress
 	app.Handlers = dis.handlers
 
-	for i := 0; i < len(dis.offsets); i++ {
-		offsetInfo := dis.offsets[i]
-		programOffsetInfo, err := getProgramOffset(offsetInfo, dis.codeBaseAddress+uint16(i), dis.options)
-		if err != nil {
-			return nil, err
+	for _, bnk := range dis.banks {
+		prgBank := program.NewPRGBank(len(bnk.offsets))
+
+		for i := 0; i < len(bnk.offsets); i++ {
+			offsetInfo := bnk.offsets[i]
+			programOffsetInfo, err := getProgramOffset(offsetInfo, dis.codeBaseAddress+uint16(i), dis.options)
+			if err != nil {
+				return nil, err
+			}
+
+			prgBank.PRG[i] = programOffsetInfo
 		}
 
-		app.PRG[i] = programOffsetInfo
-	}
+		for address := range dis.usedConstants {
+			constantInfo := dis.constants[address]
+			if constantInfo.Read != "" {
+				prgBank.Constants[constantInfo.Read] = address
+			}
+			if constantInfo.Write != "" {
+				prgBank.Constants[constantInfo.Write] = address
+			}
+		}
+		for address := range bnk.usedVariables {
+			varInfo := bnk.variables[address]
+			prgBank.Variables[varInfo.name] = address
+		}
 
-	for address := range dis.usedConstants {
-		constantInfo := dis.constants[address]
-		if constantInfo.Read != "" {
-			app.Constants[constantInfo.Read] = address
-		}
-		if constantInfo.Write != "" {
-			app.Constants[constantInfo.Write] = address
-		}
-	}
-	for address := range dis.usedVariables {
-		varInfo := dis.variables[address]
-		app.Variables[varInfo.name] = address
+		app.PRG = append(app.PRG, prgBank)
 	}
 
 	crc32q := crc32.MakeTable(crc32.IEEE)
@@ -265,8 +280,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 }
 
 // addressToIndex converts an address if the code base address to an index into the PRG array.
-func (dis *Disasm) addressToIndex(address uint16) uint16 {
-	index := int(address) % len(dis.cart.PRG)
+func (dis *Disasm) addressToIndex(bnk *bank, address uint16) uint16 {
+	index := int(address) % len(bnk.offsets)
 	return uint16(index)
 }
 
@@ -276,12 +291,18 @@ func (dis *Disasm) loadCodeDataLog() error {
 		return fmt.Errorf("loading code/data log file: %w", err)
 	}
 
+	// TODO handle banks
+	bank0 := dis.banks[0]
 	for index, flags := range prgFlags {
+		if index > len(bank0.offsets) {
+			return nil
+		}
+
 		if flags&codedatalog.Code != 0 {
-			dis.addAddressToParse(dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
+			dis.addAddressToParse(bank0, dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
 		}
 		if flags&codedatalog.SubEntryPoint != 0 {
-			dis.offsets[index].SetType(program.CallDestination)
+			bank0.offsets[index].SetType(program.CallDestination)
 		}
 	}
 

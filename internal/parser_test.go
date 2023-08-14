@@ -10,6 +10,7 @@ import (
 	"github.com/retroenv/retrogolib/log"
 )
 
+// nolint:funlen
 func TestChangeOffsetRangeToData(t *testing.T) {
 	t.Parallel()
 
@@ -61,11 +62,14 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 
 			disasm, err := New(logger, cart, opts)
 			assert.NoError(t, err)
-			disasm.offsets = test.Input()
-			disasm.changeOffsetRangeToCodeAsData(data, 0)
+			input := test.Input()
+			b := make([]byte, len(input))
+			bank := newBank(b)
+			bank.offsets = input
+			disasm.changeOffsetRangeToCodeAsData(bank, data, 0)
 
 			for i := range test.Expected {
-				assert.Equal(t, test.Expected[i], disasm.offsets[i].OpcodeBytes)
+				assert.Equal(t, test.Expected[i], bank.offsets[i].OpcodeBytes)
 			}
 		})
 	}

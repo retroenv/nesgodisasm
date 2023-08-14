@@ -15,8 +15,7 @@ func (dis *Disasm) readMemory(address uint16) byte {
 		value = dis.cart.CHR[address]
 
 	case address >= nes.CodeBaseAddress:
-		index := dis.addressToIndex(address)
-		value = dis.cart.PRG[index]
+		value = dis.mapper.readMemory(address)
 
 	default:
 		panic(fmt.Sprintf("invalid read from address #%0000x", address))

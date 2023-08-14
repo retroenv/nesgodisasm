@@ -41,11 +41,11 @@ func New(app *program.Program, writer io.Writer, options Options) *Writer {
 }
 
 // ProcessPRG processes the PRG segment and writes all code offsets, labels and their comments.
-func (w Writer) ProcessPRG(endIndex int) error {
+func (w Writer) ProcessPRG(bank *program.PRGBank, endIndex int) error {
 	var previousLineWasCode bool
 
 	for i := 0; i < endIndex; i++ {
-		offset := w.app.PRG[i]
+		offset := bank.PRG[i]
 
 		if err := w.writeLabel(i, offset); err != nil {
 			return err
@@ -59,7 +59,7 @@ func (w Writer) ProcessPRG(endIndex int) error {
 		}
 		previousLineWasCode = offset.IsType(program.CodeOffset | program.CodeAsData)
 
-		adjustment, err := w.writeOffset(i, endIndex, offset)
+		adjustment, err := w.writeOffset(bank, i, endIndex, offset)
 		if err != nil {
 			return err
 		}
@@ -151,7 +151,7 @@ func (w Writer) WriteCommentHeader() error {
 	return nil
 }
 
-func (w Writer) writeOffset(index, endIndex int, offset program.Offset) (int, error) {
+func (w Writer) writeOffset(bank *program.PRGBank, index, endIndex int, offset program.Offset) (int, error) {
 	if offset.IsType(program.CodeOffset) && len(offset.OpcodeBytes) == 0 {
 		return 0, nil
 	}
@@ -163,7 +163,7 @@ func (w Writer) writeOffset(index, endIndex int, offset program.Offset) (int, er
 	}
 
 	if offset.IsType(program.DataOffset) {
-		count, err := w.bundlePRGDataWrites(index, endIndex)
+		count, err := w.bundlePRGDataWrites(bank, index, endIndex)
 		if err != nil {
 			return 0, err
 		}
@@ -216,11 +216,11 @@ func (w Writer) writeCodeLine(offset program.Offset) error {
 }
 
 // bundlePRGDataWrites parses PRG to create bundled writes of data bytes per line.
-func (w Writer) bundlePRGDataWrites(startIndex, endIndex int) (int, error) {
+func (w Writer) bundlePRGDataWrites(bank *program.PRGBank, startIndex, endIndex int) (int, error) {
 	var data []byte
 
 	for i := startIndex; i < endIndex; i++ {
-		offset := w.app.PRG[i]
+		offset := bank.PRG[i]
 		// opcode bytes can be nil if data bytes have been combined for an unofficial nop
 		if !offset.IsType(program.DataOffset) || len(offset.OpcodeBytes) == 0 {
 			break
@@ -234,7 +234,7 @@ func (w Writer) bundlePRGDataWrites(startIndex, endIndex int) (int, error) {
 
 	var err error
 	var line string
-	offset := w.app.PRG[startIndex]
+	offset := bank.PRG[startIndex]
 
 	switch len(data) {
 	case 0:

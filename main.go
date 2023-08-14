@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
@@ -168,15 +169,18 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 	}
 
 	var outputFile io.WriteCloser
+	var newBankWriter assembler.NewBankWriter
 	if opts.Output == "" {
 		outputFile = os.Stdout
+		newBankWriter = newBankWriterStdOut
 	} else {
 		outputFile, err = os.Create(opts.Output)
 		if err != nil {
 			return fmt.Errorf("creating file '%s': %w", opts.Output, err)
 		}
+		newBankWriter = newBankWriterFile(opts.Output)
 	}
-	if err = dis.Process(outputFile); err != nil {
+	if err = dis.Process(outputFile, newBankWriter); err != nil {
 		return fmt.Errorf("processing file: %w", err)
 	}
 	if err = outputFile.Close(); err != nil {
@@ -220,4 +224,22 @@ func openCodeDataLog(options *options.Program, disasmOptions *options.Disassembl
 	}
 	disasmOptions.CodeDataLog = logFile
 	return nil
+}
+
+func newBankWriterFile(outputFile string) assembler.NewBankWriter {
+	ext := filepath.Ext(outputFile)
+	base := strings.TrimSuffix(outputFile, ext)
+
+	return func(baseName string) (io.WriteCloser, error) {
+		fileName := fmt.Sprintf("%s%s%s", base, baseName, ext)
+		f, err := os.Create(fileName)
+		if err != nil {
+			return nil, fmt.Errorf("creating file '%s': %w", fileName, err)
+		}
+		return f, nil
+	}
+}
+
+func newBankWriterStdOut(_ string) (io.WriteCloser, error) {
+	return os.Stdout, nil
 }
