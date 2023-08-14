@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ 1.19 ]
+        go: [ "1.21" ]
 
     steps:
       - name: Set up Go 1.x
@@ -39,7 +39,7 @@ jobs:
         run: sudo apt-get install -y cc65
 
       - name: Get dependencies
-        run: go mod download
+        run: go version && go mod download
 
       - name: Run tests
         run: make test
