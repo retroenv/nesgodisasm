@@ -34,7 +34,7 @@ type Checksums struct {
 // Program defines an NES program that contains code or data.
 type Program struct {
 	PRG     []*PRGBank // PRG-ROM banks
-	CHR     CHR        // CHR-ROM data // TODO: support banks
+	CHR     CHR        // CHR-ROM data // TODO support banks
 	RAM     byte       // PRG-RAM offsets
 	Trainer []byte
 

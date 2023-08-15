@@ -99,8 +99,8 @@ func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *of
 	return true
 }
 
-// changeIndexRangeToCode sets a range of code offsets to code types.
-func (dis *Disasm) changeIndexRangeToCode(address uint16, data []byte) {
+// changeAddressRangeToCode sets a range of code addresses to code types.
+func (dis *Disasm) changeAddressRangeToCode(address uint16, data []byte) {
 	for i := 0; i < len(data) && int(address)+i < irqStartAddress; i++ {
 		offsetInfo := dis.mapper.offsetInfo(address + uint16(i))
 		offsetInfo.SetType(program.CodeOffset)

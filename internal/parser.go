@@ -60,7 +60,7 @@ func (dis *Disasm) followExecutionFlow() error {
 			continue
 		}
 
-		dis.changeIndexRangeToCode(address, offsetInfo.OpcodeBytes)
+		dis.changeAddressRangeToCode(address, offsetInfo.OpcodeBytes)
 	}
 	return nil
 }
