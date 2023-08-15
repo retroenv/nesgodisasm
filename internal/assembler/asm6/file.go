@@ -112,8 +112,6 @@ func (f FileWriter) Write() error {
 			}
 
 		case prgBankWrite:
-			// TODO reference https://github.com/tboronczyk/supermariobros2/blob/main/smb2/smb2.asm
-
 			if err := f.writeConstants(t.bank); err != nil {
 				return err
 			}

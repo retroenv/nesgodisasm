@@ -247,7 +247,6 @@ func TestDisasmMixedAccess(t *testing.T) {
 	runDisasm(t, nil, input, expected)
 }
 
-// TODO fix branch into instruction detection
 func TestDisasmDisambiguousInstructions(t *testing.T) {
 	input := []byte{
 		0x4c, 0x05, 0x80, // jmp $8005
