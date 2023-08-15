@@ -18,7 +18,7 @@ func (dis *Disasm) changeAddressRangeToCodeAsData(address uint16, data []byte) {
 				offsetInfoNext.SetType(program.CodeAsData | program.DataOffset)
 				noLabelOffsets++
 
-				skipAddressToParse := address - dis.codeBaseAddress + uint16(j)
+				skipAddressToParse := address + uint16(j)
 				dis.offsetsParsed[skipAddressToParse] = struct{}{}
 				continue
 			}
