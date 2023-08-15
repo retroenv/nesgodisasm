@@ -2,6 +2,7 @@ package disasm
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
@@ -16,7 +17,13 @@ const (
 // processJumpDestinations processes all jump destinations and updates the callers with
 // the generated jump destination label name.
 func (dis *Disasm) processJumpDestinations() {
-	for address := range dis.branchDestinations {
+	branchDestinations := make([]uint16, 0, len(dis.branchDestinations))
+	for dest := range dis.branchDestinations {
+		branchDestinations = append(branchDestinations, dest)
+	}
+	slices.Sort(branchDestinations)
+
+	for _, address := range branchDestinations {
 		offsetInfo := dis.mapper.offsetInfo(address)
 
 		name := offsetInfo.Label

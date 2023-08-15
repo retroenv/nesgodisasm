@@ -4,7 +4,7 @@ package writer
 import (
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
@@ -119,7 +119,7 @@ func (w Writer) OutputAliasMap(aliases map[string]uint16) error {
 	for constant := range aliases {
 		names = append(names, constant)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	for _, constant := range names {
 		address := aliases[constant]
