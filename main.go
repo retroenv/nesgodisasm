@@ -148,8 +148,8 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 			log.String("file", opts.Input),
 			log.Uint8("mapper", cart.Mapper))
 	}
-	if cart.Mapper != 0 {
-		logger.Warn("Only NROM (mapper 0) is currently supported, multi bank mapper support is still in development")
+	if cart.Mapper != 0 && cart.Mapper != 3 {
+		logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
 	}
 
 	if err := openCodeDataLog(opts, disasmOptions); err != nil {

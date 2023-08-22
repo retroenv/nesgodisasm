@@ -20,7 +20,7 @@ nesgodisasm allows you to disassemble programs for the Nintendo Entertainment Sy
 * Batch processing mode to disassembling multiple ROMs at once
 * Flexible architecture that allows it to create output modules for other assemblers 
 
-Currently, only ROMs that use mapper 0 are supported.
+Support for mappers that use banking is currently experimental.
 
 ## Installation
 
