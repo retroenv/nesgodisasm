@@ -28,8 +28,8 @@ The tool uses a modern software stack that does not have any system dependencies
 operating system to run:
 
 * Linux: 2.6.32+
-* Windows: 7+
-* macOS: High Sierra 10.13+
+* Windows: 10+
+* macOS: 10.15 Catalina+
 
 There are 2 options to install nesgodisasm:
 
