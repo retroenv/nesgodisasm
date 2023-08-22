@@ -171,6 +171,7 @@ func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
 
 	case assembler.Nesasm:
 		dis.fileWriterConstructor = nesasm.New
+		dis.converter = parameter.New(nesasm.ParamConfig)
 
 	default:
 		return fmt.Errorf("unsupported assembler '%s'", assemblerName)
