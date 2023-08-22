@@ -109,7 +109,7 @@ func (f FileWriter) Write() error {
 
 // writeROMHeader writes the ROM header configuration to the output.
 func (f FileWriter) writeROMHeader() error {
-	if _, err := fmt.Fprintf(f.mainWriter, headerByte, "inesprg", len(f.app.PRG)/16384, " ", "Number of 16KB PRG-ROM banks"); err != nil {
+	if _, err := fmt.Fprintf(f.mainWriter, headerByte, "inesprg", f.app.PrgSize()/16384, " ", "Number of 16KB PRG-ROM banks"); err != nil {
 		return fmt.Errorf("writing header: %w", err)
 	}
 	if _, err := fmt.Fprintf(f.mainWriter, headerByte, "ineschr", len(f.app.CHR)/8192, " ", "Number of 8KB CHR-ROM banks"); err != nil {
@@ -192,7 +192,7 @@ func (f FileWriter) writeVectors() error {
 		return nil
 	}
 
-	vectorStart := int(f.app.CodeBaseAddress) + len(f.app.PRG) - 6
+	vectorStart := int(f.app.CodeBaseAddress) + f.app.PrgSize() - 6
 	addr := fmt.Sprintf("$%04X", vectorStart)
 
 	if err := f.writeSegment(addr, 3); err != nil {

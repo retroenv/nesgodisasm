@@ -65,3 +65,12 @@ func New(cart *cartridge.Cartridge) *Program {
 		Variables: map[string]uint16{},
 	}
 }
+
+// PrgSize returns the overall size of all PRG banks.
+func (p Program) PrgSize() int {
+	var size int
+	for _, bnk := range p.PRG {
+		size += len(bnk.PRG)
+	}
+	return size
+}

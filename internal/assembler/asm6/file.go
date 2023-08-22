@@ -67,7 +67,7 @@ func (f FileWriter) Write() error {
 		writes = []any{
 			customWrite(f.writer.WriteCommentHeader),
 			lineWrite(iNESHeader),
-			headerByteWrite{value: byte(len(f.app.PRG) / 16384), comment: "Number of 16KB PRG-ROM banks"},
+			headerByteWrite{value: byte(f.app.PrgSize() / 16384), comment: "Number of 16KB PRG-ROM banks"},
 			headerByteWrite{value: byte(len(f.app.CHR) / 8192), comment: "Number of 8KB CHR-ROM banks"},
 			headerByteWrite{value: control1, comment: "Control bits 1"},
 			headerByteWrite{value: control2, comment: "Control bits 2"},
@@ -183,7 +183,7 @@ func (f FileWriter) writeVectors() error {
 		return nil
 	}
 
-	vectorStart := int(f.app.CodeBaseAddress) + len(f.app.PRG) - 6
+	vectorStart := int(f.app.CodeBaseAddress) + f.app.PrgSize() - 6
 	addr := fmt.Sprintf("$%04X", vectorStart)
 
 	if err := f.writeSegment(addr); err != nil {

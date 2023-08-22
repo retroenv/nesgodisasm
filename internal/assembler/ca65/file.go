@@ -71,7 +71,7 @@ func (f FileWriter) Write() error {
 			lineWrite(cpuSelector),
 			segmentWrite{name: "HEADER"},
 			lineWrite(iNESHeader),
-			headerByteWrite{value: byte(len(f.app.PRG) / 16384), comment: "Number of 16KB PRG-ROM banks"},
+			headerByteWrite{value: byte(f.app.PrgSize() / 16384), comment: "Number of 16KB PRG-ROM banks"},
 			headerByteWrite{value: byte(len(f.app.CHR) / 8192), comment: "Number of 8KB CHR-ROM banks"},
 			headerByteWrite{value: control1, comment: "Control bits 1"},
 			headerByteWrite{value: control2, comment: "Control bits 2"},
