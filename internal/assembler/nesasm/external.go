@@ -24,7 +24,7 @@ func AssembleUsingExternalApp(asmFile, outputFile string) error {
 		return fmt.Errorf("%s is not installed", assembler)
 	}
 
-	cmd := exec.Command(assembler, "-o", outputFile, asmFile)
+	cmd := exec.Command(assembler, "-z", "-o", outputFile, asmFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("assembling file: %s: %w", strings.TrimSpace(string(out)), err)
 	}
