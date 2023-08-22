@@ -3,6 +3,7 @@ package disasm
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -152,7 +153,7 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
 	}
 
 	expected := `
-        _var_0200 = $0200
+		_var_0200 = $0200
         
         Reset:                           ; jump engine detected
         lda z:$D7
@@ -348,7 +349,11 @@ func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *car
 	var buffer bytes.Buffer
 	writer := bufio.NewWriter(&buffer)
 
-	err := disasm.Process(writer)
+	newBankWriter := func(_ string) (io.WriteCloser, error) {
+		return nil, nil
+	}
+
+	err := disasm.Process(writer, newBankWriter)
 	assert.NoError(t, err)
 
 	assert.NoError(t, writer.Flush())

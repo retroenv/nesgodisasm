@@ -11,11 +11,13 @@ import (
 )
 
 type constTranslation struct {
+	address uint16
+
 	Read  string
 	Write string
 }
 
-func (dis *Disasm) replaceParamByConstant(opcode cpu.Opcode, paramAsString string, address uint16,
+func (dis *Disasm) replaceParamByConstant(address uint16, opcode cpu.Opcode, paramAsString string,
 	constantInfo constTranslation) string {
 
 	// split parameter string in case of x/y indexing, only the first part will be replaced by a const name
@@ -54,6 +56,7 @@ func buildConstMap() (map[uint16]constTranslation, error) {
 func mergeConstantsMaps(destination map[uint16]constTranslation, source map[uint16]AccessModeConstant) error {
 	for address, constantInfo := range source {
 		translation := destination[address]
+		translation.address = address
 
 		if constantInfo.Mode&ReadAccess != 0 {
 			if translation.Read != "" {

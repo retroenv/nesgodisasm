@@ -26,8 +26,8 @@ type variable struct {
 
 	address      uint16
 	name         string
-	indexedUsage bool     // access with X/Y registers indicates table
-	usageAt      []uint16 // list of all indexes that use this offset
+	indexedUsage bool            // access with X/Y registers indicates table
+	usageAt      []bankReference // list of all indexes that use this offset
 }
 
 // addVariableReference adds a variable reference if the opcode is accessing the given address directly by
@@ -54,7 +54,13 @@ func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, o
 		}
 		dis.variables[addressReference] = varInfo
 	}
-	varInfo.usageAt = append(varInfo.usageAt, usageAddress)
+
+	bankRef := bankReference{
+		mapped:  dis.mapper.getMappedBank(usageAddress),
+		address: usageAddress,
+		index:   dis.mapper.getMappedBankIndex(usageAddress),
+	}
+	varInfo.usageAt = append(varInfo.usageAt, bankRef)
 
 	if reads {
 		varInfo.reads = true
@@ -94,18 +100,22 @@ func (dis *Disasm) processVariables() error {
 		var dataOffsetInfo *offset
 		var addressAdjustment uint16
 		if varInfo.address >= dis.codeBaseAddress {
+			// if the referenced address is inside the code, a label will be created for it
 			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(varInfo.address)
 		} else {
+			// if the address is outside of the code bank a variable will be created
 			dis.usedVariables[varInfo.address] = struct{}{}
+			for _, bankRef := range varInfo.usageAt {
+				bankRef.mapped.bank.variables[varInfo.address] = varInfo
+				bankRef.mapped.bank.usedVariables[varInfo.address] = struct{}{}
+			}
 		}
 
 		var reference string
 		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
 
-		for _, usedAddress := range varInfo.usageAt {
-			index := dis.addressToIndex(usedAddress)
-			offsetInfo := &dis.offsets[index]
-
+		for _, bankRef := range varInfo.usageAt {
+			offsetInfo := bankRef.mapped.offsetInfo(bankRef.index)
 			converted, err := parameter.String(dis.converter, offsetInfo.opcode.Addressing, reference)
 			if err != nil {
 				return fmt.Errorf("getting parameter as string: %w", err)
@@ -124,15 +134,39 @@ func (dis *Disasm) processVariables() error {
 	return nil
 }
 
+// processConstants processes all constants and updates all banks with the used ones. There is currently no tracking
+// for in which bank a constant is used, it will be added to all banks for now.
+// TODO fix constants to only output in used banks
+func (dis *Disasm) processConstants() {
+	constants := make([]constTranslation, 0, len(dis.constants))
+	for _, translation := range dis.constants {
+		constants = append(constants, translation)
+	}
+	sort.Slice(constants, func(i, j int) bool {
+		return constants[i].address < constants[j].address
+	})
+
+	for _, constInfo := range constants {
+		_, used := dis.usedConstants[constInfo.address]
+		if !used {
+			continue
+		}
+
+		for _, bnk := range dis.banks {
+			bnk.constants[constInfo.address] = constInfo
+			bnk.usedConstants[constInfo.address] = constInfo
+		}
+	}
+}
+
 // getOpcodeStart returns a reference to the opcode start of the given address.
 // In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
 // converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.
 func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 	var addressAdjustment uint16
-	for {
-		index := dis.addressToIndex(address)
-		offsetInfo := &dis.offsets[index]
 
+	for {
+		offsetInfo := dis.mapper.offsetInfo(address)
 		if len(offsetInfo.OpcodeBytes) == 0 {
 			address--
 			addressAdjustment++
