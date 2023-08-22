@@ -90,7 +90,9 @@ func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *of
 		return false
 	}
 
-	if instruction.Name != m6502.Nop.Name && instruction.Name != m6502.Sbc.Name {
+	if instruction.Name != m6502.Nop.Name &&
+		instruction.Name != m6502.Sbc.Name &&
+		!dis.noUnofficialInstruction {
 		return false
 	}
 

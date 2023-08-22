@@ -43,11 +43,12 @@ type Disasm struct {
 	logger  *log.Logger
 	options *options.Disassembler
 
-	pc                    uint16 // program counter
-	converter             parameter.Converter
-	fileWriterConstructor fileWriterConstructor
-	cart                  *cartridge.Cartridge
-	handlers              program.Handlers
+	pc                      uint16 // program counter
+	converter               parameter.Converter
+	fileWriterConstructor   fileWriterConstructor
+	cart                    *cartridge.Cartridge
+	handlers                program.Handlers
+	noUnofficialInstruction bool // enable for assemblers that do not support unofficial opcodes
 
 	codeBaseAddress uint16 // codebase address of the cartridge, as it can be different from 0x8000
 
@@ -172,6 +173,7 @@ func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
 	case assembler.Nesasm:
 		dis.fileWriterConstructor = nesasm.New
 		dis.converter = parameter.New(nesasm.ParamConfig)
+		dis.noUnofficialInstruction = true
 
 	default:
 		return fmt.Errorf("unsupported assembler '%s'", assemblerName)
