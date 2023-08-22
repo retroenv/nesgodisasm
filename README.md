@@ -96,7 +96,7 @@ usage: nesgodisasm [options] <file to disassemble>
   -cdl string
     	name of the .cdl Code/Data log file to load
   -debug
-    	enable debugging options for extended logging)
+    	enable debugging options for extended logging
   -nohexcomments
     	do not output opcode bytes as hex values in comments
   -nooffsets
