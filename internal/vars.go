@@ -100,9 +100,15 @@ func (dis *Disasm) processVariables() error {
 		var dataOffsetInfo *offset
 		var addressAdjustment uint16
 		if varInfo.address >= dis.codeBaseAddress {
+			// if the referenced address is inside the code, a label will be created for it
 			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(varInfo.address)
 		} else {
+			// if the address is outside of the code bank a variable will be created
 			dis.usedVariables[varInfo.address] = struct{}{}
+			for _, bankRef := range varInfo.usageAt {
+				bankRef.mapped.bank.variables[varInfo.address] = varInfo
+				bankRef.mapped.bank.usedVariables[varInfo.address] = struct{}{}
+			}
 		}
 
 		var reference string
@@ -123,11 +129,6 @@ func (dis *Disasm) processVariables() error {
 			case IndirectAddressing, IndirectXAddressing, IndirectYAddressing:
 				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
 			}
-		}
-
-		for _, bankRef := range varInfo.usageAt {
-			bankRef.mapped.bank.variables[varInfo.address] = varInfo
-			bankRef.mapped.bank.usedVariables[varInfo.address] = struct{}{}
 		}
 	}
 	return nil

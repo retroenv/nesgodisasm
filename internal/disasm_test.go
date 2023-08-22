@@ -22,11 +22,7 @@ func TestDisasmZeroDataReference(t *testing.T) {
 		0x40, // rti
 	}
 
-	expected := `
-        _data_8010_indexed = $8010
-        _data_8020 = $8020
-
-		Reset:
+	expected := `Reset:
         lda a:_data_8020               ; $8000  AD 20 80
         lda a:_data_8010_indexed,X     ; $8003  BD 10 80
         .byte $04, $a9                   ; $8006  04 A9  disambiguous instruction: nop $A9
@@ -76,10 +72,7 @@ func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
 		0x40, // $8007 rti
 	}
 
-	expected := `
-        _data_8005_indexed = $8005
-
-		Reset:
+	expected := `Reset:
         lda a:_data_8005_indexed+1,X
         bcc _label_8007
         
@@ -160,8 +153,7 @@ func TestDisasmJumpEngineTableAppended(t *testing.T) {
 	}
 
 	expected := `
-        _jump_table_8015 = $8015
-        _var_0200 = $0200
+		_var_0200 = $0200
         
         Reset:                           ; jump engine detected
         lda z:$D7
@@ -202,8 +194,6 @@ func TestDisasmJumpEngineZeroPage(t *testing.T) {
 	}
 
 	expected := `
-        _data_8015_indexed = $8015
-        _data_8016_indexed = $8016
         _var_00e3 = $00E3
         
         Reset:
