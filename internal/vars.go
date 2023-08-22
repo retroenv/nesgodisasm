@@ -56,7 +56,7 @@ func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, o
 	}
 
 	bankRef := bankReference{
-		bank:    dis.mapper.getMappedBank(usageAddress),
+		mapped:  dis.mapper.getMappedBank(usageAddress),
 		address: usageAddress,
 		index:   dis.mapper.getMappedBankIndex(usageAddress),
 	}
@@ -109,7 +109,7 @@ func (dis *Disasm) processVariables() error {
 		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
 
 		for _, bankRef := range varInfo.usageAt {
-			offsetInfo := bankRef.bank.offsetInfo(bankRef.index)
+			offsetInfo := bankRef.mapped.offsetInfo(bankRef.index)
 			converted, err := parameter.String(dis.converter, offsetInfo.opcode.Addressing, reference)
 			if err != nil {
 				return fmt.Errorf("getting parameter as string: %w", err)
@@ -126,8 +126,8 @@ func (dis *Disasm) processVariables() error {
 		}
 
 		for _, bankRef := range varInfo.usageAt {
-			bankRef.bank.variables[varInfo.address] = varInfo
-			bankRef.bank.usedVariables[varInfo.address] = struct{}{}
+			bankRef.mapped.bank.variables[varInfo.address] = varInfo
+			bankRef.mapped.bank.usedVariables[varInfo.address] = struct{}{}
 		}
 	}
 	return nil

@@ -63,12 +63,12 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 			disasm, err := New(logger, cart, opts)
 			assert.NoError(t, err)
 			input := test.Input()
-			bank := disasm.mapper.getMappedBank(0x8000)
-			bank.offsets = input
+			mapped := disasm.mapper.getMappedBank(0x8000)
+			mapped.bank.offsets = input
 			disasm.changeAddressRangeToCodeAsData(0x8000, data)
 
 			for i := range test.Expected {
-				assert.Equal(t, test.Expected[i], bank.offsets[i].OpcodeBytes)
+				assert.Equal(t, test.Expected[i], mapped.bank.offsets[i].OpcodeBytes)
 			}
 		})
 	}

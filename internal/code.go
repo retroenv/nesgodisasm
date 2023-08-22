@@ -47,7 +47,7 @@ func (dis *Disasm) processJumpDestinations() {
 		}
 
 		for _, bankRef := range offsetInfo.branchFrom {
-			offsetInfo = bankRef.bank.offsetInfo(bankRef.index)
+			offsetInfo = bankRef.mapped.offsetInfo(bankRef.index)
 			offsetInfo.branchingTo = name
 
 			// reference can be a function address of a jump engine

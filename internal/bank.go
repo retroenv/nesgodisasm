@@ -12,7 +12,7 @@ type bank struct {
 }
 
 type bankReference struct {
-	bank    *bank
+	mapped  mappedBank
 	address uint16
 	index   uint16
 }
@@ -26,9 +26,4 @@ func newBank(prg []byte) *bank {
 		usedVariables: map[uint16]struct{}{},
 		offsets:       make([]offset, len(prg)),
 	}
-}
-
-func (b *bank) offsetInfo(index uint16) *offset {
-	offsetInfo := &b.offsets[index]
-	return offsetInfo
 }

@@ -49,26 +49,26 @@ func newMapper(banks []*bank, prgSize int) (*mapper, error) {
 
 	// TODO set mapper specific
 	bnk := m.banks[0]
-	m.setBank(0x8000, bnk)
+	m.setMappedBank(0x8000, bnk)
 	bnk = m.banks[1]
-	m.setBank(0xa000, bnk)
+	m.setMappedBank(0xa000, bnk)
 	bnk = m.banks[len(m.banks)-2]
-	m.setBank(0xc000, bnk)
+	m.setMappedBank(0xc000, bnk)
 	bnk = m.banks[len(m.banks)-1]
-	m.setBank(0xe000, bnk)
+	m.setMappedBank(0xe000, bnk)
 
 	return m, nil
 }
 
-func (m *mapper) setBank(address uint16, bank mappedBank) {
+func (m *mapper) setMappedBank(address uint16, bank mappedBank) {
 	bankWindow := address >> m.addressShifts
 	m.mapped[bankWindow] = bank
 }
 
-func (m *mapper) getMappedBank(address uint16) *bank {
+func (m *mapper) getMappedBank(address uint16) mappedBank {
 	bankWindow := address >> m.addressShifts
-	bnk := m.mapped[bankWindow]
-	return bnk.bank
+	mapped := m.mapped[bankWindow]
+	return mapped
 }
 
 func (m *mapper) getMappedBankIndex(address uint16) uint16 {
@@ -95,6 +95,12 @@ func (m *mapper) offsetInfo(address uint16) *offset {
 	index := int(address) % bankWindowSize
 	pointer := bnk.dataStart + index
 	offsetInfo := &bnk.bank.offsets[pointer]
+	return offsetInfo
+}
+
+func (m mappedBank) offsetInfo(index uint16) *offset {
+	offset := int(index) + m.dataStart
+	offsetInfo := &m.bank.offsets[offset]
 	return offsetInfo
 }
 

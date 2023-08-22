@@ -229,7 +229,7 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	if isABranchDestination {
 		if from > 0 {
 			bankRef := bankReference{
-				bank:    dis.mapper.getMappedBank(from),
+				mapped:  dis.mapper.getMappedBank(from),
 				address: from,
 				index:   dis.mapper.getMappedBankIndex(from),
 			}
