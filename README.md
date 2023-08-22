@@ -10,8 +10,8 @@ nesgodisasm allows you to disassemble programs for the Nintendo Entertainment Sy
 
 ## Features
 
-* Outputs [asm6](https://github.com/freem/asm6f)/[ca65](https://github.com/cc65/cc65)/
-[nesasm](https://github.com/ClusterM/nesasm) compatible .asm files that can be used to reproduce the same original NES ROM
+* Outputs [asm6](https://github.com/freem/asm6f)/[ca65](https://github.com/cc65/cc65)/[nesasm](https://github.com/ClusterM/nesasm)
+compatible .asm files that can be used to reproduce the same original NES ROM
 * Translates known RAM addresses to aliases
 * Traces the program execution flow to differentiate between code and data
 * Supports undocumented 6502 CPU opcodes
