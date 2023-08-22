@@ -57,7 +57,7 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	flags.StringVar(&opts.Assembler, "a", "", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
 	// TODO add config option to generate ca65 config for the ROM
-	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging)")
+	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
 	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&opts.NoOffsets, "nooffsets", false, "do not output offsets in comments")
