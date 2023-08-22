@@ -18,3 +18,7 @@
 nesgodisasm
 internal/testroms/
 dist/
+
+# temporary assembler files
+*.nl
+*.lst
