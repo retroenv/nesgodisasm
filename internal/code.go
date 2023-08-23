@@ -86,7 +86,7 @@ func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 // bytes being assembled and make the resulting ROM not matching the original.
 func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *offset) bool {
 	instruction := offsetInfo.opcode.Instruction
-	if !instruction.Unofficial {
+	if !instruction.Unofficial || address >= irqStartAddress {
 		return false
 	}
 
