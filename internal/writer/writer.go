@@ -47,6 +47,12 @@ func (w Writer) ProcessPRG(bank *program.PRGBank, endIndex int) error {
 	for i := 0; i < endIndex; i++ {
 		offset := bank.PRG[i]
 
+		if offset.WriteCallback != nil {
+			if err := offset.WriteCallback(w.writer); err != nil {
+				return fmt.Errorf("calling write callback: %w", err)
+			}
+		}
+
 		if err := w.writeLabel(i, offset); err != nil {
 			return err
 		}

@@ -63,6 +63,7 @@ func (f FileWriter) Write() error {
 		}
 	}
 
+	addBankSelectors(f.app.PRG)
 	for _, bank := range f.app.PRG {
 		writes = append(writes,
 			prgBankWrite{bank: bank},
@@ -129,7 +130,7 @@ func (f FileWriter) writeROMHeader() error {
 func (f FileWriter) writeSegment(address string, bank int) error {
 	if bank >= 0 {
 		if _, err := fmt.Fprintf(f.mainWriter, "\n .bank %d\n", bank); err != nil {
-			return fmt.Errorf("writing segment: %w", err)
+			return fmt.Errorf("writing bank: %w", err)
 		}
 	}
 	if _, err := fmt.Fprintf(f.mainWriter, " .org %s\n\n", address); err != nil {

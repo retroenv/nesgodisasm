@@ -2,12 +2,18 @@
 package program
 
 import (
+	"io"
+
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 )
 
 // Offset defines the content of an offset in a program that can represent data or code.
 type Offset struct {
-	OpcodeBytes []byte // data byte or all opcode bytes that are part of the instruction
+	// data byte or all opcode bytes that are part of the instruction
+	OpcodeBytes []byte
+	// custom callback function that gets called before the offset is written, this
+	// allows custom bank switch code to be written at specific offsets
+	WriteCallback func(writer io.Writer) error
 
 	Type OffsetType
 
@@ -34,7 +40,7 @@ type Checksums struct {
 // Program defines an NES program that contains code or data.
 type Program struct {
 	PRG     []*PRGBank // PRG-ROM banks
-	CHR     CHR        // CHR-ROM data // TODO support banks
+	CHR     CHR        // CHR-ROM data
 	RAM     byte       // PRG-RAM offsets
 	Trainer []byte
 
