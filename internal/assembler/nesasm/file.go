@@ -23,11 +23,6 @@ type FileWriter struct {
 	writer        *writer.Writer
 }
 
-type segmentWrite struct {
-	bank    int
-	address string
-}
-
 type prgBankWrite struct {
 	bank *program.PRGBank
 }
@@ -59,11 +54,10 @@ func (f FileWriter) Write() error {
 		writes = []any{
 			customWrite(f.writer.WriteCommentHeader),
 			customWrite(f.writeROMHeader),
-			segmentWrite{address: fmt.Sprintf("$%04x", f.app.CodeBaseAddress)},
 		}
 	}
 
-	addBankSelectors(f.app.PRG)
+	nextBank := addBankSelectors(int(f.app.CodeBaseAddress), f.app.PRG)
 	for _, bank := range f.app.PRG {
 		writes = append(writes,
 			prgBankWrite{bank: bank},
@@ -72,16 +66,11 @@ func (f FileWriter) Write() error {
 
 	writes = append(writes,
 		customWrite(f.writeVectors),
-		customWrite(f.writeCHR),
+		customWrite(f.writeCHR(nextBank)),
 	)
 
 	for _, write := range writes {
 		switch t := write.(type) {
-		case segmentWrite:
-			if err := f.writeSegment(t.address, t.bank); err != nil {
-				return err
-			}
-
 		case lineWrite:
 			if _, err := fmt.Fprintln(f.mainWriter, t); err != nil {
 				return fmt.Errorf("writing line: %w", err)
@@ -126,19 +115,6 @@ func (f FileWriter) writeROMHeader() error {
 	return nil
 }
 
-// writeSegment writes a segment header to the output.
-func (f FileWriter) writeSegment(address string, bank int) error {
-	if bank >= 0 {
-		if _, err := fmt.Fprintf(f.mainWriter, "\n .bank %d\n", bank); err != nil {
-			return fmt.Errorf("writing bank: %w", err)
-		}
-	}
-	if _, err := fmt.Fprintf(f.mainWriter, " .org %s\n\n", address); err != nil {
-		return fmt.Errorf("writing segment: %w", err)
-	}
-	return nil
-}
-
 // writeConstants writes constant aliases to the output.
 func (f FileWriter) writeConstants(bank *program.PRGBank) error {
 	if err := f.writer.OutputAliasMap(bank.Constants); err != nil {
@@ -156,35 +132,37 @@ func (f FileWriter) writeVariables(bank *program.PRGBank) error {
 }
 
 // writeCHR writes the CHR content to the output.
-func (f FileWriter) writeCHR() error {
-	if _, err := fmt.Fprint(f.mainWriter, "\n .DATA"); err != nil {
-		return fmt.Errorf("writing CHR bank: %w", err)
-	}
-	if _, err := fmt.Fprintf(f.mainWriter, "\n .bank %d\n", 4); err != nil {
-		return fmt.Errorf("writing CHR bank: %w", err)
-	}
+func (f FileWriter) writeCHR(nextBank int) func() error {
+	return func() error {
+		if _, err := fmt.Fprint(f.mainWriter, "\n .DATA"); err != nil {
+			return fmt.Errorf("writing CHR bank: %w", err)
+		}
+		if _, err := fmt.Fprintf(f.mainWriter, "\n .bank %d\n", nextBank); err != nil {
+			return fmt.Errorf("writing CHR bank: %w", err)
+		}
 
-	if f.options.ZeroBytes {
-		if _, err := f.writer.BundleDataWrites(f.app.CHR, false); err != nil {
+		if f.options.ZeroBytes {
+			if _, err := f.writer.BundleDataWrites(f.app.CHR, false); err != nil {
+				return fmt.Errorf("writing CHR data: %w", err)
+			}
+			return nil
+		}
+
+		lastNonZeroByte := f.app.CHR.GetLastNonZeroByte()
+		_, err := f.writer.BundleDataWrites(f.app.CHR[:lastNonZeroByte], false)
+		if err != nil {
 			return fmt.Errorf("writing CHR data: %w", err)
 		}
+
+		remaining := len(f.app.CHR) - lastNonZeroByte
+		if remaining > 0 {
+			if _, err := fmt.Fprintf(f.mainWriter, "\n .ds %d\n", remaining); err != nil {
+				return fmt.Errorf("writing CHR remainder: %w", err)
+			}
+		}
+
 		return nil
 	}
-
-	lastNonZeroByte := f.app.CHR.GetLastNonZeroByte()
-	_, err := f.writer.BundleDataWrites(f.app.CHR[:lastNonZeroByte], false)
-	if err != nil {
-		return fmt.Errorf("writing CHR data: %w", err)
-	}
-
-	remaining := len(f.app.CHR) - lastNonZeroByte
-	if remaining > 0 {
-		if _, err := fmt.Fprintf(f.mainWriter, "\n .ds %d\n", remaining); err != nil {
-			return fmt.Errorf("writing CHR remainder: %w", err)
-		}
-	}
-
-	return nil
 }
 
 // writeVectors writes the IRQ vectors.
@@ -194,11 +172,10 @@ func (f FileWriter) writeVectors() error {
 	}
 
 	vectorStart := int(f.app.CodeBaseAddress) + f.app.PrgSize() - 6
-	addr := fmt.Sprintf("$%04X", vectorStart)
-
-	if err := f.writeSegment(addr, 3); err != nil {
-		return err
+	if _, err := fmt.Fprintf(f.mainWriter, "\n .org $%04X\n", vectorStart); err != nil {
+		return fmt.Errorf("writing segment: %w", err)
 	}
+
 	if _, err := fmt.Fprintf(f.mainWriter, vectors, f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
 		return fmt.Errorf("writing vectors: %w", err)
 	}
