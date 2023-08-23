@@ -163,22 +163,27 @@ func (dis *Disasm) initializeBanks(prg []byte) {
 // initializeCompatibleMode sets the chosen assembler specific instances to be used to output
 // compatible code.
 func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
+	var paramCfg parameter.Config
+
 	switch strings.ToLower(assemblerName) {
 	case assembler.Asm6:
 		dis.fileWriterConstructor = asm6.New
+		paramCfg = asm6.ParamConfig
 
 	case assembler.Ca65:
 		dis.fileWriterConstructor = ca65.New
+		paramCfg = ca65.ParamConfig
 
 	case assembler.Nesasm:
 		dis.fileWriterConstructor = nesasm.New
-		dis.converter = parameter.New(nesasm.ParamConfig)
+		paramCfg = nesasm.ParamConfig
 		dis.noUnofficialInstruction = true
 
 	default:
 		return fmt.Errorf("unsupported assembler '%s'", assemblerName)
 	}
 
+	dis.converter = parameter.New(paramCfg)
 	return nil
 }
 

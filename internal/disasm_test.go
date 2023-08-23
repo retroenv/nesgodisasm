@@ -25,7 +25,7 @@ func TestDisasmZeroDataReference(t *testing.T) {
 	expected := `Reset:
         lda a:_data_8020               ; $8000  AD 20 80
         lda a:_data_8010_indexed,X     ; $8003  BD 10 80
-        .byte $04, $a9                   ; $8006  04 A9  disambiguous instruction: nop $A9
+        .byte $04, $a9                   ; $8006  04 A9  disambiguous instruction: nop z:$A9
         rti                            ; $8008  40
         
         .byte $00, $00, $00, $00, $00, $00, $00
@@ -54,7 +54,7 @@ func TestDisasmBranchIntoUnofficialNop(t *testing.T) {
 
 	expected := `Reset:
         bcc _label_8003
-        .byte $dc                        ; disambiguous instruction: nop $8BAE,X
+        .byte $dc                        ; disambiguous instruction: nop a:$8BAE,X
         
         _label_8003:
         ldx a:$788B                    ; branch into instruction detected
@@ -251,7 +251,7 @@ func TestDisasmDisambiguousInstructions(t *testing.T) {
         jmp _label_8005
         
         _label_8003:
-        .byte $04                        ; branch into instruction detected: disambiguous instruction: nop $A9
+        .byte $04                        ; branch into instruction detected: disambiguous instruction: nop z:$A9
         
         _label_8004:
         .byte $a9
@@ -277,7 +277,7 @@ func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
         _var_bffe_indexed = $BFFE
         
         Reset:
-        jsr $A268                      ; $C000  20 68 A2
+        jsr a:$A268                    ; $C000  20 68 A2
         lda a:_var_bffe_indexed,Y      ; $C003  B9 FE BF
         rti                            ; $C006  40
 `

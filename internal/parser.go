@@ -160,19 +160,8 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param 
 		return dis.replaceParamByConstant(addressReference, opcode, paramAsString, constantInfo)
 	}
 
-	if !dis.addVariableReference(addressReference, address, opcode, forceVariableUsage) {
-		return paramAsString
-	}
-
-	// force using absolute address to not generate a different opcode by using zeropage access mode
-	switch opcode.Addressing {
-	case ZeroPageAddressing, ZeroPageXAddressing, ZeroPageYAddressing:
-		return dis.options.ZeroPagePrefix + paramAsString
-	case AbsoluteAddressing, AbsoluteXAddressing, AbsoluteYAddressing:
-		return dis.options.AbsolutePrefix + paramAsString
-	default: // indirect x, ...
-		return paramAsString
-	}
+	dis.addVariableReference(addressReference, address, opcode, forceVariableUsage)
+	return paramAsString
 }
 
 // addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,

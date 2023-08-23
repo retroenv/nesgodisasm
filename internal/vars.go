@@ -30,10 +30,11 @@ type variable struct {
 	usageAt      []bankReference // list of all indexes that use this offset
 }
 
-// addVariableReference adds a variable reference if the opcode is accessing the given address directly by
-// reading or writing. In a special case like branching into a zeropage address the variable usage can be forced.
-func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, opcode cpu.Opcode,
-	forceVariableUsage bool) bool {
+// addVariableReference adds a variable reference if the opcode is accessing
+// the given address directly by reading or writing. In a special case like
+// branching into a zeropage address the variable usage can be forced.
+func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16,
+	opcode cpu.Opcode, forceVariableUsage bool) {
 
 	var reads, writes bool
 	if opcode.ReadWritesMemory(m6502.MemoryReadWriteInstructions) {
@@ -44,7 +45,7 @@ func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, o
 		writes = opcode.WritesMemory(m6502.MemoryWriteInstructions)
 	}
 	if !reads && !writes && !forceVariableUsage {
-		return false
+		return
 	}
 
 	varInfo := dis.variables[addressReference]
@@ -75,8 +76,6 @@ func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16, o
 		IndirectXAddressing, IndirectYAddressing:
 		varInfo.indexedUsage = true
 	}
-
-	return true
 }
 
 // processVariables processes all variables and updates the instructions that use them
@@ -123,9 +122,9 @@ func (dis *Disasm) processVariables() error {
 
 			switch offsetInfo.opcode.Addressing {
 			case ZeroPageAddressing, ZeroPageXAddressing, ZeroPageYAddressing:
-				offsetInfo.Code = fmt.Sprintf("%s %s%s", offsetInfo.opcode.Instruction.Name, dis.options.ZeroPagePrefix, converted)
+				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
 			case AbsoluteAddressing, AbsoluteXAddressing, AbsoluteYAddressing:
-				offsetInfo.Code = fmt.Sprintf("%s %s%s", offsetInfo.opcode.Instruction.Name, dis.options.AbsolutePrefix, converted)
+				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
 			case IndirectAddressing, IndirectXAddressing, IndirectYAddressing:
 				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
 			}
