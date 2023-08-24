@@ -273,6 +273,7 @@ func getPrgData(bank *program.PRGBank, startIndex, endIndex int) []byte {
 
 	for i := startIndex; i < endIndex; i++ {
 		offset := bank.PRG[i]
+
 		// opcode bytes can be nil if data bytes have been combined for an unofficial nop
 		if !offset.IsType(program.DataOffset) || len(offset.OpcodeBytes) == 0 {
 			break
@@ -281,6 +282,12 @@ func getPrgData(bank *program.PRGBank, startIndex, endIndex int) []byte {
 		if i > startIndex && (offset.IsType(program.CodeOffset|program.CodeAsData) || offset.Label != "") {
 			break
 		}
+		// break at potential bank switch, do ignore callback on first iteration as it has been handled
+		// by the caller already.
+		if offset.WriteCallback != nil && i != startIndex {
+			break
+		}
+
 		data = append(data, offset.OpcodeBytes...)
 	}
 

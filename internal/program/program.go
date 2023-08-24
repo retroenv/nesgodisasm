@@ -7,13 +7,17 @@ import (
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 )
 
+// WriteCallbackFunc is a custom callback function that gets called before the offset is written.
+type WriteCallbackFunc func(writer io.Writer) error
+
 // Offset defines the content of an offset in a program that can represent data or code.
 type Offset struct {
 	// data byte or all opcode bytes that are part of the instruction
 	OpcodeBytes []byte
-	// custom callback function that gets called before the offset is written, this
-	// allows custom bank switch code to be written at specific offsets
-	WriteCallback func(writer io.Writer) error
+	// WriteCallback is a custom callback function that gets called before the offset is
+	// written, this allows custom bank switch code to be written at specific offsets.
+	// The output of bundled data bytes will be interrupted.
+	WriteCallback WriteCallbackFunc
 
 	Type OffsetType
 
