@@ -46,7 +46,9 @@ type lineWrite string
 // New creates a new file writer.
 // nolint: ireturn
 func New(app *program.Program, options *options.Disassembler, mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter {
-	opts := writer.Options{}
+	opts := writer.Options{
+		OffsetComments: options.OffsetComments,
+	}
 	return FileWriter{
 		app:           app,
 		options:       options,
@@ -155,15 +157,14 @@ func (f FileWriter) writeVariables(bank *program.PRGBank) error {
 // writeCHR writes the CHR content to the output.
 func (f FileWriter) writeCHR() error {
 	if f.options.ZeroBytes {
-		if _, err := f.writer.BundleDataWrites(f.app.CHR, false); err != nil {
+		if err := f.writer.BundleDataWrites(f.app.CHR, nil); err != nil {
 			return fmt.Errorf("writing CHR data: %w", err)
 		}
 		return nil
 	}
 
 	lastNonZeroByte := f.app.CHR.GetLastNonZeroByte()
-	_, err := f.writer.BundleDataWrites(f.app.CHR[:lastNonZeroByte], false)
-	if err != nil {
+	if err := f.writer.BundleDataWrites(f.app.CHR[:lastNonZeroByte], nil); err != nil {
 		return fmt.Errorf("writing CHR data: %w", err)
 	}
 

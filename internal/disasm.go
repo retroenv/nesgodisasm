@@ -346,6 +346,8 @@ func (dis *Disasm) loadCodeDataLog() error {
 
 func getProgramOffset(address uint16, offsetInfo offset, options *options.Disassembler) (program.Offset, error) {
 	programOffset := offsetInfo.Offset
+	programOffset.Address = address
+
 	if offsetInfo.branchingTo != "" {
 		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code, offsetInfo.branchingTo)
 	}
@@ -373,6 +375,7 @@ func setComment(address uint16, programOffset *program.Offset, options *options.
 	var comments []string
 
 	if options.OffsetComments {
+		programOffset.HasAddressComment = true
 		comments = []string{fmt.Sprintf("$%04X", address)}
 	}
 

@@ -12,6 +12,8 @@ import (
 
 const dataBytesPerLine = 16
 
+type lineWriterFunc func(line string, byteCount int) error
+
 // AssemblerWriter defines a shared interface used by the different assembler compatibility packages.
 // Their constructors need to return this shared interface, having them return the actual type instead of
 // the interface results in compiler errors for the constructor variable that they are assigned to.
@@ -29,6 +31,7 @@ type Writer struct {
 // Options of the writer.
 type Options struct {
 	DirectivePrefix string // nesasm requires a space before a directive
+	OffsetComments  bool
 }
 
 // New creates a new writer.
@@ -75,7 +78,7 @@ func (w Writer) ProcessPRG(bank *program.PRGBank, endIndex int) error {
 }
 
 // BundleDataWrites bundles writes of data bytes to print dataBytesPerLine bytes per line.
-func (w Writer) BundleDataWrites(data []byte, returnLine bool) (string, error) {
+func (w Writer) BundleDataWrites(data []byte, lineWriter lineWriterFunc) error {
 	remaining := len(data)
 	for i := 0; remaining > 0; {
 		toWrite := remaining
@@ -85,29 +88,32 @@ func (w Writer) BundleDataWrites(data []byte, returnLine bool) (string, error) {
 
 		buf := &strings.Builder{}
 		if _, err := fmt.Fprintf(buf, "%s.byte ", w.options.DirectivePrefix); err != nil {
-			return "", fmt.Errorf("writing data prefix: %w", err)
+			return fmt.Errorf("writing data prefix: %w", err)
 		}
 
 		for j := 0; j < toWrite; j++ {
 			if _, err := fmt.Fprintf(buf, "$%02x, ", data[i+j]); err != nil {
-				return "", fmt.Errorf("writing data byte: %w", err)
+				return fmt.Errorf("writing data byte: %w", err)
 			}
 		}
 
 		line := strings.TrimRight(buf.String(), ", ")
-		if returnLine {
-			return line, nil
-		}
 
-		if _, err := fmt.Fprintf(w.writer, "%s\n", line); err != nil {
-			return "", fmt.Errorf("writing data line: %w", err)
+		if lineWriter != nil {
+			if err := lineWriter(line, toWrite); err != nil {
+				return fmt.Errorf("writing data line using custom writer: %w", err)
+			}
+		} else {
+			if _, err := fmt.Fprintf(w.writer, "%s\n", line); err != nil {
+				return fmt.Errorf("writing data line: %w", err)
+			}
 		}
 
 		i += toWrite
 		remaining -= toWrite
 	}
 
-	return "", nil
+	return nil
 }
 
 // OutputAliasMap outputs an alias map, for constants or variables.
@@ -223,6 +229,46 @@ func (w Writer) writeCodeLine(offset program.Offset) error {
 
 // bundlePRGDataWrites parses PRG to create bundled writes of data bytes per line.
 func (w Writer) bundlePRGDataWrites(bank *program.PRGBank, startIndex, endIndex int) (int, error) {
+	data := getPrgData(bank, startIndex, endIndex)
+	if len(data) == 0 {
+		return 0, nil
+	}
+
+	currentIndex := startIndex
+	lineWriter := func(line string, byteCount int) error {
+		var err error
+
+		offset := bank.PRG[currentIndex]
+		if w.options.OffsetComments && !offset.HasAddressComment {
+			comment := fmt.Sprintf("$%04X", offset.Address)
+			if offset.Comment == "" {
+				offset.Comment = comment
+			} else {
+				offset.Comment = comment + "  " + offset.Comment
+			}
+		}
+
+		if offset.Comment == "" {
+			_, err = fmt.Fprintf(w.writer, "%s\n", line)
+		} else {
+			_, err = fmt.Fprintf(w.writer, "%-32s ; %s\n", line, offset.Comment)
+		}
+		if err != nil {
+			return fmt.Errorf("writing prg line: %w", err)
+		}
+
+		currentIndex += byteCount
+		return nil
+	}
+
+	if err := w.BundleDataWrites(data, lineWriter); err != nil {
+		return 0, fmt.Errorf("writing PRG data: %w", err)
+	}
+
+	return len(data), nil
+}
+
+func getPrgData(bank *program.PRGBank, startIndex, endIndex int) []byte {
 	var data []byte
 
 	for i := startIndex; i < endIndex; i++ {
@@ -238,33 +284,5 @@ func (w Writer) bundlePRGDataWrites(bank *program.PRGBank, startIndex, endIndex 
 		data = append(data, offset.OpcodeBytes...)
 	}
 
-	var err error
-	var line string
-	offset := bank.PRG[startIndex]
-
-	switch len(data) {
-	case 0:
-		return 0, nil
-
-	case 1:
-		line = fmt.Sprintf("%s.byte $%02x", w.options.DirectivePrefix, data[0])
-
-	default:
-		line, err = w.BundleDataWrites(data, offset.Comment != "")
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	if line != "" {
-		if offset.Comment == "" {
-			_, err = fmt.Fprintf(w.writer, "%s\n", line)
-		} else {
-			_, err = fmt.Fprintf(w.writer, "%-32s ; %s\n", line, offset.Comment)
-		}
-		if err != nil {
-			return 0, fmt.Errorf("writing prg line: %w", err)
-		}
-	}
-	return len(data), nil
+	return data
 }

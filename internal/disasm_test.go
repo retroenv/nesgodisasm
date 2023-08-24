@@ -28,13 +28,13 @@ func TestDisasmZeroDataReference(t *testing.T) {
         .byte $04, $a9                   ; $8006  04 A9  disambiguous instruction: nop z:$A9
         rti                            ; $8008  40
         
-        .byte $00, $00, $00, $00, $00, $00, $00
+        .byte $00, $00, $00, $00, $00, $00, $00 ; $8009
         
         _data_8010_indexed:
-        .byte $12, $00, $00, $00, $00, $34, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+        .byte $12, $00, $00, $00, $00, $34, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $8010
         
         _data_8020:
-        .byte $00
+        .byte $00                        ; $8020
 `
 
 	setup := func(options *options.Disassembler, cart *cartridge.Cartridge) {
