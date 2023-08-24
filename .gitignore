@@ -14,6 +14,7 @@
 *.asm
 *.o
 *.dbg
+*.nes
 .testCoverage
 nesgodisasm
 internal/testroms/
