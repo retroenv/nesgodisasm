@@ -9,9 +9,9 @@ import (
 
 const bankSize = 0x2000
 
-// addBankSelectors adds bank selectors to every 0x2000 byte offsets, as required
+// addPrgBankSelectors adds PRG bank selectors to every 0x2000 byte offsets, as required
 // by nesasm to avoid the error "Bank overflow, offset > $1FFF".
-func addBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
+func addPrgBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
 	counter := 0
 	bankNumber := 0
 	bankAddress := codeBaseAddress
@@ -22,7 +22,7 @@ func addBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
 
 		for {
 			if bankSwitch { // if switch was carried over after last bank was filled
-				setBankSelector(bank.PRG, index, &bankAddress, &bankNumber)
+				setPrgBankSelector(bank.PRG, index, &bankAddress, &bankNumber)
 				bankSwitch = false
 			}
 
@@ -42,7 +42,7 @@ func addBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
 				break
 			}
 
-			setBankSelector(bank.PRG, index+bankSpaceLeft, &bankAddress, &bankNumber)
+			setPrgBankSelector(bank.PRG, index+bankSpaceLeft, &bankAddress, &bankNumber)
 
 			index += bankSpaceLeft
 			counter += bankSpaceLeft
@@ -52,7 +52,30 @@ func addBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
 	return bankNumber
 }
 
-func setBankSelector(prg []program.Offset, index int, bankAddress, bankNumber *int) {
+// chrBanks adds CHR bank selectors to every 0x2000 byte offsets, as required
+// by nesasm to avoid the error "Bank overflow, offset > $1FFF".
+func chrBanks(nextBank int, chr program.CHR) []program.CHR {
+	banks := make([]program.CHR, 0, len(chr)/bankSize)
+	remaining := len(chr)
+
+	for index := 0; remaining > 0; nextBank++ {
+		toWrite := remaining
+		if toWrite > bankSize {
+			toWrite = bankSize
+		}
+
+		bank := chr[index : index+toWrite]
+		//WriteCallback: writeBankSelector(nextBank, -1),
+		banks = append(banks, bank)
+
+		index += toWrite
+		remaining -= toWrite
+	}
+
+	return banks
+}
+
+func setPrgBankSelector(prg []program.Offset, index int, bankAddress, bankNumber *int) {
 	offsetInfo := &prg[index]
 
 	// handle bank switches in the middle of an instruction by converting it to data bytes
@@ -77,19 +100,22 @@ func setBankSelector(prg []program.Offset, index int, bankAddress, bankNumber *i
 		offsetInfo = &prg[index]
 	}
 
-	offsetInfo.WriteCallback = writeBankSelector(*bankAddress, *bankNumber)
+	offsetInfo.WriteCallback = writeBankSelector(*bankNumber, *bankAddress)
 
 	*bankAddress += bankSize
 	*bankNumber++
 }
 
-func writeBankSelector(bankAddress, bankNumber int) func(writer io.Writer) error {
+func writeBankSelector(bankNumber, bankAddress int) func(writer io.Writer) error {
 	return func(writer io.Writer) error {
 		if _, err := fmt.Fprintf(writer, "\n .bank %d\n", bankNumber); err != nil {
 			return fmt.Errorf("writing bank switch: %w", err)
 		}
-		if _, err := fmt.Fprintf(writer, " .org $%04x\n\n", bankAddress); err != nil {
-			return fmt.Errorf("writing segment: %w", err)
+
+		if bankAddress >= 0 {
+			if _, err := fmt.Fprintf(writer, " .org $%04x\n\n", bankAddress); err != nil {
+				return fmt.Errorf("writing segment: %w", err)
+			}
 		}
 		return nil
 	}

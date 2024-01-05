@@ -58,7 +58,7 @@ func (f FileWriter) Write() error {
 		}
 	}
 
-	nextBank := addBankSelectors(int(f.app.CodeBaseAddress), f.app.PRG)
+	nextBank := addPrgBankSelectors(int(f.app.CodeBaseAddress), f.app.PRG)
 	for _, bank := range f.app.PRG {
 		writes = append(writes,
 			prgBankWrite{bank: bank},
@@ -103,7 +103,7 @@ func (f FileWriter) writeROMHeader() error {
 	if _, err := fmt.Fprintf(f.mainWriter, headerByte, "inesprg", f.app.PrgSize()/16384, " ", "Number of 16KB PRG-ROM banks"); err != nil {
 		return fmt.Errorf("writing header: %w", err)
 	}
-	if _, err := fmt.Fprintf(f.mainWriter, headerByte, "ineschr", len(f.app.CHR)/8192, " ", "Number of 8KB CHR-ROM banks"); err != nil {
+	if _, err := fmt.Fprintf(f.mainWriter, headerByte, "ineschr", len(f.app.CHR)/bankSize, " ", "Number of 8KB CHR-ROM banks"); err != nil {
 		return fmt.Errorf("writing header: %w", err)
 	}
 	if _, err := fmt.Fprintf(f.mainWriter, headerByte, "inesmap", f.app.Mapper, " ", "Mapper"); err != nil {
@@ -138,27 +138,20 @@ func (f FileWriter) writeCHR(nextBank int) func() error {
 		if _, err := fmt.Fprint(f.mainWriter, "\n .DATA"); err != nil {
 			return fmt.Errorf("writing CHR bank: %w", err)
 		}
-		if _, err := fmt.Fprintf(f.mainWriter, "\n .bank %d\n", nextBank); err != nil {
-			return fmt.Errorf("writing CHR bank: %w", err)
-		}
 
-		if f.options.ZeroBytes {
-			if err := f.writer.BundleDataWrites(f.app.CHR, nil); err != nil {
+		banks := chrBanks(nextBank, f.app.CHR)
+
+		for _, bank := range banks {
+			writeFunc := writeBankSelector(nextBank, -1)
+			if err := writeFunc(f.mainWriter); err != nil {
+				return fmt.Errorf("writing bank switch: %w", err)
+			}
+
+			if err := f.writer.BundleDataWrites(bank, nil); err != nil {
 				return fmt.Errorf("writing CHR data: %w", err)
 			}
-			return nil
-		}
 
-		lastNonZeroByte := f.app.CHR.GetLastNonZeroByte()
-		if err := f.writer.BundleDataWrites(f.app.CHR[:lastNonZeroByte], nil); err != nil {
-			return fmt.Errorf("writing CHR data: %w", err)
-		}
-
-		remaining := len(f.app.CHR) - lastNonZeroByte
-		if remaining > 0 {
-			if _, err := fmt.Fprintf(f.mainWriter, "\n .ds %d\n", remaining); err != nil {
-				return fmt.Errorf("writing CHR remainder: %w", err)
-			}
+			nextBank++
 		}
 
 		return nil
