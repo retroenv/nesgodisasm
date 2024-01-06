@@ -70,6 +70,11 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	err := flags.Parse(os.Args[1:])
 	args := flags.Args()
 
+	opts.Assembler = strings.ToLower(opts.Assembler)
+	if opts.Assembler == "asm6f" {
+		opts.Assembler = "asm6"
+	}
+
 	disasmOptions := options.NewDisassembler(opts.Assembler)
 	disasmOptions.ZeroBytes = zeroBytes
 
@@ -146,7 +151,9 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 	if !opts.Quiet {
 		logger.Info("Processing ROM",
 			log.String("file", opts.Input),
-			log.Uint8("mapper", cart.Mapper))
+			log.Uint8("mapper", cart.Mapper),
+			log.String("assembler", opts.Assembler),
+		)
 	}
 	if cart.Mapper != 0 && cart.Mapper != 3 {
 		logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
