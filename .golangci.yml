@@ -1,5 +1,6 @@
 run:
-  deadline: 5m
+  timeout: 5m
+  modules-download-mode: readonly
 
 linters:
   enable:
@@ -60,11 +61,8 @@ linters:
 
 linters-settings:
   stylecheck:
-    checks: [ "all", "-ST1001", "-ST1003" ]
-  gosimple:
-    checks: [ "all", "-S1023" ]
-  staticcheck:
-    checks: [ "all", "-SA5002" ]
+    # ST1001: should not use dot imports
+    checks: [ "all", "-ST1001" ]
   cyclop:
     max-complexity: 15
   nestif:
