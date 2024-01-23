@@ -55,7 +55,7 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	opts := &options.Program{}
 	var zeroBytes bool
 
-	flags.StringVar(&opts.Assembler, "a", "", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
+	flags.StringVar(&opts.Assembler, "a", "ca65", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
 	// TODO add config option to generate ca65 config for the ROM
 	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
@@ -67,19 +67,9 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	flags.BoolVar(&opts.AssembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
 	flags.BoolVar(&zeroBytes, "z", false, "output the trailing zero bytes of banks")
 
+	logger := createLogger(opts.Debug, opts.Quiet)
 	err := flags.Parse(os.Args[1:])
 	args := flags.Args()
-
-	opts.Assembler = strings.ToLower(opts.Assembler)
-	if opts.Assembler == "asm6f" {
-		opts.Assembler = "asm6"
-	}
-
-	disasmOptions := options.NewDisassembler(opts.Assembler)
-	disasmOptions.ZeroBytes = zeroBytes
-
-	logger := createLogger(opts)
-
 	if err != nil || (len(args) == 0 && opts.Batch == "") {
 		printBanner(logger, opts)
 		fmt.Printf("usage: nesgodisasm [options] <file to disassemble>\n\n")
@@ -88,19 +78,27 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 		os.Exit(1)
 	}
 
+	opts.Assembler = strings.ToLower(opts.Assembler)
+	if opts.Assembler == "asm6f" {
+		opts.Assembler = "asm6"
+	}
+
 	if opts.Batch == "" {
 		opts.Input = args[0]
 	}
 
+	disasmOptions := options.NewDisassembler(opts.Assembler)
+	disasmOptions.ZeroBytes = zeroBytes
+
 	return logger, opts, &disasmOptions
 }
 
-func createLogger(options *options.Program) *log.Logger {
+func createLogger(debug, quiet bool) *log.Logger {
 	cfg := log.DefaultConfig()
-	if options.Debug {
+	if debug {
 		cfg.Level = log.DebugLevel
 	}
-	if options.Quiet {
+	if quiet {
 		cfg.Level = log.ErrorLevel
 	}
 	return log.NewWithConfig(cfg)

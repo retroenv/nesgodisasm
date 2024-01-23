@@ -52,7 +52,7 @@ To use the `-verify` option, the chosen assembler needs to be installed.
 Disassemble a ROM:
 
 ```
-nesgodisasm -a ca65 -o example.asm example.nes
+nesgodisasm -o example.asm example.nes
 ```
 
 The generated assembly file content will look like:
@@ -90,7 +90,7 @@ ld65 example.o -t nes -o example.nes
 usage: nesgodisasm [options] <file to disassemble>
 
   -a string
-    	Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)
+    	Assembler compatibility of the generated .asm file (asm6/ca65/nesasm) (default "ca65")
   -batch string
     	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
   -cdl string
