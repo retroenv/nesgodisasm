@@ -93,6 +93,8 @@ usage: nesgodisasm [options] <file to disassemble>
     	Assembler compatibility of the generated .asm file (asm6/ca65/nesasm) (default "ca65")
   -batch string
     	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
+  -c string
+    	Config file name to write output to for ca65 assembler
   -cdl string
     	name of the .cdl Code/Data log file to load
   -debug

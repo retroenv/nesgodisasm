@@ -53,7 +53,7 @@ func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Confi
 
 	mapperConfig := GenerateMapperConfig(conf)
 
-	if err := os.WriteFile(configFile.Name(), []byte(mapperConfig), 0444); err != nil {
+	if err := os.WriteFile(configFile.Name(), []byte(mapperConfig), 0666); err != nil {
 		return fmt.Errorf("writing linker config: %w", err)
 	}
 

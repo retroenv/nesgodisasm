@@ -10,9 +10,10 @@ import (
 type Program struct {
 	Assembler   string
 	Batch       string
+	CodeDataLog string
+	Config      string
 	Input       string
 	Output      string
-	CodeDataLog string
 
 	AssembleTest bool
 	Debug        bool

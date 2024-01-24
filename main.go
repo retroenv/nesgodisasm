@@ -57,7 +57,7 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 
 	flags.StringVar(&opts.Assembler, "a", "ca65", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
-	// TODO add config option to generate ca65 config for the ROM
+	flags.StringVar(&opts.Config, "c", "", "Config file name to write output to for ca65 assembler")
 	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
 	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
@@ -133,7 +133,6 @@ func getFiles(options *options.Program) ([]string, error) {
 	return files, nil
 }
 
-// nolint: cyclop, funlen
 func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *options.Disassembler) error {
 	file, err := os.Open(opts.Input)
 	if err != nil {
@@ -173,8 +172,32 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 		_ = disasmOptions.CodeDataLog.Close()
 	}
 
-	var outputFile io.WriteCloser
-	var newBankWriter assembler.NewBankWriter
+	if err := processFile(opts, dis); err != nil {
+		return err
+	}
+
+	if err := processCa65Config(opts, logger, cart, dis); err != nil {
+		return fmt.Errorf("processing ca65 config: %w", err)
+	}
+
+	if opts.AssembleTest {
+		if err = verification.VerifyOutput(logger, cart, opts, dis.CodeBaseAddress()); err != nil {
+			return fmt.Errorf("output file mismatch: %w", err)
+		}
+		if !opts.Quiet {
+			logger.Info("Output file matched input file")
+		}
+	}
+	return nil
+}
+
+func processFile(opts *options.Program, dis *disasm.Disasm) error {
+	var (
+		err           error
+		outputFile    io.WriteCloser
+		newBankWriter assembler.NewBankWriter
+	)
+
 	if opts.Output == "" {
 		outputFile = os.Stdout
 		newBankWriter = newBankWriterStdOut
@@ -192,30 +215,35 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 		return fmt.Errorf("closing file: %w", err)
 	}
 
-	if opts.Debug && opts.Assembler == assembler.Ca65 {
-		printCa65Config(logger, cart, dis)
-	}
-
-	if opts.AssembleTest {
-		if err = verification.VerifyOutput(logger, cart, opts, dis.CodeBaseAddress()); err != nil {
-			return fmt.Errorf("output file mismatch: %w", err)
-		}
-		if !opts.Quiet {
-			logger.Info("Output file matched input file")
-		}
-	}
 	return nil
 }
 
-func printCa65Config(logger *log.Logger, cart *cartridge.Cartridge, dis *disasm.Disasm) {
+func processCa65Config(opts *options.Program, logger *log.Logger,
+	cart *cartridge.Cartridge, dis *disasm.Disasm) error {
+
+	if opts.Assembler != assembler.Ca65 || (!opts.Debug && opts.Config == "") {
+		return nil
+	}
+
 	ca65Config := ca65.Config{
 		PrgBase: int(dis.CodeBaseAddress()),
 		PRGSize: len(cart.PRG),
 		CHRSize: len(cart.CHR),
 	}
 	cfg := ca65.GenerateMapperConfig(ca65Config)
-	logger.Debug("Ca65 config:")
-	fmt.Println(cfg)
+
+	if opts.Debug {
+		logger.Debug("Ca65 config:")
+		fmt.Println(cfg)
+	}
+
+	if opts.Config != "" {
+		if err := os.WriteFile(opts.Config, []byte(cfg), 0666); err != nil {
+			return fmt.Errorf("writing ca65 config: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func openCodeDataLog(options *options.Program, disasmOptions *options.Disassembler) error {
