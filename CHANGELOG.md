@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.2.2] - 2024-01-06
+
+Added:
+
+* add nesasm output compatibility support
+* show warning of mapper is not nrom
+* start of banking support
+* support asm6f as a assembler parameter alias for asm6
+* output data lines with address in comments
+
+Fixed:
+
+* fix assembler binary name for verification on windows
+* fix crash when disassembling invalid irq handler addresses
+* improve code base address handling for large PRG
+* improve instruction parameter converter prefix and suffix handling
+
+
 ## [v0.2.1] - 2023-07-19
 
 Added:
