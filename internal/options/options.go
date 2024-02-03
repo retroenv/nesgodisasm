@@ -12,6 +12,7 @@ type Program struct {
 	Batch       string
 	CodeDataLog string
 	Config      string
+	Ini         string
 	Input       string
 	Output      string
 
@@ -25,8 +26,9 @@ type Program struct {
 
 // Disassembler defines options to control the disassembler.
 type Disassembler struct {
-	Assembler   string        // what assembler to use
+	Assembler   string        // which assembler to use
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
+	Ini         io.ReadCloser // ROM disassembly configuration
 
 	CodeOnly       bool
 	HexComments    bool

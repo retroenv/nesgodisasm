@@ -60,6 +60,7 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	flags.StringVar(&opts.Config, "c", "", "Config file name to write output to for ca65 assembler")
 	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
 	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
+	flags.StringVar(&opts.Ini, "i", "", "Ini file containing ROM disassembly configuration")
 	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&opts.NoOffsets, "nooffsets", false, "do not output offsets in comments")
 	flags.StringVar(&opts.Output, "o", "", "name of the output .asm file, printed on console if no name given")
@@ -159,6 +160,9 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 	if err := openCodeDataLog(opts, disasmOptions); err != nil {
 		return err
 	}
+	if err := openIniFile(opts, disasmOptions); err != nil {
+		return err
+	}
 
 	disasmOptions.HexComments = !opts.NoHexComments
 	disasmOptions.OffsetComments = !opts.NoOffsets
@@ -251,11 +255,24 @@ func openCodeDataLog(options *options.Program, disasmOptions *options.Disassembl
 		return nil
 	}
 
-	logFile, err := os.Open(options.CodeDataLog)
+	file, err := os.Open(options.CodeDataLog)
 	if err != nil {
-		return fmt.Errorf("opening file '%s': %w", options.CodeDataLog, err)
+		return fmt.Errorf("opening code data log file '%s': %w", options.CodeDataLog, err)
 	}
-	disasmOptions.CodeDataLog = logFile
+	disasmOptions.CodeDataLog = file
+	return nil
+}
+
+func openIniFile(options *options.Program, disasmOptions *options.Disassembler) error {
+	if options.Ini == "" {
+		return nil
+	}
+
+	file, err := os.Open(options.Ini)
+	if err != nil {
+		return fmt.Errorf("opening ini file '%s': %w", options.CodeDataLog, err)
+	}
+	disasmOptions.Ini = file
 	return nil
 }
 
