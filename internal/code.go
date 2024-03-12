@@ -71,9 +71,9 @@ func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 
 	offsetInfo := dis.mapper.offsetInfo(address)
 	if offsetInfo.Code == "" { // disambiguous instruction
-		offsetInfo.Comment = fmt.Sprintf("branch into instruction detected: %s", offsetInfo.Comment)
+		offsetInfo.Comment = "branch into instruction detected: " + offsetInfo.Comment
 	} else {
-		offsetInfo.Comment = fmt.Sprintf("branch into instruction detected: %s", offsetInfo.Code)
+		offsetInfo.Comment = "branch into instruction detected: " + offsetInfo.Code
 		offsetInfo.Code = ""
 	}
 
@@ -97,9 +97,9 @@ func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *of
 	}
 
 	if offsetInfo.Code == "" { // in case of branch into unofficial nop instruction detected
-		offsetInfo.Comment = fmt.Sprintf("disambiguous instruction: %s", offsetInfo.Comment)
+		offsetInfo.Comment = "disambiguous instruction: " + offsetInfo.Comment
 	} else {
-		offsetInfo.Comment = fmt.Sprintf("disambiguous instruction: %s", offsetInfo.Code)
+		offsetInfo.Comment = "disambiguous instruction: " + offsetInfo.Code
 	}
 
 	offsetInfo.Code = ""

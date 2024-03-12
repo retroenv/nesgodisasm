@@ -358,7 +358,7 @@ func getProgramOffset(address uint16, offsetInfo offset, options *options.Disass
 		}
 
 		if offsetInfo.IsType(program.FunctionReference) {
-			programOffset.Code = fmt.Sprintf(".word %s", offsetInfo.branchingTo)
+			programOffset.Code = ".word " + offsetInfo.branchingTo
 		}
 
 		if err := setComment(address, &programOffset, options); err != nil {

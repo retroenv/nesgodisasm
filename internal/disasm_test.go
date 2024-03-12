@@ -37,7 +37,7 @@ func TestDisasmZeroDataReference(t *testing.T) {
         .byte $00                        ; $8020
 `
 
-	setup := func(options *options.Disassembler, cart *cartridge.Cartridge) {
+	setup := func(_ *options.Disassembler, cart *cartridge.Cartridge) {
 		cart.PRG[0x0010] = 0x12
 		cart.PRG[0x0015] = 0x34
 	}
@@ -282,7 +282,7 @@ func TestDisasmDifferentCodeBaseAddress(t *testing.T) {
         rti                            ; $C006  40
 `
 
-	setup := func(options *options.Disassembler, cart *cartridge.Cartridge) {
+	setup := func(_ *options.Disassembler, cart *cartridge.Cartridge) {
 		cart.PRG = make([]byte, 0x4000)
 		cart.PRG[0x3FFD] = 0xC0 // reset handler that forces base address to $C000
 	}
@@ -298,7 +298,7 @@ func TestDisasmIndirectJmp(t *testing.T) {
         jmp ($20CE)                    ; $8000  6C CE 20
 `
 
-	setup := func(options *options.Disassembler, cart *cartridge.Cartridge) {}
+	setup := func(_ *options.Disassembler, _ *cartridge.Cartridge) {}
 
 	runDisasm(t, setup, input, expected)
 }
