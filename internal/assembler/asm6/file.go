@@ -11,8 +11,6 @@ import (
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 )
 
-var iNESHeader = `.db "NES", $1a                 ; Magic string that always begins an iNES header`
-
 var headerByte = ".db $%02x %-22s ; %s\n"
 
 var vectors = ".dw %s, %s, %s\n\n"
@@ -41,7 +39,10 @@ type prgBankWrite struct {
 
 type customWrite func() error
 
-type lineWrite string
+type lineWrite struct {
+	line    string
+	comment string
+}
 
 // New creates a new file writer.
 // nolint: ireturn
@@ -68,14 +69,14 @@ func (f FileWriter) Write() error {
 	if !f.options.CodeOnly {
 		writes = []any{
 			customWrite(f.writer.WriteCommentHeader),
-			lineWrite(iNESHeader),
+			lineWrite{line: ".db \"NES\", $1a", comment: "Magic string that always begins an iNES header"},
 			headerByteWrite{value: byte(f.app.PrgSize() / 16384), comment: "Number of 16KB PRG-ROM banks"},
 			headerByteWrite{value: byte(len(f.app.CHR) / 8192), comment: "Number of 8KB CHR-ROM banks"},
 			headerByteWrite{value: control1, comment: "Control bits 1"},
 			headerByteWrite{value: control2, comment: "Control bits 2"},
 			headerByteWrite{value: f.app.RAM, comment: "Number of 8KB PRG-RAM banks"},
 			headerByteWrite{value: f.app.VideoFormat, comment: "Video format NTSC/PAL"},
-			lineWrite(".dsb 6"),
+			lineWrite{line: ".dsb 6", comment: "Padding to fill 16 BYTE iNES Header"},
 			segmentWrite{address: fmt.Sprintf("$%04x", f.app.CodeBaseAddress)},
 		}
 	}
@@ -104,7 +105,7 @@ func (f FileWriter) Write() error {
 			}
 
 		case lineWrite:
-			if _, err := fmt.Fprintln(f.mainWriter, t); err != nil {
+			if _, err := fmt.Fprintf(f.mainWriter, "%-30s ; %s\n", t.line, t.comment); err != nil {
 				return fmt.Errorf("writing line: %w", err)
 			}
 
