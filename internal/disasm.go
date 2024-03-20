@@ -271,7 +271,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	for _, bnk := range dis.banks {
 		prgBank := program.NewPRGBank(len(bnk.offsets))
 
-		for i := 0; i < len(bnk.offsets); i++ {
+		for i := range len(bnk.offsets) {
 			offsetInfo := bnk.offsets[i]
 			programOffsetInfo, err := getProgramOffset(dis.codeBaseAddress+uint16(i), offsetInfo, dis.options)
 			if err != nil {

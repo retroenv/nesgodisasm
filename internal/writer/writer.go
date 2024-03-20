@@ -91,7 +91,7 @@ func (w Writer) BundleDataWrites(data []byte, lineWriter lineWriterFunc) error {
 			return fmt.Errorf("writing data prefix: %w", err)
 		}
 
-		for j := 0; j < toWrite; j++ {
+		for j := range toWrite {
 			if _, err := fmt.Fprintf(buf, "$%02x, ", data[i+j]); err != nil {
 				return fmt.Errorf("writing data byte: %w", err)
 			}

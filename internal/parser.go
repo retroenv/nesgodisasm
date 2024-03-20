@@ -253,7 +253,7 @@ func (dis *Disasm) handleInstructionIRQOverlap(address uint16, offsetInfo *offse
 	keepLength := int(irqStartAddress - address)
 	offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:keepLength]
 
-	for i := 0; i < keepLength; i++ {
+	for i := range keepLength {
 		offsetInfo = dis.mapper.offsetInfo(address + uint16(i))
 		offsetInfo.ClearType(program.CodeOffset)
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
