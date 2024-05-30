@@ -194,8 +194,10 @@ func (dis *Disasm) initializeIrqHandlers() {
 	if nmi != 0 {
 		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
 		offsetInfo := dis.mapper.offsetInfo(nmi)
-		offsetInfo.Label = "NMI"
-		offsetInfo.SetType(program.CallDestination)
+		if offsetInfo != nil {
+			offsetInfo.Label = "NMI"
+			offsetInfo.SetType(program.CallDestination)
+		}
 		dis.handlers.NMI = "NMI"
 	}
 
@@ -214,13 +216,15 @@ func (dis *Disasm) initializeIrqHandlers() {
 	if irq != 0 {
 		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
 		offsetInfo = dis.mapper.offsetInfo(irq)
-		if offsetInfo.Label == "" {
-			offsetInfo.Label = "IRQ"
-			dis.handlers.IRQ = "IRQ"
-		} else {
-			dis.handlers.IRQ = offsetInfo.Label
+		if offsetInfo != nil {
+			if offsetInfo.Label == "" {
+				offsetInfo.Label = "IRQ"
+				dis.handlers.IRQ = "IRQ"
+			} else {
+				dis.handlers.IRQ = offsetInfo.Label
+			}
+			offsetInfo.SetType(program.CallDestination)
 		}
-		offsetInfo.SetType(program.CallDestination)
 	}
 
 	if nmi == reset {
