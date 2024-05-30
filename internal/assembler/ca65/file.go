@@ -194,11 +194,7 @@ func (f FileWriter) writeCode(bank *program.PRGBank) error {
 		}
 	}
 
-	endIndex, err := bank.GetLastNonZeroByte(f.options)
-	if err != nil {
-		return fmt.Errorf("getting last non zero PRG byte: %w", err)
-	}
-
+	endIndex := bank.GetLastNonZeroByte(f.options)
 	if err := f.writer.ProcessPRG(bank, endIndex); err != nil {
 		return fmt.Errorf("writing PRG: %w", err)
 	}

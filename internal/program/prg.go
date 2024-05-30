@@ -1,8 +1,6 @@
 package program
 
 import (
-	"errors"
-
 	"github.com/retroenv/nesgodisasm/internal/options"
 )
 
@@ -23,10 +21,10 @@ type PRGBank struct {
 }
 
 // GetLastNonZeroByte searches for the last byte in PRG that is not zero.
-func (bank PRGBank) GetLastNonZeroByte(options *options.Disassembler) (int, error) {
+func (bank PRGBank) GetLastNonZeroByte(options *options.Disassembler) int {
 	endIndex := len(bank.PRG) - 6 // leave space for vectors
 	if options.ZeroBytes {
-		return endIndex, nil
+		return endIndex
 	}
 
 	start := len(bank.PRG) - 1 - 6 // skip irq pointers
@@ -36,7 +34,8 @@ func (bank PRGBank) GetLastNonZeroByte(options *options.Disassembler) (int, erro
 		if (len(offset.OpcodeBytes) == 0 || offset.OpcodeBytes[0] == 0) && offset.Label == "" {
 			continue
 		}
-		return i + 1, nil
+		return i + 1
 	}
-	return 0, errors.New("could not find last zero byte")
+
+	return endIndex
 }
