@@ -350,7 +350,7 @@ func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *car
 	writer := bufio.NewWriter(&buffer)
 
 	newBankWriter := func(_ string) (io.WriteCloser, error) {
-		return nil, nil
+		return nil, nil // nolint: nilnil
 	}
 
 	err := disasm.Process(writer, newBankWriter)

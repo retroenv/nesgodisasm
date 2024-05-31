@@ -56,7 +56,6 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 	logger := log.NewTestLogger(t)
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.Name, func(t *testing.T) {
 			t.Parallel()
 
