@@ -164,8 +164,7 @@ func (f FileWriter) writeVectors() error {
 		return nil
 	}
 
-	vectorStart := int(f.app.CodeBaseAddress) + f.app.PrgSize() - 6
-	if _, err := fmt.Fprintf(f.mainWriter, "\n .org $%04X\n", vectorStart); err != nil {
+	if _, err := fmt.Fprintf(f.mainWriter, "\n .org $%04X\n", f.app.VectorsStartAddress); err != nil {
 		return fmt.Errorf("writing segment: %w", err)
 	}
 

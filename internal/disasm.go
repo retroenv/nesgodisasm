@@ -50,7 +50,8 @@ type Disasm struct {
 	handlers                program.Handlers
 	noUnofficialInstruction bool // enable for assemblers that do not support unofficial opcodes
 
-	codeBaseAddress uint16 // codebase address of the cartridge, as it can be different from 0x8000
+	codeBaseAddress     uint16 // codebase address of the cartridge, as it can be different from 0x8000
+	vectorsStartAddress uint16
 
 	constants     map[uint16]constTranslation
 	usedConstants map[uint16]constTranslation
@@ -250,12 +251,15 @@ func (dis *Disasm) initializeIrqHandlers() {
 func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
 	halfPrg := len(dis.cart.PRG) % 0x8000
 	dis.codeBaseAddress = uint16(0x8000 + halfPrg)
+	dis.vectorsStartAddress = uint16(irqStartAddress)
 
 	// fix up calculated code base address for half sized PRG ROMs that have a different
 	// code base address configured in the assembler, like "M.U.S.C.L.E."
 	if resetHandler < dis.codeBaseAddress {
 		dis.codeBaseAddress = nes.CodeBaseAddress
+		dis.vectorsStartAddress -= uint16(halfPrg)
 	}
+
 	dis.logger.Debug("Code base address",
 		log.String("address", fmt.Sprintf("0x%04X", dis.codeBaseAddress)))
 }
@@ -270,6 +274,7 @@ func (dis *Disasm) CodeBaseAddress() uint16 {
 func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app := program.New(dis.cart)
 	app.CodeBaseAddress = dis.codeBaseAddress
+	app.VectorsStartAddress = dis.vectorsStartAddress
 	app.Handlers = dis.handlers
 
 	for _, bnk := range dis.banks {

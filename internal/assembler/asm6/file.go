@@ -185,9 +185,7 @@ func (f FileWriter) writeVectors() error {
 		return nil
 	}
 
-	vectorStart := int(f.app.CodeBaseAddress) + f.app.PrgSize() - 6
-	addr := fmt.Sprintf("$%04X", vectorStart)
-
+	addr := fmt.Sprintf("$%04X", f.app.VectorsStartAddress)
 	if err := f.writeSegment(addr); err != nil {
 		return err
 	}

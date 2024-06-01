@@ -51,13 +51,15 @@ type Program struct {
 	RAM     byte       // PRG-RAM offsets
 	Trainer []byte
 
-	CodeBaseAddress uint16
-	Checksums       Checksums
-	Handlers        Handlers
-	Battery         byte
-	Mirror          cartridge.MirrorMode
-	Mapper          byte
-	VideoFormat     byte
+	CodeBaseAddress     uint16
+	VectorsStartAddress uint16
+
+	Checksums   Checksums
+	Handlers    Handlers
+	Battery     byte
+	Mirror      cartridge.MirrorMode
+	Mapper      byte
+	VideoFormat byte
 
 	// keep constants and variables in the banks and global in the app to let the chosen assembler decide
 	// how to output them
