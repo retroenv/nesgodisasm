@@ -29,12 +29,10 @@ type headerByteWrite struct {
 	comment string
 }
 
-type segmentWrite struct {
-	address string
-}
-
 type prgBankWrite struct {
-	bank *program.PRGBank
+	address  string
+	bank     *program.PRGBank
+	lastBank bool
 }
 
 type customWrite func() error
@@ -77,18 +75,21 @@ func (f FileWriter) Write() error {
 			headerByteWrite{value: f.app.RAM, comment: "Number of 8KB PRG-RAM banks"},
 			headerByteWrite{value: f.app.VideoFormat, comment: "Video format NTSC/PAL"},
 			lineWrite{line: ".dsb 6", comment: "Padding to fill 16 BYTE iNES Header"},
-			segmentWrite{address: fmt.Sprintf("$%04x", f.app.CodeBaseAddress)},
 		}
 	}
 
-	for _, bank := range f.app.PRG {
+	for i, bank := range f.app.PRG {
+		lastBank := i == len(f.app.PRG)-1
 		writes = append(writes,
-			prgBankWrite{bank: bank},
+			prgBankWrite{
+				address:  fmt.Sprintf("$%04x", f.app.CodeBaseAddress),
+				bank:     bank,
+				lastBank: lastBank,
+			},
 		)
 	}
 
 	writes = append(writes,
-		customWrite(f.writeVectors),
 		customWrite(f.writeCHR),
 	)
 
@@ -97,11 +98,6 @@ func (f FileWriter) Write() error {
 		case headerByteWrite:
 			if _, err := fmt.Fprintf(f.mainWriter, headerByte, t.value, "", t.comment); err != nil {
 				return fmt.Errorf("writing header: %w", err)
-			}
-
-		case segmentWrite:
-			if err := f.writeSegment(t.address); err != nil {
-				return err
 			}
 
 		case lineWrite:
@@ -115,13 +111,7 @@ func (f FileWriter) Write() error {
 			}
 
 		case prgBankWrite:
-			if err := f.writeConstants(t.bank); err != nil {
-				return err
-			}
-			if err := f.writeVariables(t.bank); err != nil {
-				return err
-			}
-			if err := f.writeCode(t.bank); err != nil {
+			if err := f.writeBank(t); err != nil {
 				return err
 			}
 		}
@@ -130,9 +120,38 @@ func (f FileWriter) Write() error {
 	return nil
 }
 
+func (f FileWriter) writeBank(w prgBankWrite) error {
+	if err := f.writeSegment(w.address); err != nil {
+		return err
+	}
+	if err := f.writeConstants(w.bank); err != nil {
+		return err
+	}
+	if err := f.writeVariables(w.bank); err != nil {
+		return err
+	}
+	if err := f.writeCode(w.bank); err != nil {
+		return err
+	}
+
+	if w.lastBank {
+		if err := f.writeVectors(f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
+			return err
+		}
+	} else {
+		nmi := fmt.Sprintf("$%04X", w.bank.Vectors[0])
+		reset := fmt.Sprintf("$%04X", w.bank.Vectors[1])
+		irq := fmt.Sprintf("$%04X", w.bank.Vectors[2])
+		if err := f.writeVectors(nmi, reset, irq); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // writeSegment writes a segment header to the output.
 func (f FileWriter) writeSegment(address string) error {
-	_, err := fmt.Fprintf(f.mainWriter, "\n.org %s\n\n", address)
+	_, err := fmt.Fprintf(f.mainWriter, "\n.base %s\n\n", address)
 	if err != nil {
 		return fmt.Errorf("writing segment: %w", err)
 	}
@@ -180,16 +199,22 @@ func (f FileWriter) writeCHR() error {
 }
 
 // writeVectors writes the IRQ vectors.
-func (f FileWriter) writeVectors() error {
+func (f FileWriter) writeVectors(nmi, reset, irq string) error {
 	if f.options.CodeOnly {
 		return nil
 	}
 
 	addr := fmt.Sprintf("$%04X", f.app.VectorsStartAddress)
+
+	_, err := fmt.Fprintf(f.mainWriter, "\n.pad %s\n", addr)
+	if err != nil {
+		return fmt.Errorf("writing padding: %w", err)
+	}
+
 	if err := f.writeSegment(addr); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(f.mainWriter, vectors, f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
+	if _, err := fmt.Fprintf(f.mainWriter, vectors, nmi, reset, irq); err != nil {
 		return fmt.Errorf("writing vectors: %w", err)
 	}
 	return nil

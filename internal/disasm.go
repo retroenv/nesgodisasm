@@ -304,6 +304,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 			prgBank.Variables[varInfo.name] = address
 		}
 
+		setBankVectors(bnk, prgBank)
+
 		app.PRG = append(app.PRG, prgBank)
 	}
 
@@ -351,6 +353,18 @@ func (dis *Disasm) loadCodeDataLog() error {
 	}
 
 	return nil
+}
+
+func setBankVectors(bnk *bank, prgBank *program.PRGBank) {
+	idx := len(bnk.prg) - 6
+	for i := range 3 {
+		b1 := bnk.prg[idx]
+		idx++
+		b2 := bnk.prg[idx]
+		idx++
+		addr := uint16(b2)<<8 | uint16(b1)
+		prgBank.Vectors[i] = addr
+	}
 }
 
 func getProgramOffset(address uint16, offsetInfo offset, options *options.Disassembler) (program.Offset, error) {
