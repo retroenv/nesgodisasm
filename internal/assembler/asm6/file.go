@@ -30,8 +30,9 @@ type headerByteWrite struct {
 }
 
 type prgBankWrite struct {
-	address string
-	bank    *program.PRGBank
+	address  string
+	bank     *program.PRGBank
+	lastBank bool
 }
 
 type customWrite func() error
@@ -77,11 +78,13 @@ func (f FileWriter) Write() error {
 		}
 	}
 
-	for _, bank := range f.app.PRG {
+	for i, bank := range f.app.PRG {
+		lastBank := i == len(f.app.PRG)-1
 		writes = append(writes,
 			prgBankWrite{
-				address: fmt.Sprintf("$%04x", f.app.CodeBaseAddress),
-				bank:    bank,
+				address:  fmt.Sprintf("$%04x", f.app.CodeBaseAddress),
+				bank:     bank,
+				lastBank: lastBank,
 			},
 		)
 	}
@@ -131,8 +134,17 @@ func (f FileWriter) writeBank(w prgBankWrite) error {
 		return err
 	}
 
-	if err := f.writeVectors(); err != nil {
-		return err
+	if w.lastBank {
+		if err := f.writeVectors(f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
+			return err
+		}
+	} else {
+		nmi := fmt.Sprintf("$%04X", w.bank.Vectors[0])
+		reset := fmt.Sprintf("$%04X", w.bank.Vectors[1])
+		irq := fmt.Sprintf("$%04X", w.bank.Vectors[2])
+		if err := f.writeVectors(nmi, reset, irq); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -187,7 +199,7 @@ func (f FileWriter) writeCHR() error {
 }
 
 // writeVectors writes the IRQ vectors.
-func (f FileWriter) writeVectors() error {
+func (f FileWriter) writeVectors(nmi, reset, irq string) error {
 	if f.options.CodeOnly {
 		return nil
 	}
@@ -202,7 +214,7 @@ func (f FileWriter) writeVectors() error {
 	if err := f.writeSegment(addr); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(f.mainWriter, vectors, f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
+	if _, err := fmt.Fprintf(f.mainWriter, vectors, nmi, reset, irq); err != nil {
 		return fmt.Errorf("writing vectors: %w", err)
 	}
 	return nil
