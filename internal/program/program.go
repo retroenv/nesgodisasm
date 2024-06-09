@@ -85,7 +85,7 @@ func New(cart *cartridge.Cartridge) *Program {
 func (p Program) PrgSize() int {
 	var size int
 	for _, bnk := range p.PRG {
-		size += len(bnk.PRG)
+		size += len(bnk.Offsets)
 	}
 	return size
 }

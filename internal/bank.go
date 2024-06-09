@@ -1,5 +1,10 @@
 package disasm
 
+const (
+	singleBankName        = "CODE"
+	multiBankNameTemplate = "PRG_BANK_%d"
+)
+
 type bank struct {
 	prg []byte
 

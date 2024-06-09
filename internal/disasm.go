@@ -124,27 +124,32 @@ func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disasse
 }
 
 // Process disassembles the cartridge.
-func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBankWriter) error {
+func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBankWriter) (*program.Program, error) {
 	if err := dis.followExecutionFlow(); err != nil {
-		return err
+		return nil, err
 	}
 
 	dis.processData()
 	if err := dis.processVariables(); err != nil {
-		return err
+		return nil, err
 	}
 	dis.processConstants()
 	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	fileWriter := dis.fileWriterConstructor(app, dis.options, mainWriter, newBankWriter)
 	if err = fileWriter.Write(); err != nil {
-		return fmt.Errorf("writing app to file: %w", err)
+		return nil, fmt.Errorf("writing app to file: %w", err)
 	}
-	return nil
+	return app, nil
+}
+
+// Cart returns the loaded cartridge.
+func (dis *Disasm) Cart() *cartridge.Cartridge {
+	return dis.cart
 }
 
 func (dis *Disasm) initializeBanks(prg []byte) {
@@ -277,7 +282,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app.VectorsStartAddress = dis.vectorsStartAddress
 	app.Handlers = dis.handlers
 
-	for _, bnk := range dis.banks {
+	for bnkIndex, bnk := range dis.banks {
 		prgBank := program.NewPRGBank(len(bnk.offsets))
 
 		for i := range len(bnk.offsets) {
@@ -287,7 +292,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 				return nil, err
 			}
 
-			prgBank.PRG[i] = programOffsetInfo
+			prgBank.Offsets[i] = programOffsetInfo
 		}
 
 		for address := range bnk.usedConstants {
@@ -304,6 +309,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 			prgBank.Variables[varInfo.name] = address
 		}
 
+		setBankName(prgBank, bnkIndex, len(dis.banks))
 		setBankVectors(bnk, prgBank)
 
 		app.PRG = append(app.PRG, prgBank)
@@ -353,6 +359,15 @@ func (dis *Disasm) loadCodeDataLog() error {
 	}
 
 	return nil
+}
+
+func setBankName(prgBank *program.PRGBank, bnkIndex, numBanks int) {
+	if bnkIndex == 0 && numBanks == 1 {
+		prgBank.Name = singleBankName
+		return
+	}
+
+	prgBank.Name = fmt.Sprintf(multiBankNameTemplate, bnkIndex)
 }
 
 func setBankVectors(bnk *bank, prgBank *program.PRGBank) {

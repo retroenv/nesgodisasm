@@ -48,7 +48,7 @@ func (w Writer) ProcessPRG(bank *program.PRGBank, endIndex int) error {
 	var previousLineWasCode bool
 
 	for i := 0; i < endIndex; i++ {
-		offset := bank.PRG[i]
+		offset := bank.Offsets[i]
 
 		if offset.WriteCallback != nil {
 			if err := offset.WriteCallback(w.writer); err != nil {
@@ -238,7 +238,7 @@ func (w Writer) bundlePRGDataWrites(bank *program.PRGBank, startIndex, endIndex 
 	lineWriter := func(line string, byteCount int) error {
 		var err error
 
-		offset := bank.PRG[currentIndex]
+		offset := bank.Offsets[currentIndex]
 		if w.options.OffsetComments && !offset.HasAddressComment {
 			comment := fmt.Sprintf("$%04X", offset.Address)
 			if offset.Comment == "" {
@@ -272,7 +272,7 @@ func getPrgData(bank *program.PRGBank, startIndex, endIndex int) []byte {
 	var data []byte
 
 	for i := startIndex; i < endIndex; i++ {
-		offset := bank.PRG[i]
+		offset := bank.Offsets[i]
 
 		// opcode bytes can be nil if data bytes have been combined for an unofficial nop
 		if !offset.IsType(program.DataOffset) || len(offset.OpcodeBytes) == 0 {

@@ -7,7 +7,7 @@ import (
 // NewPRGBank creates a new PRG bank.
 func NewPRGBank(size int) *PRGBank {
 	return &PRGBank{
-		PRG:       make([]Offset, size),
+		Offsets:   make([]Offset, size),
 		Constants: map[string]uint16{},
 		Variables: map[string]uint16{},
 	}
@@ -15,7 +15,9 @@ func NewPRGBank(size int) *PRGBank {
 
 // PRGBank defines a PRG bank.
 type PRGBank struct {
-	PRG     []Offset
+	Name string
+
+	Offsets []Offset
 	Vectors [3]uint16
 
 	Constants map[string]uint16
@@ -24,15 +26,15 @@ type PRGBank struct {
 
 // GetLastNonZeroByte searches for the last byte in PRG that is not zero.
 func (bank PRGBank) GetLastNonZeroByte(options *options.Disassembler) int {
-	endIndex := len(bank.PRG) - 6 // leave space for vectors
+	endIndex := len(bank.Offsets) - 6 // leave space for vectors
 	if options.ZeroBytes {
 		return endIndex
 	}
 
-	start := len(bank.PRG) - 1 - 6 // skip irq pointers
+	start := len(bank.Offsets) - 1 - 6 // skip irq pointers
 
 	for i := start; i >= 0; i-- {
-		offset := bank.PRG[i]
+		offset := bank.Offsets[i]
 		if (len(offset.OpcodeBytes) == 0 || offset.OpcodeBytes[0] == 0) && offset.Label == "" {
 			continue
 		}

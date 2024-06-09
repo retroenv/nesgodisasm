@@ -14,6 +14,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
+	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/verification"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/buildinfo"
@@ -172,26 +173,10 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 		_ = disasmOptions.CodeDataLog.Close()
 	}
 
-	if err := processFile(opts, dis); err != nil {
-		return err
-	}
-
-	if err := processCa65Config(opts, logger, cart, dis); err != nil {
-		return fmt.Errorf("processing ca65 config: %w", err)
-	}
-
-	if opts.AssembleTest {
-		if err = verification.VerifyOutput(logger, cart, opts, dis.CodeBaseAddress()); err != nil {
-			return fmt.Errorf("output file mismatch: %w", err)
-		}
-		if !opts.Quiet {
-			logger.Info("Output file matched input file")
-		}
-	}
-	return nil
+	return processFile(logger, opts, dis)
 }
 
-func processFile(opts *options.Program, dis *disasm.Disasm) error {
+func processFile(logger *log.Logger, opts *options.Program, dis *disasm.Disasm) error {
 	var (
 		err           error
 		outputFile    io.WriteCloser
@@ -208,42 +193,61 @@ func processFile(opts *options.Program, dis *disasm.Disasm) error {
 		}
 		newBankWriter = newBankWriterFile(opts.Output)
 	}
-	if err = dis.Process(outputFile, newBankWriter); err != nil {
+
+	app, err := dis.Process(outputFile, newBankWriter)
+	if err != nil {
 		return fmt.Errorf("processing file: %w", err)
 	}
 	if err = outputFile.Close(); err != nil {
 		return fmt.Errorf("closing file: %w", err)
 	}
 
-	return nil
-}
-
-func processCa65Config(opts *options.Program, logger *log.Logger,
-	cart *cartridge.Cartridge, dis *disasm.Disasm) error {
-
-	if opts.Assembler != assembler.Ca65 || (!opts.Debug && opts.Config == "") {
-		return nil
+	cart := dis.Cart()
+	conf, err := processCa65Config(opts, cart, app)
+	if err != nil {
+		return fmt.Errorf("processing ca65 config: %w", err)
 	}
-
-	ca65Config := ca65.Config{
-		PrgBase: int(dis.CodeBaseAddress()),
-		PRGSize: len(cart.PRG),
-		CHRSize: len(cart.CHR),
-	}
-	cfg := ca65.GenerateMapperConfig(ca65Config)
-
-	if opts.Debug {
+	if conf != "" && opts.Debug {
 		logger.Debug("Ca65 config:")
-		fmt.Println(cfg)
+		fmt.Println(conf)
 	}
 
-	if opts.Config != "" {
-		if err := os.WriteFile(opts.Config, []byte(cfg), 0666); err != nil {
-			return fmt.Errorf("writing ca65 config: %w", err)
+	if opts.AssembleTest {
+		if err = verification.VerifyOutput(logger, opts, cart, app); err != nil {
+			return fmt.Errorf("output file mismatch: %w", err)
+		}
+		if !opts.Quiet {
+			logger.Info("Output file matched input file")
 		}
 	}
 
 	return nil
+}
+
+func processCa65Config(opts *options.Program, cart *cartridge.Cartridge,
+	app *program.Program) (string, error) {
+
+	if opts.Assembler != assembler.Ca65 || (!opts.Debug && opts.Config == "") {
+		return "", nil
+	}
+
+	ca65Config := ca65.Config{
+		App:     app,
+		PRGSize: len(cart.PRG),
+		CHRSize: len(cart.CHR),
+	}
+	cfg, err := ca65.GenerateMapperConfig(ca65Config)
+	if err != nil {
+		return "", fmt.Errorf("generating ca65 config: %w", err)
+	}
+
+	if opts.Config != "" {
+		if err := os.WriteFile(opts.Config, []byte(cfg), 0666); err != nil {
+			return "", fmt.Errorf("writing ca65 config: %w", err)
+		}
+	}
+
+	return cfg, nil
 }
 
 func openCodeDataLog(options *options.Program, disasmOptions *options.Disassembler) error {

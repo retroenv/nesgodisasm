@@ -353,8 +353,9 @@ func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *car
 		return nil, nil // nolint: nilnil
 	}
 
-	err := disasm.Process(writer, newBankWriter)
+	app, err := disasm.Process(writer, newBankWriter)
 	assert.NoError(t, err)
+	assert.True(t, app != nil, "app should not be nil")
 
 	assert.NoError(t, writer.Flush())
 

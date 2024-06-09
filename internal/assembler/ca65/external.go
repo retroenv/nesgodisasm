@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/retroenv/nesgodisasm/internal/program"
 )
 
 const (
@@ -16,7 +18,8 @@ const (
 
 // Config holds the ROM building configuration.
 type Config struct {
-	PrgBase int
+	App *program.Program
+
 	PRGSize int
 	CHRSize int
 }
@@ -51,7 +54,10 @@ func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Confi
 		_ = os.Remove(configFile.Name())
 	}()
 
-	mapperConfig := GenerateMapperConfig(conf)
+	mapperConfig, err := GenerateMapperConfig(conf)
+	if err != nil {
+		return fmt.Errorf("generating ca65 config: %w", err)
+	}
 
 	if err := os.WriteFile(configFile.Name(), []byte(mapperConfig), 0666); err != nil {
 		return fmt.Errorf("writing linker config: %w", err)

@@ -13,12 +13,15 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
+	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/log"
 )
 
 // VerifyOutput verifies that the output file recreates the exact input file.
-func VerifyOutput(logger *log.Logger, cart *cartridge.Cartridge, options *options.Program, codeBaseAddress uint16) error {
+func VerifyOutput(logger *log.Logger, options *options.Program,
+	cart *cartridge.Cartridge, app *program.Program) error {
+
 	if options.Output == "" {
 		return errors.New("can not verify console output")
 	}
@@ -47,7 +50,7 @@ func VerifyOutput(logger *log.Logger, cart *cartridge.Cartridge, options *option
 		}()
 	}
 
-	if err := assembleFile(cart, options, codeBaseAddress, filePart, outputFile.Name()); err != nil {
+	if err := assembleFile(options, cart, app, filePart, outputFile.Name()); err != nil {
 		return err
 	}
 
@@ -68,7 +71,7 @@ func VerifyOutput(logger *log.Logger, cart *cartridge.Cartridge, options *option
 	return nil
 }
 
-func assembleFile(cart *cartridge.Cartridge, options *options.Program, codeBaseAddress uint16,
+func assembleFile(options *options.Program, cart *cartridge.Cartridge, app *program.Program,
 	filePart, outputFile string) error {
 
 	switch options.Assembler {
@@ -87,10 +90,11 @@ func assembleFile(cart *cartridge.Cartridge, options *options.Program, codeBaseA
 		}()
 
 		ca65Config := ca65.Config{
-			PrgBase: int(codeBaseAddress),
+			App:     app,
 			PRGSize: len(cart.PRG),
 			CHRSize: len(cart.CHR),
 		}
+
 		if err = ca65.AssembleUsingExternalApp(options.Output, objectFile.Name(), outputFile, ca65Config); err != nil {
 			return fmt.Errorf("reassembling .nes file using ca65 failed: %w", err)
 		}

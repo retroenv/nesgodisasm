@@ -22,7 +22,7 @@ func addPrgBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
 
 		for {
 			if bankSwitch { // if switch was carried over after last bank was filled
-				setPrgBankSelector(bank.PRG, index, &bankAddress, &bankNumber)
+				setPrgBankSelector(bank.Offsets, index, &bankAddress, &bankNumber)
 				bankSwitch = false
 			}
 
@@ -31,7 +31,7 @@ func addPrgBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
 				bankSpaceLeft = bankSize
 			}
 
-			bankBytesLeft := len(bank.PRG[index:])
+			bankBytesLeft := len(bank.Offsets[index:])
 			if bankSpaceLeft > bankBytesLeft {
 				counter += bankBytesLeft
 				break
@@ -42,7 +42,7 @@ func addPrgBankSelectors(codeBaseAddress int, prg []*program.PRGBank) int {
 				break
 			}
 
-			setPrgBankSelector(bank.PRG, index+bankSpaceLeft, &bankAddress, &bankNumber)
+			setPrgBankSelector(bank.Offsets, index+bankSpaceLeft, &bankAddress, &bankNumber)
 
 			index += bankSpaceLeft
 			counter += bankSpaceLeft
