@@ -41,6 +41,7 @@ func (dis *Disasm) processData() {
 			if offsetInfo.IsType(program.CodeOffset) ||
 				offsetInfo.IsType(program.DataOffset) ||
 				offsetInfo.IsType(program.FunctionReference) {
+
 				continue
 			}
 

@@ -43,6 +43,7 @@ func (dis *Disasm) processJumpDestinations() {
 		// is inside the second or third byte of an instruction.
 		if (offsetInfo.IsType(program.CodeOffset) || offsetInfo.IsType(program.CodeAsData)) &&
 			len(offsetInfo.OpcodeBytes) == 0 {
+
 			dis.handleJumpIntoInstruction(address)
 		}
 
@@ -93,6 +94,7 @@ func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *of
 	if instruction.Name != m6502.Nop.Name &&
 		instruction.Name != m6502.Sbc.Name &&
 		!dis.noUnofficialInstruction {
+
 		return false
 	}
 

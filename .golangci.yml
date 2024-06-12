@@ -30,10 +30,12 @@ linters:
     - gofmt # checks whether code was gofmt-ed
     - goimports # Check import statements are formatted according to the 'goimport' command
     - gosimple # Linter for Go source code that specializes in simplifying a code
+    - gosmopolitan # Report certain i18n/l10n anti-patterns in your Go codebase
     - govet # reports suspicious constructs, such as Printf calls with wrong arguments
     - grouper # An analyzer to analyze expression groups
     - ineffassign # Detects when assignments to existing variables are not used
     - intrange # is a linter to find places where for loops could make use of an integer range
+    - ireturn # Accept Interfaces, Return Concrete Types
     - maintidx # measures the maintainability index of each function
     - makezero # Finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
@@ -63,13 +65,27 @@ linters:
     - wrapcheck # Checks that errors returned from external packages are wrapped
 
 linters-settings:
+  cyclop:
+    max-complexity: 15
+  godot:
+    period: false
+  nestif:
+    min-complexity: 8
+  revive:
+    rules:
+      - name: dot-imports
+        disabled: true
+      - name: exported
+        disabled: true
+      - name: var-naming
+        disabled: true
+
   stylecheck:
     # ST1001: should not use dot imports
     checks: [ "all", "-ST1001" ]
-  cyclop:
-    max-complexity: 15
-  nestif:
-    min-complexity: 8
+  whitespace:
+    multi-if: true # Enforces newlines (or comments) after every multi-line if statement
+    multi-func: true # Enforces newlines (or comments) after every multi-line function signature
 
 issues:
   exclude-use-default: false
@@ -77,24 +93,3 @@ issues:
     - linters:
         - err113
       text: "do not define dynamic errors"
-    - linters:
-        - revive
-      text: "dot-imports: should not use dot imports"
-    - linters:
-        - revive
-      text: "var-naming: don't use underscores in Go names"
-    - linters:
-        - revive
-      text: "var-naming: don't use ALL_CAPS in Go names"
-    - linters:
-        - revive
-      text: "exported: comment on exported const"
-    - linters:
-        - revive
-      text: "exported: exported const"
-    - linters:
-        - godot
-      text: "Comment should end in a period"
-    - linters:
-        - whitespace
-      text: "unnecessary leading newline"
