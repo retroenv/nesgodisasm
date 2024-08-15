@@ -79,6 +79,16 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 		os.Exit(1)
 	}
 
+	for i, arg := range args {
+		if i > 0 && arg[0] == '-' {
+			fmt.Printf("Potential argument %s found after file to disassemble, please pass the file to disassemble as last argument\n\n", arg)
+			fmt.Printf("usage: nesgodisasm [options] <file to disassemble>\n\n")
+			flags.PrintDefaults()
+			fmt.Println()
+			os.Exit(1)
+		}
+	}
+
 	opts.Assembler = strings.ToLower(opts.Assembler)
 	if opts.Assembler == "asm6f" {
 		opts.Assembler = "asm6"
