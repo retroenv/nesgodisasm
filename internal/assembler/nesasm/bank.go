@@ -91,7 +91,7 @@ func setPrgBankSelector(prg []program.Offset, index int, bankAddress, bankNumber
 			offsetInfo.Comment, offsetInfo.Code)
 		data := offsetInfo.OpcodeBytes
 
-		for i := range len(data) {
+		for i := range data {
 			offsetInfo = &prg[instructionStartIndex+i]
 			offsetInfo.OpcodeBytes = data[i : i+1]
 			offsetInfo.ClearType(program.CodeOffset)

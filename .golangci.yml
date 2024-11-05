@@ -18,7 +18,6 @@ linters:
     - errcheck # checking for unchecked errors
     - errname # Checks that errors are prefixed with the `Err` and error types are suffixed with the `Error`
     - errorlint # finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
-    - exportloopref # checks for pointers to enclosing loop variables
     - funlen # Tool for detection of long functions
     - gci # controls golang package import order and makes it always deterministic
     - gocheckcompilerdirectives # Checks that go compiler directive comments (//go:) are valid
@@ -34,8 +33,8 @@ linters:
     - govet # reports suspicious constructs, such as Printf calls with wrong arguments
     - grouper # An analyzer to analyze expression groups
     - ineffassign # Detects when assignments to existing variables are not used
-    - intrange # is a linter to find places where for loops could make use of an integer range
-    - ireturn # Accept Interfaces, Return Concrete Types
+    - intrange # finds places where for loops could make use of an integer range.
+    - ireturn # accept Interfaces, Return Concrete Types
     - maintidx # measures the maintainability index of each function
     - makezero # Finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
@@ -52,7 +51,6 @@ linters:
     - staticcheck # drop-in replacement of go vet
     - stylecheck # Stylecheck is a replacement for golint
     - tenv # detects using os.Setenv instead of t.Setenv
-    - testifylint # Checks usage of github.com/stretchr/testify
     - thelper # checks the consistency of test helpers
     - tparallel # detects inappropriate usage of t.Parallel()
     - typecheck # parses and type-checks Go code
@@ -79,10 +77,10 @@ linters-settings:
         disabled: true
       - name: var-naming
         disabled: true
-
   stylecheck:
-    # ST1001: should not use dot imports
-    checks: [ "all", "-ST1001" ]
+    checks:
+      - "all"
+      - "-ST1001" # should not use dot imports
   whitespace:
     multi-if: true # Enforces newlines (or comments) after every multi-line if statement
     multi-func: true # Enforces newlines (or comments) after every multi-line function signature
