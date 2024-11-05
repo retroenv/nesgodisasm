@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.2.3] - 2024-11-05
+
+Added:
+
+* add -binary option to read raw binary files without header
+* add asm6 multi bank support
+* add option to write generated ca65 config to file
+
+Changed:
+
+* improve vectors start address calculation
+* use ca65 as default assembler
+
+Fixed:
+
+* fix nmi handler crash
+* fix scanning of last zero byte for prg segment
+
+
 ## [v0.2.2] - 2024-01-06
 
 Added:
