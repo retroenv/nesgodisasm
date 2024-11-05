@@ -90,23 +90,25 @@ ld65 example.o -t nes -o example.nes
 usage: nesgodisasm [options] <file to disassemble>
 
   -a string
-    	Assembler compatibility of the generated .asm file (asm6/ca65/nesasm) (default "ca65")
+        Assembler compatibility of the generated .asm file (asm6/ca65/nesasm) (default "ca65")
   -batch string
-    	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
+        process a batch of given path and file mask and automatically .asm file naming, for example *.nes
+  -binary
+        read input file as raw binary file without any header
   -c string
-    	Config file name to write output to for ca65 assembler
+        Config file name to write output to for ca65 assembler
   -cdl string
-    	name of the .cdl Code/Data log file to load
+        name of the .cdl Code/Data log file to load
   -debug
-    	enable debugging options for extended logging
+        enable debugging options for extended logging
   -nohexcomments
-    	do not output opcode bytes as hex values in comments
+        do not output opcode bytes as hex values in comments
   -nooffsets
-    	do not output offsets in comments
+        do not output offsets in comments
   -o string
-    	name of the output .asm file, printed on console if no name given
-  -q	perform operations quietly
+        name of the output .asm file, printed on console if no name given
+  -q    perform operations quietly
   -verify
-    	verify the generated output by assembling with ca65 and check if it matches the input
-  -z	output the trailing zero bytes of banks
+        verify the generated output by assembling with ca65 and check if it matches the input
+  -z    output the trailing zero bytes of banks
 ```

@@ -207,7 +207,13 @@ func (dis *Disasm) initializeIrqHandlers() {
 		dis.handlers.NMI = "NMI"
 	}
 
-	reset := dis.readMemoryWord(irqStartAddress + 2)
+	var reset uint16
+	if dis.options.Binary {
+		reset = uint16(nes.CodeBaseAddress)
+	} else {
+		reset = dis.readMemoryWord(irqStartAddress + 2)
+	}
+
 	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
 	offsetInfo := dis.mapper.offsetInfo(reset)
 	if offsetInfo != nil {

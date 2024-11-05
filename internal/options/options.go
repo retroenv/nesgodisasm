@@ -16,6 +16,7 @@ type Program struct {
 	Output      string
 
 	AssembleTest bool
+	Binary       bool
 	Debug        bool
 	Quiet        bool
 
@@ -28,6 +29,7 @@ type Disassembler struct {
 	Assembler   string        // what assembler to use
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
 
+	Binary         bool
 	CodeOnly       bool
 	HexComments    bool
 	OffsetComments bool

@@ -57,6 +57,7 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	var zeroBytes bool
 
 	flags.StringVar(&opts.Assembler, "a", "ca65", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
+	flags.BoolVar(&opts.Binary, "binary", false, "read input file as raw binary file without any header")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
 	flags.StringVar(&opts.Config, "c", "", "Config file name to write output to for ca65 assembler")
 	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
@@ -150,7 +151,14 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 		return fmt.Errorf("opening file '%s': %w", opts.Input, err)
 	}
 
-	cart, err := cartridge.LoadFile(file)
+	disasmOptions.Binary = opts.Binary
+	var cart *cartridge.Cartridge
+
+	if opts.Binary {
+		cart, err = cartridge.LoadBuffer(file)
+	} else {
+		cart, err = cartridge.LoadFile(file)
+	}
 	if err != nil {
 		return fmt.Errorf("reading file: %w", err)
 	}
