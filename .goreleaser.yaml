@@ -1,3 +1,5 @@
+version: 2
+
 before:
   hooks:
     - go mod download
@@ -40,4 +42,4 @@ snapshot:
   name_template: "{{ .Tag }}-snapshot"
 
 changelog:
-  skip: true
+  disable: true
