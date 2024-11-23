@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
@@ -27,21 +26,14 @@ type Config struct {
 // AssembleUsingExternalApp calls the external assembler and linker to generate a .nes
 // ROM from the given asm file.
 func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Config) error {
-	assembler := assemblerName
-	linker := linkerName
-	if runtime.GOOS == "windows" {
-		assembler += ".exe"
-		linker += ".exe"
+	if _, err := exec.LookPath(assemblerName); err != nil {
+		return fmt.Errorf("%s is not installed", assemblerName)
+	}
+	if _, err := exec.LookPath(linkerName); err != nil {
+		return fmt.Errorf("%s is not installed", linkerName)
 	}
 
-	if _, err := exec.LookPath(assembler); err != nil {
-		return fmt.Errorf("%s is not installed", assembler)
-	}
-	if _, err := exec.LookPath(linker); err != nil {
-		return fmt.Errorf("%s is not installed", linker)
-	}
-
-	cmd := exec.Command(assembler, asmFile, "-o", objectFile)
+	cmd := exec.Command(assemblerName, asmFile, "-o", objectFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("assembling file: %s: %w", strings.TrimSpace(string(out)), err)
 	}
@@ -63,7 +55,7 @@ func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Confi
 		return fmt.Errorf("writing linker config: %w", err)
 	}
 
-	cmd = exec.Command(linker, "-C", configFile.Name(), "-o", outputFile, objectFile)
+	cmd = exec.Command(linkerName, "-C", configFile.Name(), "-o", outputFile, objectFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("linking file: %s: %w", string(out), err)
 	}
