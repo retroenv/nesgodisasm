@@ -13,11 +13,11 @@ test: install ## run tests
 	go test -timeout 10s -race ./...
 
 test-coverage: ## run unit tests and create test coverage
-	go test -timeout 10s ./... -coverprofile .testCoverage -covermode=atomic -coverpkg=./...
+	go test -timeout 10s ./... -coverprofile coverage.txt
 
 test-coverage-web: test-coverage ## run unit tests and show test coverage in browser
-	go tool cover -func .testCoverage | grep total | awk '{print "Total coverage: "$$3}'
-	go tool cover -html=.testCoverage
+	go tool cover -func coverage.txt | grep total | awk '{print "Total coverage: "$$3}'
+	go tool cover -html=coverage.txt
 
 install: ## install all binaries
 	go install -buildvcs=false .

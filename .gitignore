@@ -16,7 +16,7 @@
 *.dbg
 *.bin
 *.nes
-.testCoverage
+coverage.txt
 nesgodisasm
 internal/testroms/
 dist/
