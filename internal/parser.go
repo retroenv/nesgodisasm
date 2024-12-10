@@ -9,7 +9,6 @@ import (
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
-	"github.com/retroenv/retrogolib/cpu"
 )
 
 var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ handler start")
@@ -140,7 +139,7 @@ func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (
 
 // replaceParamByAlias replaces the absolute address with an alias name if it can match it to
 // a constant, zero page variable or a code reference.
-func (dis *Disasm) replaceParamByAlias(address uint16, opcode cpu.Opcode, param any, paramAsString string) string {
+func (dis *Disasm) replaceParamByAlias(address uint16, opcode m6502.Opcode, param any, paramAsString string) string {
 	forceVariableUsage := false
 	addressReference, addressValid := getAddressingParam(param)
 	if !addressValid || addressReference >= irqStartAddress {
@@ -196,7 +195,7 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 }
 
 // addAddressToParse adds an address to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *cpu.Instruction,
+func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *m6502.Instruction,
 	isABranchDestination bool) {
 
 	// ignore branching into addresses before the code base address, for example when generating code in
@@ -288,7 +287,7 @@ func getAddressingParam(param any) (uint16, bool) {
 
 // checkBranchingParam checks whether the branching instruction should do a variable check for the parameter
 // and forces variable usage.
-func checkBranchingParam(address uint16, opcode cpu.Opcode) (bool, bool) {
+func checkBranchingParam(address uint16, opcode m6502.Opcode) (bool, bool) {
 	switch {
 	case opcode.Instruction.Name == m6502.Jmp.Name && opcode.Addressing == IndirectAddressing:
 		return true, false

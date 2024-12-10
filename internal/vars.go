@@ -9,7 +9,6 @@ import (
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
-	"github.com/retroenv/retrogolib/cpu"
 )
 
 const (
@@ -34,7 +33,7 @@ type variable struct {
 // the given address directly by reading or writing. In a special case like
 // branching into a zeropage address the variable usage can be forced.
 func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16,
-	opcode cpu.Opcode, forceVariableUsage bool) {
+	opcode m6502.Opcode, forceVariableUsage bool) {
 
 	var reads, writes bool
 	if opcode.ReadWritesMemory(m6502.MemoryReadWriteInstructions) {

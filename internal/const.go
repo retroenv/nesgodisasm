@@ -7,7 +7,6 @@ import (
 	. "github.com/retroenv/retrogolib/addressing"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes/register"
-	"github.com/retroenv/retrogolib/cpu"
 )
 
 type constTranslation struct {
@@ -17,7 +16,7 @@ type constTranslation struct {
 	Write string
 }
 
-func (dis *Disasm) replaceParamByConstant(address uint16, opcode cpu.Opcode, paramAsString string,
+func (dis *Disasm) replaceParamByConstant(address uint16, opcode m6502.Opcode, paramAsString string,
 	constantInfo constTranslation) string {
 
 	// split parameter string in case of x/y indexing, only the first part will be replaced by a const name

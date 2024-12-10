@@ -14,11 +14,11 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/writer"
+	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
-	"github.com/retroenv/retrogolib/cpu"
 	"github.com/retroenv/retrogolib/log"
 )
 
@@ -31,7 +31,7 @@ type fileWriterConstructor func(app *program.Program, options *options.Disassemb
 type offset struct {
 	program.Offset
 
-	opcode cpu.Opcode // opcode that the byte at this offset represents
+	opcode m6502.Opcode // opcode that the byte at this offset represents
 
 	branchFrom  []bankReference // list of all addresses that branch to this offset
 	branchingTo string          // label to jump to if instruction branches
