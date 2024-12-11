@@ -87,7 +87,7 @@ func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 // bytes being assembled and make the resulting ROM not matching the original.
 func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *offset) bool {
 	instruction := offsetInfo.opcode.Instruction
-	if !instruction.Unofficial || address >= irqStartAddress {
+	if !instruction.Unofficial || address >= m6502.InterruptVectorStartAddress {
 		return false
 	}
 
@@ -112,7 +112,7 @@ func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *of
 
 // changeAddressRangeToCode sets a range of code addresses to code types.
 func (dis *Disasm) changeAddressRangeToCode(address uint16, data []byte) {
-	for i := 0; i < len(data) && int(address)+i < irqStartAddress; i++ {
+	for i := 0; i < len(data) && int(address)+i < m6502.InterruptVectorStartAddress; i++ {
 		offsetInfo := dis.mapper.offsetInfo(address + uint16(i))
 		offsetInfo.SetType(program.CodeOffset)
 	}

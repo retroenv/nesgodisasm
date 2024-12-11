@@ -103,7 +103,7 @@ func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint1
 
 		param, _ := dis.readOpParam(opcode.Addressing, address)
 		reference, ok := getAddressingParam(param)
-		if ok && reference >= dis.codeBaseAddress && reference < irqStartAddress {
+		if ok && reference >= dis.codeBaseAddress && reference < m6502.InterruptVectorStartAddress {
 			dataReferences = append(dataReferences, reference)
 		}
 	}
@@ -198,7 +198,7 @@ func (dis *Disasm) processJumpEngineEntry(address uint16, jumpEngine *jumpEngine
 
 	// verify that the destination is in valid code address range
 	destination := dis.readMemoryWord(address)
-	if destination < dis.codeBaseAddress || destination >= irqStartAddress {
+	if destination < dis.codeBaseAddress || destination >= m6502.InterruptVectorStartAddress {
 		jumpEngine.terminated = true
 		return false
 	}

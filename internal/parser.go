@@ -67,7 +67,7 @@ func (dis *Disasm) followExecutionFlow() error {
 // in case the current instruction overlaps with an already existing instruction,
 // cut the current one short.
 func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset) {
-	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(address)+i < irqStartAddress; i++ {
+	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(address)+i < m6502.InterruptVectorStartAddress; i++ {
 		offsetInfoFollowing := dis.mapper.offsetInfo(address + uint16(i))
 		if !offsetInfoFollowing.IsType(program.CodeOffset) {
 			continue
@@ -91,7 +91,7 @@ func (dis *Disasm) initializeOffsetInfo(offsetInfo *offset) bool {
 	}
 
 	b := dis.readMemory(dis.pc)
-	offsetInfo.OpcodeBytes = make([]byte, 1, 3)
+	offsetInfo.OpcodeBytes = make([]byte, 1, m6502.MaxOpcodeSize)
 	offsetInfo.OpcodeBytes[0] = b
 
 	if offsetInfo.IsType(program.DataOffset) {
@@ -116,7 +116,7 @@ func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (
 	param, opcodes := dis.readOpParam(opcode.Addressing, dis.pc)
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
 
-	if address+uint16(len(offsetInfo.OpcodeBytes)) > irqStartAddress {
+	if address+uint16(len(offsetInfo.OpcodeBytes)) > m6502.InterruptVectorStartAddress {
 		return "", errInstructionOverlapsIRQHandlers
 	}
 
@@ -142,7 +142,7 @@ func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (
 func (dis *Disasm) replaceParamByAlias(address uint16, opcode m6502.Opcode, param any, paramAsString string) string {
 	forceVariableUsage := false
 	addressReference, addressValid := getAddressingParam(param)
-	if !addressValid || addressReference >= irqStartAddress {
+	if !addressValid || addressReference >= m6502.InterruptVectorStartAddress {
 		return paramAsString
 	}
 
@@ -245,11 +245,11 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 // handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
 // The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
 func (dis *Disasm) handleInstructionIRQOverlap(address uint16, offsetInfo *offset) {
-	if address > irqStartAddress {
+	if address > m6502.InterruptVectorStartAddress {
 		return
 	}
 
-	keepLength := int(irqStartAddress - address)
+	keepLength := int(m6502.InterruptVectorStartAddress - address)
 	offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:keepLength]
 
 	for i := range keepLength {

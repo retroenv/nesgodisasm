@@ -22,8 +22,6 @@ import (
 	"github.com/retroenv/retrogolib/log"
 )
 
-const irqStartAddress = 0xfffa
-
 type fileWriterConstructor func(app *program.Program, options *options.Disassembler,
 	mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter
 
@@ -196,7 +194,7 @@ func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
 // initializeIrqHandlers reads the 3 IRQ handler addresses and adds them to the addresses to be
 // followed for execution flow. Multiple handler can point to the same address.
 func (dis *Disasm) initializeIrqHandlers() {
-	nmi := dis.readMemoryWord(irqStartAddress)
+	nmi := dis.readMemoryWord(m6502.NMIAddress)
 	if nmi != 0 {
 		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
 		offsetInfo := dis.mapper.offsetInfo(nmi)
@@ -211,7 +209,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 	if dis.options.Binary {
 		reset = uint16(nes.CodeBaseAddress)
 	} else {
-		reset = dis.readMemoryWord(irqStartAddress + 2)
+		reset = dis.readMemoryWord(m6502.ResetAddress)
 	}
 
 	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
@@ -224,7 +222,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 		offsetInfo.SetType(program.CallDestination)
 	}
 
-	irq := dis.readMemoryWord(irqStartAddress + 4)
+	irq := dis.readMemoryWord(m6502.IrqAddress)
 	if irq != 0 {
 		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
 		offsetInfo = dis.mapper.offsetInfo(irq)
@@ -262,7 +260,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
 	halfPrg := len(dis.cart.PRG) % 0x8000
 	dis.codeBaseAddress = uint16(0x8000 + halfPrg)
-	dis.vectorsStartAddress = uint16(irqStartAddress)
+	dis.vectorsStartAddress = uint16(m6502.InterruptVectorStartAddress)
 
 	// fix up calculated code base address for half sized PRG ROMs that have a different
 	// code base address configured in the assembler, like "M.U.S.C.L.E."
