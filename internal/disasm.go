@@ -110,7 +110,9 @@ func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disasse
 	if err != nil {
 		return nil, fmt.Errorf("creating mapper: %w", err)
 	}
-	dis.initializeIrqHandlers()
+	if err := dis.initializeIrqHandlers(); err != nil {
+		return nil, fmt.Errorf("initializing IRQ handlers: %w", err)
+	}
 
 	if options.CodeDataLog != nil {
 		if err = dis.loadCodeDataLog(); err != nil {
@@ -193,8 +195,12 @@ func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
 
 // initializeIrqHandlers reads the 3 IRQ handler addresses and adds them to the addresses to be
 // followed for execution flow. Multiple handler can point to the same address.
-func (dis *Disasm) initializeIrqHandlers() {
-	nmi := dis.readMemoryWord(m6502.NMIAddress)
+// nolint:funlen
+func (dis *Disasm) initializeIrqHandlers() error {
+	nmi, err := dis.readMemoryWord(m6502.NMIAddress)
+	if err != nil {
+		return err
+	}
 	if nmi != 0 {
 		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
 		offsetInfo := dis.mapper.offsetInfo(nmi)
@@ -209,7 +215,10 @@ func (dis *Disasm) initializeIrqHandlers() {
 	if dis.options.Binary {
 		reset = uint16(nes.CodeBaseAddress)
 	} else {
-		reset = dis.readMemoryWord(m6502.ResetAddress)
+		reset, err = dis.readMemoryWord(m6502.ResetAddress)
+		if err != nil {
+			return err
+		}
 	}
 
 	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
@@ -222,7 +231,10 @@ func (dis *Disasm) initializeIrqHandlers() {
 		offsetInfo.SetType(program.CallDestination)
 	}
 
-	irq := dis.readMemoryWord(m6502.IrqAddress)
+	irq, err := dis.readMemoryWord(m6502.IrqAddress)
+	if err != nil {
+		return err
+	}
 	if irq != 0 {
 		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
 		offsetInfo = dis.mapper.offsetInfo(irq)
@@ -250,6 +262,7 @@ func (dis *Disasm) initializeIrqHandlers() {
 	dis.addAddressToParse(nmi, nmi, 0, nil, false)
 	dis.addAddressToParse(reset, reset, 0, nil, false)
 	dis.addAddressToParse(irq, irq, 0, nil, false)
+	return nil
 }
 
 // calculateCodeBaseAddress calculates the code base address that is assumed by the code.

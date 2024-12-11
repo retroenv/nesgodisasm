@@ -14,8 +14,17 @@ import (
 var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ handler start")
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
+// nolint: funlen
 func (dis *Disasm) followExecutionFlow() error {
-	for address := dis.addressToDisassemble(); address != 0; address = dis.addressToDisassemble() {
+	for {
+		address, err := dis.addressToDisassemble()
+		if err != nil {
+			return err
+		}
+		if address == 0 {
+			break
+		}
+
 		if _, ok := dis.offsetsParsed[address]; ok {
 			continue
 		}
@@ -23,7 +32,10 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		dis.pc = address
 		offsetInfo := dis.mapper.offsetInfo(dis.pc)
-		inspectCode := dis.initializeOffsetInfo(offsetInfo)
+		inspectCode, err := dis.initializeOffsetInfo(offsetInfo)
+		if err != nil {
+			return err
+		}
 		if !inspectCode {
 			continue
 		}
@@ -45,12 +57,16 @@ func (dis *Disasm) followExecutionFlow() error {
 		}
 
 		if _, ok := m6502.NotExecutingFollowingOpcodeInstructions[instruction.Name]; ok {
-			dis.checkForJumpEngineJmp(dis.pc, offsetInfo)
+			if err := dis.checkForJumpEngineJmp(dis.pc, offsetInfo); err != nil {
+				return err
+			}
 		} else {
 			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
 			followingOpcodeAddress := dis.pc + opcodeLength
 			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, address, instruction, false)
-			dis.checkForJumpEngineCall(dis.pc, offsetInfo)
+			if err := dis.checkForJumpEngineCall(dis.pc, offsetInfo); err != nil {
+				return err
+			}
 		}
 
 		dis.checkInstructionOverlap(address, offsetInfo)
@@ -85,35 +101,41 @@ func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset) {
 
 // initializeOffsetInfo initializes the offset info and returns
 // whether the offset should process inspection for code parameters.
-func (dis *Disasm) initializeOffsetInfo(offsetInfo *offset) bool {
+func (dis *Disasm) initializeOffsetInfo(offsetInfo *offset) (bool, error) {
 	if offsetInfo.IsType(program.CodeOffset) {
-		return false // was set by CDL
+		return false, nil // was set by CDL
 	}
 
-	b := dis.readMemory(dis.pc)
+	b, err := dis.readMemory(dis.pc)
+	if err != nil {
+		return false, fmt.Errorf("reading memory at address %04x: %w", dis.pc, err)
+	}
 	offsetInfo.OpcodeBytes = make([]byte, 1, m6502.MaxOpcodeSize)
 	offsetInfo.OpcodeBytes[0] = b
 
 	if offsetInfo.IsType(program.DataOffset) {
-		return false // was set by CDL
+		return false, nil // was set by CDL
 	}
 
 	opcode := m6502.Opcodes[b]
 	if opcode.Instruction == nil {
 		// consider an unknown instruction as start of data
 		offsetInfo.SetType(program.DataOffset)
-		return false
+		return false, nil
 	}
 
 	offsetInfo.opcode = opcode
-	return true
+	return true, nil
 }
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
 func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (string, error) {
 	opcode := offsetInfo.opcode
-	param, opcodes := dis.readOpParam(opcode.Addressing, dis.pc)
+	param, opcodes, err := dis.readOpParam(opcode.Addressing, dis.pc)
+	if err != nil {
+		return "", fmt.Errorf("reading opcode parameters: %w", err)
+	}
 	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
 
 	if address+uint16(len(offsetInfo.OpcodeBytes)) > m6502.InterruptVectorStartAddress {
@@ -166,12 +188,12 @@ func (dis *Disasm) replaceParamByAlias(address uint16, opcode m6502.Opcode, para
 // addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
 // 0 will be returned. Return address from function addresses have the lowest priority, to be able to
 // handle jump table functions correctly.
-func (dis *Disasm) addressToDisassemble() uint16 {
+func (dis *Disasm) addressToDisassemble() (uint16, error) {
 	for {
 		if len(dis.offsetsToParse) > 0 {
 			address := dis.offsetsToParse[0]
 			dis.offsetsToParse = dis.offsetsToParse[1:]
-			return address
+			return address, nil
 		}
 
 		for len(dis.functionReturnsToParse) > 0 {
@@ -185,11 +207,15 @@ func (dis *Disasm) addressToDisassemble() uint16 {
 				continue
 			}
 			delete(dis.functionReturnsToParseAdded, address)
-			return address
+			return address, nil
 		}
 
-		if !dis.scanForNewJumpEngineEntry() {
-			return 0
+		isEntry, err := dis.scanForNewJumpEngineEntry()
+		if err != nil {
+			return 0, err
+		}
+		if !isEntry {
+			return 0, nil
 		}
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/retroenv/retrogolib/arch/nes"
 )
 
-func (dis *Disasm) readMemory(address uint16) byte {
+func (dis *Disasm) readMemory(address uint16) (byte, error) {
 	var value byte
 
 	switch {
@@ -18,24 +18,34 @@ func (dis *Disasm) readMemory(address uint16) byte {
 		value = dis.mapper.readMemory(address)
 
 	default:
-		panic(fmt.Sprintf("invalid read from address #%0000x", address))
+		return 0, fmt.Errorf("invalid read from address #%0000x", address)
 	}
-	return value
+	return value, nil
 }
 
-func (dis *Disasm) readMemoryWord(address uint16) uint16 {
-	low := uint16(dis.readMemory(address))
-	high := uint16(dis.readMemory(address + 1))
+func (dis *Disasm) readMemoryWord(address uint16) (uint16, error) {
+	b, err := dis.readMemory(address)
+	if err != nil {
+		return 0, err
+	}
+	low := uint16(b)
+
+	b, err = dis.readMemory(address + 1)
+	if err != nil {
+		return 0, err
+	}
+
+	high := uint16(b)
 	w := (high << 8) | low
-	return w
+	return w, nil
 }
 
 // readOpParam reads the opcode parameters after the first opcode byte
 // and translates it into emulator specific types.
-func (dis *Disasm) readOpParam(addressing Mode, address uint16) (any, []byte) {
+func (dis *Disasm) readOpParam(addressing Mode, address uint16) (any, []byte, error) {
 	fun, ok := paramReader[addressing]
 	if !ok {
-		panic(fmt.Errorf("unsupported addressing mode %00x", addressing))
+		return nil, nil, fmt.Errorf("unsupported addressing mode %00x", addressing)
 	}
 	return fun(dis, address)
 }
