@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	. "github.com/retroenv/retrogolib/addressing"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes/register"
 )
@@ -52,19 +51,19 @@ func buildConstMap() (map[uint16]constTranslation, error) {
 	return m, nil
 }
 
-func mergeConstantsMaps(destination map[uint16]constTranslation, source map[uint16]AccessModeConstant) error {
+func mergeConstantsMaps(destination map[uint16]constTranslation, source map[uint16]m6502.AccessModeConstant) error {
 	for address, constantInfo := range source {
 		translation := destination[address]
 		translation.address = address
 
-		if constantInfo.Mode&ReadAccess != 0 {
+		if constantInfo.Mode&m6502.ReadAccess != 0 {
 			if translation.Read != "" {
 				return fmt.Errorf("constant with address 0x%04X and read mode is defined twice", address)
 			}
 			translation.Read = constantInfo.Constant
 		}
 
-		if constantInfo.Mode&WriteAccess != 0 {
+		if constantInfo.Mode&m6502.WriteAccess != 0 {
 			if translation.Write != "" {
 				return fmt.Errorf("constant with address 0x%04X and write mode is defined twice", address)
 			}

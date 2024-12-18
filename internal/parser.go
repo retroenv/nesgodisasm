@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
-	. "github.com/retroenv/retrogolib/addressing"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
@@ -42,7 +41,7 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		instruction := offsetInfo.opcode.Instruction
 
-		if offsetInfo.opcode.Addressing == ImpliedAddressing {
+		if offsetInfo.opcode.Addressing == m6502.ImpliedAddressing {
 			offsetInfo.Code = instruction.Name
 		} else {
 			params, err := dis.processParamInstruction(dis.pc, offsetInfo)
@@ -150,7 +149,7 @@ func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (
 	paramAsString = dis.replaceParamByAlias(address, opcode, param, paramAsString)
 
 	if _, ok := m6502.BranchingInstructions[opcode.Instruction.Name]; ok {
-		addr, ok := param.(Absolute)
+		addr, ok := param.(m6502.Absolute)
 		if ok {
 			dis.addAddressToParse(uint16(addr), offsetInfo.context, dis.pc, opcode.Instruction, true)
 		}
@@ -288,23 +287,23 @@ func (dis *Disasm) handleInstructionIRQOverlap(address uint16, offsetInfo *offse
 // getAddressingParam returns the address of the param if it references an address.
 func getAddressingParam(param any) (uint16, bool) {
 	switch val := param.(type) {
-	case Absolute:
+	case m6502.Absolute:
 		return uint16(val), true
-	case AbsoluteX:
+	case m6502.AbsoluteX:
 		return uint16(val), true
-	case AbsoluteY:
+	case m6502.AbsoluteY:
 		return uint16(val), true
-	case Indirect:
+	case m6502.Indirect:
 		return uint16(val), true
-	case IndirectX:
+	case m6502.IndirectX:
 		return uint16(val), true
-	case IndirectY:
+	case m6502.IndirectY:
 		return uint16(val), true
-	case ZeroPage:
+	case m6502.ZeroPage:
 		return uint16(val), true
-	case ZeroPageX:
+	case m6502.ZeroPageX:
 		return uint16(val), true
-	case ZeroPageY:
+	case m6502.ZeroPageY:
 		return uint16(val), true
 	default:
 		return 0, false
@@ -315,10 +314,10 @@ func getAddressingParam(param any) (uint16, bool) {
 // and forces variable usage.
 func checkBranchingParam(address uint16, opcode m6502.Opcode) (bool, bool) {
 	switch {
-	case opcode.Instruction.Name == m6502.Jmp.Name && opcode.Addressing == IndirectAddressing:
+	case opcode.Instruction.Name == m6502.Jmp.Name && opcode.Addressing == m6502.IndirectAddressing:
 		return true, false
 	case opcode.Instruction.Name == m6502.Jmp.Name || opcode.Instruction.Name == m6502.Jsr.Name:
-		if opcode.Addressing == AbsoluteAddressing && address < nes.CodeBaseAddress {
+		if opcode.Addressing == m6502.AbsoluteAddressing && address < nes.CodeBaseAddress {
 			return true, true
 		}
 	}

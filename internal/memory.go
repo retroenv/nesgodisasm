@@ -3,7 +3,7 @@ package disasm
 import (
 	"fmt"
 
-	. "github.com/retroenv/retrogolib/addressing"
+	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
 )
 
@@ -42,7 +42,7 @@ func (dis *Disasm) readMemoryWord(address uint16) (uint16, error) {
 
 // readOpParam reads the opcode parameters after the first opcode byte
 // and translates it into emulator specific types.
-func (dis *Disasm) readOpParam(addressing Mode, address uint16) (any, []byte, error) {
+func (dis *Disasm) readOpParam(addressing m6502.AddressingMode, address uint16) (any, []byte, error) {
 	fun, ok := paramReader[addressing]
 	if !ok {
 		return nil, nil, fmt.Errorf("unsupported addressing mode %00x", addressing)

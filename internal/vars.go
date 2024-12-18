@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
-	. "github.com/retroenv/retrogolib/addressing"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
@@ -70,9 +69,9 @@ func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16,
 	}
 
 	switch opcode.Addressing {
-	case ZeroPageXAddressing, ZeroPageYAddressing,
-		AbsoluteXAddressing, AbsoluteYAddressing,
-		IndirectXAddressing, IndirectYAddressing:
+	case m6502.ZeroPageXAddressing, m6502.ZeroPageYAddressing,
+		m6502.AbsoluteXAddressing, m6502.AbsoluteYAddressing,
+		m6502.IndirectXAddressing, m6502.IndirectYAddressing:
 		varInfo.indexedUsage = true
 	}
 }
@@ -120,11 +119,11 @@ func (dis *Disasm) processVariables() error {
 			}
 
 			switch offsetInfo.opcode.Addressing {
-			case ZeroPageAddressing, ZeroPageXAddressing, ZeroPageYAddressing:
+			case m6502.ZeroPageAddressing, m6502.ZeroPageXAddressing, m6502.ZeroPageYAddressing:
 				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
-			case AbsoluteAddressing, AbsoluteXAddressing, AbsoluteYAddressing:
+			case m6502.AbsoluteAddressing, m6502.AbsoluteXAddressing, m6502.AbsoluteYAddressing:
 				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
-			case IndirectAddressing, IndirectXAddressing, IndirectYAddressing:
+			case m6502.IndirectAddressing, m6502.IndirectXAddressing, m6502.IndirectYAddressing:
 				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
 			}
 		}
