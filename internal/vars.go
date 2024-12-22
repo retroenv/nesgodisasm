@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
-	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
-	"github.com/retroenv/retrogolib/arch/nes/parameter"
 )
 
 const (
@@ -28,19 +27,19 @@ type variable struct {
 	usageAt      []bankReference // list of all indexes that use this offset
 }
 
-// addVariableReference adds a variable reference if the opcode is accessing
+// AddVariableReference adds a variable reference if the opcode is accessing
 // the given address directly by reading or writing. In a special case like
 // branching into a zeropage address the variable usage can be forced.
-func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16,
-	opcode m6502.Opcode, forceVariableUsage bool) {
+func (dis *Disasm) AddVariableReference(addressReference, usageAddress uint16,
+	opcode arch.Opcode, forceVariableUsage bool) {
 
 	var reads, writes bool
-	if opcode.ReadWritesMemory(m6502.MemoryReadWriteInstructions) {
+	if opcode.ReadWritesMemory() {
 		reads = true
 		writes = true
 	} else {
-		reads = opcode.ReadsMemory(m6502.MemoryReadInstructions)
-		writes = opcode.WritesMemory(m6502.MemoryWriteInstructions)
+		reads = opcode.ReadsMemory()
+		writes = opcode.WritesMemory()
 	}
 	if !reads && !writes && !forceVariableUsage {
 		return
@@ -68,10 +67,7 @@ func (dis *Disasm) addVariableReference(addressReference, usageAddress uint16,
 		varInfo.writes = true
 	}
 
-	switch opcode.Addressing {
-	case m6502.ZeroPageXAddressing, m6502.ZeroPageYAddressing,
-		m6502.AbsoluteXAddressing, m6502.AbsoluteYAddressing,
-		m6502.IndirectXAddressing, m6502.IndirectYAddressing:
+	if dis.arch.IsAddressingIndexed(opcode) {
 		varInfo.indexedUsage = true
 	}
 }
@@ -113,18 +109,9 @@ func (dis *Disasm) processVariables() error {
 
 		for _, bankRef := range varInfo.usageAt {
 			offsetInfo := bankRef.mapped.offsetInfo(bankRef.index)
-			converted, err := parameter.String(dis.converter, offsetInfo.opcode.Addressing, reference)
-			if err != nil {
-				return fmt.Errorf("getting parameter as string: %w", err)
-			}
 
-			switch offsetInfo.opcode.Addressing {
-			case m6502.ZeroPageAddressing, m6502.ZeroPageXAddressing, m6502.ZeroPageYAddressing:
-				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
-			case m6502.AbsoluteAddressing, m6502.AbsoluteXAddressing, m6502.AbsoluteYAddressing:
-				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
-			case m6502.IndirectAddressing, m6502.IndirectXAddressing, m6502.IndirectYAddressing:
-				offsetInfo.Code = fmt.Sprintf("%s %s", offsetInfo.opcode.Instruction.Name, converted)
+			if err := dis.arch.ProcessVarUsage(offsetInfo, reference); err != nil {
+				return fmt.Errorf("processing variable usage: %w", err)
 			}
 		}
 	}
@@ -135,23 +122,23 @@ func (dis *Disasm) processVariables() error {
 // for in which bank a constant is used, it will be added to all banks for now.
 // TODO fix constants to only output in used banks
 func (dis *Disasm) processConstants() {
-	constants := make([]constTranslation, 0, len(dis.constants))
+	constants := make([]arch.ConstTranslation, 0, len(dis.constants))
 	for _, translation := range dis.constants {
 		constants = append(constants, translation)
 	}
 	sort.Slice(constants, func(i, j int) bool {
-		return constants[i].address < constants[j].address
+		return constants[i].Address < constants[j].Address
 	})
 
 	for _, constInfo := range constants {
-		_, used := dis.usedConstants[constInfo.address]
+		_, used := dis.usedConstants[constInfo.Address]
 		if !used {
 			continue
 		}
 
 		for _, bnk := range dis.banks {
-			bnk.constants[constInfo.address] = constInfo
-			bnk.usedConstants[constInfo.address] = constInfo
+			bnk.constants[constInfo.Address] = constInfo
+			bnk.usedConstants[constInfo.Address] = constInfo
 		}
 	}
 }
@@ -164,7 +151,7 @@ func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 
 	for {
 		offsetInfo := dis.mapper.offsetInfo(address)
-		if len(offsetInfo.OpcodeBytes) == 0 {
+		if len(offsetInfo.Data()) == 0 {
 			address--
 			addressAdjustment++
 			continue
@@ -179,9 +166,9 @@ func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
 	var name string
 
-	if offsetInfo != nil && offsetInfo.Label != "" {
+	if offsetInfo != nil && offsetInfo.Label() != "" {
 		// if destination has an existing label, reuse it
-		name = offsetInfo.Label
+		name = offsetInfo.Label()
 	} else {
 		prgAccess := offsetInfo != nil
 		var jumpTable bool
@@ -207,8 +194,8 @@ func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addr
 	if addressAdjustment > 0 {
 		reference = fmt.Sprintf("%s+%d", reference, addressAdjustment)
 	}
-	if offsetInfo != nil && offsetInfo.Label == "" {
-		offsetInfo.Label = name
+	if offsetInfo != nil && offsetInfo.Label() == "" {
+		offsetInfo.SetLabel(name)
 	}
 	return name, reference
 }

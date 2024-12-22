@@ -1,16 +1,11 @@
 package disasm
 
 import (
-	"errors"
 	"fmt"
 
+	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
-	"github.com/retroenv/retrogolib/arch/cpu/m6502"
-	"github.com/retroenv/retrogolib/arch/nes"
-	"github.com/retroenv/retrogolib/arch/nes/parameter"
 )
-
-var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ handler start")
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 // nolint: funlen
@@ -31,50 +26,22 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		dis.pc = address
 		offsetInfo := dis.mapper.offsetInfo(dis.pc)
-		inspectCode, err := dis.initializeOffsetInfo(offsetInfo)
+
+		inspectCode, err := dis.arch.ProcessOffset(dis, address, offsetInfo)
 		if err != nil {
-			return err
+			return fmt.Errorf("error processing offset at address %04x: %w", address, err)
 		}
 		if !inspectCode {
 			continue
 		}
 
-		instruction := offsetInfo.opcode.Instruction
-
-		if offsetInfo.opcode.Addressing == m6502.ImpliedAddressing {
-			offsetInfo.Code = instruction.Name
-		} else {
-			params, err := dis.processParamInstruction(dis.pc, offsetInfo)
-			if err != nil {
-				if errors.Is(err, errInstructionOverlapsIRQHandlers) {
-					dis.handleInstructionIRQOverlap(address, offsetInfo)
-					continue
-				}
-				return err
-			}
-			offsetInfo.Code = fmt.Sprintf("%s %s", instruction.Name, params)
-		}
-
-		if _, ok := m6502.NotExecutingFollowingOpcodeInstructions[instruction.Name]; ok {
-			if err := dis.checkForJumpEngineJmp(dis.pc, offsetInfo); err != nil {
-				return err
-			}
-		} else {
-			opcodeLength := uint16(len(offsetInfo.OpcodeBytes))
-			followingOpcodeAddress := dis.pc + opcodeLength
-			dis.addAddressToParse(followingOpcodeAddress, offsetInfo.context, address, instruction, false)
-			if err := dis.checkForJumpEngineCall(dis.pc, offsetInfo); err != nil {
-				return err
-			}
-		}
-
 		dis.checkInstructionOverlap(address, offsetInfo)
 
-		if dis.handleDisambiguousInstructions(address, offsetInfo) {
+		if dis.arch.HandleDisambiguousInstructions(dis, address, offsetInfo) {
 			continue
 		}
 
-		dis.changeAddressRangeToCode(address, offsetInfo.OpcodeBytes)
+		dis.changeAddressRangeToCode(address, offsetInfo.Data())
 	}
 	return nil
 }
@@ -82,106 +49,20 @@ func (dis *Disasm) followExecutionFlow() error {
 // in case the current instruction overlaps with an already existing instruction,
 // cut the current one short.
 func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset) {
-	for i := 1; i < len(offsetInfo.OpcodeBytes) && int(address)+i < m6502.InterruptVectorStartAddress; i++ {
+	for i := 1; i < len(offsetInfo.Data()) && int(address)+i < int(dis.arch.LastCodeAddress()); i++ {
 		offsetInfoFollowing := dis.mapper.offsetInfo(address + uint16(i))
 		if !offsetInfoFollowing.IsType(program.CodeOffset) {
 			continue
 		}
 
-		offsetInfoFollowing.Comment = "branch into instruction detected"
-		offsetInfo.Comment = offsetInfo.Code
-		offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:i]
-		offsetInfo.Code = ""
+		offsetInfoFollowing.SetComment("branch into instruction detected")
+		offsetInfo.SetComment(offsetInfo.Code())
+		offsetInfo.SetData(offsetInfo.Data()[:i])
+		offsetInfo.SetCode("")
 		offsetInfo.ClearType(program.CodeOffset)
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 		return
 	}
-}
-
-// initializeOffsetInfo initializes the offset info and returns
-// whether the offset should process inspection for code parameters.
-func (dis *Disasm) initializeOffsetInfo(offsetInfo *offset) (bool, error) {
-	if offsetInfo.IsType(program.CodeOffset) {
-		return false, nil // was set by CDL
-	}
-
-	b, err := dis.readMemory(dis.pc)
-	if err != nil {
-		return false, fmt.Errorf("reading memory at address %04x: %w", dis.pc, err)
-	}
-	offsetInfo.OpcodeBytes = make([]byte, 1, m6502.MaxOpcodeSize)
-	offsetInfo.OpcodeBytes[0] = b
-
-	if offsetInfo.IsType(program.DataOffset) {
-		return false, nil // was set by CDL
-	}
-
-	opcode := m6502.Opcodes[b]
-	if opcode.Instruction == nil {
-		// consider an unknown instruction as start of data
-		offsetInfo.SetType(program.DataOffset)
-		return false, nil
-	}
-
-	offsetInfo.opcode = opcode
-	return true, nil
-}
-
-// processParamInstruction processes an instruction with parameters.
-// Special handling is required as this instruction could branch to a different location.
-func (dis *Disasm) processParamInstruction(address uint16, offsetInfo *offset) (string, error) {
-	opcode := offsetInfo.opcode
-	param, opcodes, err := dis.readOpParam(opcode.Addressing, dis.pc)
-	if err != nil {
-		return "", fmt.Errorf("reading opcode parameters: %w", err)
-	}
-	offsetInfo.OpcodeBytes = append(offsetInfo.OpcodeBytes, opcodes...)
-
-	if address+uint16(len(offsetInfo.OpcodeBytes)) > m6502.InterruptVectorStartAddress {
-		return "", errInstructionOverlapsIRQHandlers
-	}
-
-	paramAsString, err := parameter.String(dis.converter, opcode.Addressing, param)
-	if err != nil {
-		return "", fmt.Errorf("getting parameter as string: %w", err)
-	}
-
-	paramAsString = dis.replaceParamByAlias(address, opcode, param, paramAsString)
-
-	if _, ok := m6502.BranchingInstructions[opcode.Instruction.Name]; ok {
-		addr, ok := param.(m6502.Absolute)
-		if ok {
-			dis.addAddressToParse(uint16(addr), offsetInfo.context, dis.pc, opcode.Instruction, true)
-		}
-	}
-
-	return paramAsString, nil
-}
-
-// replaceParamByAlias replaces the absolute address with an alias name if it can match it to
-// a constant, zero page variable or a code reference.
-func (dis *Disasm) replaceParamByAlias(address uint16, opcode m6502.Opcode, param any, paramAsString string) string {
-	forceVariableUsage := false
-	addressReference, addressValid := getAddressingParam(param)
-	if !addressValid || addressReference >= m6502.InterruptVectorStartAddress {
-		return paramAsString
-	}
-
-	if _, ok := m6502.BranchingInstructions[opcode.Instruction.Name]; ok {
-		var handleParam bool
-		handleParam, forceVariableUsage = checkBranchingParam(addressReference, opcode)
-		if !handleParam {
-			return paramAsString
-		}
-	}
-
-	constantInfo, ok := dis.constants[addressReference]
-	if ok {
-		return dis.replaceParamByConstant(addressReference, opcode, paramAsString, constantInfo)
-	}
-
-	dis.addVariableReference(addressReference, address, opcode, forceVariableUsage)
-	return paramAsString
 }
 
 // addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
@@ -219,9 +100,9 @@ func (dis *Disasm) addressToDisassemble() (uint16, error) {
 	}
 }
 
-// addAddressToParse adds an address to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstruction *m6502.Instruction,
-	isABranchDestination bool) {
+// AddAddressToParse adds an address to the list to be processed if the address has not been processed yet.
+func (dis *Disasm) AddAddressToParse(address, context, from uint16,
+	currentInstruction arch.Instruction, isABranchDestination bool) {
 
 	// ignore branching into addresses before the code base address, for example when generating code in
 	// zeropage and branching into it to execute it.
@@ -230,7 +111,7 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	}
 
 	offsetInfo := dis.mapper.offsetInfo(address)
-	if isABranchDestination && currentInstruction != nil && currentInstruction.Name == m6502.Jsr.Name {
+	if isABranchDestination && currentInstruction != nil && currentInstruction.IsCall() {
 		offsetInfo.SetType(program.CallDestination)
 		if offsetInfo.context == 0 {
 			offsetInfo.context = address // begin a new context
@@ -259,67 +140,10 @@ func (dis *Disasm) addAddressToParse(address, context, from uint16, currentInstr
 	// add instructions that follow a function call to a special queue with lower priority, to allow the
 	// jump engine be detected before trying to parse the data following the call, which in case of a jump
 	// engine is not code but pointers to functions.
-	if currentInstruction != nil && currentInstruction.Name == m6502.Jsr.Name {
+	if currentInstruction != nil && currentInstruction.IsCall() {
 		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
 		dis.functionReturnsToParseAdded[address] = struct{}{}
 	} else {
 		dis.offsetsToParse = append(dis.offsetsToParse, address)
 	}
-}
-
-// handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
-// The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
-func (dis *Disasm) handleInstructionIRQOverlap(address uint16, offsetInfo *offset) {
-	if address > m6502.InterruptVectorStartAddress {
-		return
-	}
-
-	keepLength := int(m6502.InterruptVectorStartAddress - address)
-	offsetInfo.OpcodeBytes = offsetInfo.OpcodeBytes[:keepLength]
-
-	for i := range keepLength {
-		offsetInfo = dis.mapper.offsetInfo(address + uint16(i))
-		offsetInfo.ClearType(program.CodeOffset)
-		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
-	}
-}
-
-// getAddressingParam returns the address of the param if it references an address.
-func getAddressingParam(param any) (uint16, bool) {
-	switch val := param.(type) {
-	case m6502.Absolute:
-		return uint16(val), true
-	case m6502.AbsoluteX:
-		return uint16(val), true
-	case m6502.AbsoluteY:
-		return uint16(val), true
-	case m6502.Indirect:
-		return uint16(val), true
-	case m6502.IndirectX:
-		return uint16(val), true
-	case m6502.IndirectY:
-		return uint16(val), true
-	case m6502.ZeroPage:
-		return uint16(val), true
-	case m6502.ZeroPageX:
-		return uint16(val), true
-	case m6502.ZeroPageY:
-		return uint16(val), true
-	default:
-		return 0, false
-	}
-}
-
-// checkBranchingParam checks whether the branching instruction should do a variable check for the parameter
-// and forces variable usage.
-func checkBranchingParam(address uint16, opcode m6502.Opcode) (bool, bool) {
-	switch {
-	case opcode.Instruction.Name == m6502.Jmp.Name && opcode.Addressing == m6502.IndirectAddressing:
-		return true, false
-	case opcode.Instruction.Name == m6502.Jmp.Name || opcode.Instruction.Name == m6502.Jsr.Name:
-		if opcode.Addressing == m6502.AbsoluteAddressing && address < nes.CodeBaseAddress {
-			return true, true
-		}
-	}
-	return false, false
 }

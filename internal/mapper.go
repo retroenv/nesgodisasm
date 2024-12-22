@@ -1,8 +1,8 @@
 package disasm
 
-import "fmt"
-
-var emptyMappedBank = mappedBank{}
+import (
+	"fmt"
+)
 
 type mappedBank struct {
 	bank      *bank
@@ -13,8 +13,9 @@ type mapper struct {
 	addressShifts  int
 	bankWindowSize int
 
-	banks  []mappedBank
-	mapped []mappedBank
+	emptyMappedBank mappedBank
+	banks           []mappedBank
+	mapped          []mappedBank
 }
 
 const bankWindowSize = 0x2000 // TODO use as parameter
@@ -27,8 +28,9 @@ func newMapper(banks []*bank, prgSize int) (*mapper, error) {
 		addressShifts:  16 - log2(mappedWindows),
 		bankWindowSize: bankWindowSize,
 
-		banks:  make([]mappedBank, mappedBanks),
-		mapped: make([]mappedBank, mappedWindows),
+		emptyMappedBank: mappedBank{},
+		banks:           make([]mappedBank, mappedBanks),
+		mapped:          make([]mappedBank, mappedWindows),
 	}
 
 	bankNumber := 0
@@ -88,7 +90,7 @@ func (m *mapper) readMemory(address uint16) byte {
 func (m *mapper) offsetInfo(address uint16) *offset {
 	bankWindow := address >> m.addressShifts
 	bnk := m.mapped[bankWindow]
-	if bnk == emptyMappedBank {
+	if bnk == m.emptyMappedBank {
 		return nil
 	}
 

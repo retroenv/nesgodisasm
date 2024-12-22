@@ -29,11 +29,12 @@ type Disassembler struct {
 	Assembler   string        // what assembler to use
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
 
-	Binary         bool
-	CodeOnly       bool
-	HexComments    bool
-	OffsetComments bool
-	ZeroBytes      bool
+	Binary                   bool
+	CodeOnly                 bool
+	HexComments              bool
+	NoUnofficialInstructions bool
+	OffsetComments           bool
+	ZeroBytes                bool
 }
 
 // NewDisassembler returns a new options instance with default options.

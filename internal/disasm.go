@@ -7,52 +7,38 @@ import (
 	"io"
 	"strings"
 
+	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
-	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
-	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
-	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/writer"
-	"github.com/retroenv/retrogolib/arch/cpu/m6502"
-	"github.com/retroenv/retrogolib/arch/nes"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
-	"github.com/retroenv/retrogolib/arch/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
 )
 
-type fileWriterConstructor func(app *program.Program, options *options.Disassembler,
+type FileWriterConstructor func(app *program.Program, options options.Disassembler,
 	mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter
 
-// offset defines the content of an offset in a program that can represent data or code.
-type offset struct {
-	program.Offset
+var _ arch.Disasm = &Disasm{}
 
-	opcode m6502.Opcode // opcode that the byte at this offset represents
-
-	branchFrom  []bankReference // list of all addresses that branch to this offset
-	branchingTo string          // label to jump to if instruction branches
-	context     uint16          // function or interrupt context that the offset is part of
-}
-
-// Disasm implements a NES disassembler.
+// Disasm implements a disassembler.
 type Disasm struct {
+	arch    arch.Architecture
 	logger  *log.Logger
-	options *options.Disassembler
+	options options.Disassembler
 
-	pc                      uint16 // program counter
-	converter               parameter.Converter
-	fileWriterConstructor   fileWriterConstructor
-	cart                    *cartridge.Cartridge
-	handlers                program.Handlers
-	noUnofficialInstruction bool // enable for assemblers that do not support unofficial opcodes
+	pc uint16 // program counter
 
-	codeBaseAddress     uint16 // codebase address of the cartridge, as it can be different from 0x8000
+	cart                  *cartridge.Cartridge
+	fileWriterConstructor FileWriterConstructor
+	handlers              program.Handlers
+
+	codeBaseAddress     uint16 // codebase address of the cartridge, it is not always 0x8000
 	vectorsStartAddress uint16
 
-	constants     map[uint16]constTranslation
-	usedConstants map[uint16]constTranslation
+	constants     map[uint16]arch.ConstTranslation
+	usedConstants map[uint16]arch.ConstTranslation
 	variables     map[uint16]*variable
 	usedVariables map[uint16]struct{}
 
@@ -74,35 +60,30 @@ type Disasm struct {
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
-func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disassembler) (*Disasm, error) {
+func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
+	options options.Disassembler, fileWriterConstructor FileWriterConstructor) (*Disasm, error) {
+
 	dis := &Disasm{
+		arch:                        ar,
 		logger:                      logger,
 		options:                     options,
 		cart:                        cart,
+		fileWriterConstructor:       fileWriterConstructor,
 		variables:                   map[uint16]*variable{},
 		usedVariables:               map[uint16]struct{}{},
-		usedConstants:               map[uint16]constTranslation{},
+		usedConstants:               map[uint16]arch.ConstTranslation{},
 		jumpEngineCallersAdded:      map[uint16]*jumpEngineCaller{},
 		jumpEngines:                 map[uint16]struct{}{},
 		branchDestinations:          map[uint16]struct{}{},
 		offsetsToParseAdded:         map[uint16]struct{}{},
 		offsetsParsed:               map[uint16]struct{}{},
 		functionReturnsToParseAdded: map[uint16]struct{}{},
-		handlers: program.Handlers{
-			NMI:   "0",
-			Reset: "Reset",
-			IRQ:   "0",
-		},
 	}
 
 	var err error
-	dis.constants, err = buildConstMap()
+	dis.constants, err = ar.Constants()
 	if err != nil {
-		return nil, err
-	}
-
-	if err = dis.initializeCompatibleMode(options.Assembler); err != nil {
-		return nil, fmt.Errorf("initializing compatible mode: %w", err)
+		return nil, fmt.Errorf("getting constants: %w", err)
 	}
 
 	dis.initializeBanks(cart.PRG)
@@ -110,8 +91,8 @@ func New(logger *log.Logger, cart *cartridge.Cartridge, options *options.Disasse
 	if err != nil {
 		return nil, fmt.Errorf("creating mapper: %w", err)
 	}
-	if err := dis.initializeIrqHandlers(); err != nil {
-		return nil, fmt.Errorf("initializing IRQ handlers: %w", err)
+	if err := dis.arch.Initialize(dis); err != nil {
+		return nil, fmt.Errorf("initializing architecture: %w", err)
 	}
 
 	if options.CodeDataLog != nil {
@@ -152,6 +133,22 @@ func (dis *Disasm) Cart() *cartridge.Cartridge {
 	return dis.cart
 }
 
+func (dis *Disasm) ProgramCounter() uint16 {
+	return dis.pc
+}
+
+func (dis *Disasm) Logger() *log.Logger {
+	return dis.logger
+}
+
+func (dis *Disasm) OffsetInfo(address uint16) arch.Offset {
+	return dis.mapper.offsetInfo(address)
+}
+
+func (dis *Disasm) SetHandlers(handlers program.Handlers) {
+	dis.handlers = handlers
+}
+
 func (dis *Disasm) initializeBanks(prg []byte) {
 	for i := 0; i < len(prg); {
 		size := len(prg) - i
@@ -166,129 +163,19 @@ func (dis *Disasm) initializeBanks(prg []byte) {
 	}
 }
 
-// initializeCompatibleMode sets the chosen assembler specific instances to be used to output
-// compatible code.
-func (dis *Disasm) initializeCompatibleMode(assemblerName string) error {
-	var paramCfg parameter.Config
-
-	switch strings.ToLower(assemblerName) {
-	case assembler.Asm6:
-		dis.fileWriterConstructor = asm6.New
-		paramCfg = asm6.ParamConfig
-
-	case assembler.Ca65:
-		dis.fileWriterConstructor = ca65.New
-		paramCfg = ca65.ParamConfig
-
-	case assembler.Nesasm:
-		dis.fileWriterConstructor = nesasm.New
-		paramCfg = nesasm.ParamConfig
-		dis.noUnofficialInstruction = true
-
-	default:
-		return fmt.Errorf("unsupported assembler '%s'", assemblerName)
-	}
-
-	dis.converter = parameter.New(paramCfg)
-	return nil
-}
-
-// initializeIrqHandlers reads the 3 IRQ handler addresses and adds them to the addresses to be
-// followed for execution flow. Multiple handler can point to the same address.
-// nolint:funlen
-func (dis *Disasm) initializeIrqHandlers() error {
-	nmi, err := dis.readMemoryWord(m6502.NMIAddress)
-	if err != nil {
-		return err
-	}
-	if nmi != 0 {
-		dis.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
-		offsetInfo := dis.mapper.offsetInfo(nmi)
-		if offsetInfo != nil {
-			offsetInfo.Label = "NMI"
-			offsetInfo.SetType(program.CallDestination)
-		}
-		dis.handlers.NMI = "NMI"
-	}
-
-	var reset uint16
-	if dis.options.Binary {
-		reset = uint16(nes.CodeBaseAddress)
-	} else {
-		reset, err = dis.readMemoryWord(m6502.ResetAddress)
-		if err != nil {
-			return err
-		}
-	}
-
-	dis.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
-	offsetInfo := dis.mapper.offsetInfo(reset)
-	if offsetInfo != nil {
-		if offsetInfo.Label != "" {
-			dis.handlers.NMI = "Reset"
-		}
-		offsetInfo.Label = "Reset"
-		offsetInfo.SetType(program.CallDestination)
-	}
-
-	irq, err := dis.readMemoryWord(m6502.IrqAddress)
-	if err != nil {
-		return err
-	}
-	if irq != 0 {
-		dis.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
-		offsetInfo = dis.mapper.offsetInfo(irq)
-		if offsetInfo != nil {
-			if offsetInfo.Label == "" {
-				offsetInfo.Label = "IRQ"
-				dis.handlers.IRQ = "IRQ"
-			} else {
-				dis.handlers.IRQ = offsetInfo.Label
-			}
-			offsetInfo.SetType(program.CallDestination)
-		}
-	}
-
-	if nmi == reset {
-		dis.handlers.NMI = dis.handlers.Reset
-	}
-	if irq == reset {
-		dis.handlers.IRQ = dis.handlers.Reset
-	}
-
-	dis.calculateCodeBaseAddress(reset)
-
-	// add IRQ handlers to be parsed after the code base address has been calculated
-	dis.addAddressToParse(nmi, nmi, 0, nil, false)
-	dis.addAddressToParse(reset, reset, 0, nil, false)
-	dis.addAddressToParse(irq, irq, 0, nil, false)
-	return nil
-}
-
-// calculateCodeBaseAddress calculates the code base address that is assumed by the code.
-// If the code size is only 0x4000 it will be mirror-mapped into the 0x8000 byte of RAM starting at
-// 0x8000. The handlers can be set to any of the 2 mirrors as base, based on this the code base
-// address is calculated. This ensures that jsr instructions will result in the same opcode, as it
-// is based on the code base address.
-func (dis *Disasm) calculateCodeBaseAddress(resetHandler uint16) {
-	halfPrg := len(dis.cart.PRG) % 0x8000
-	dis.codeBaseAddress = uint16(0x8000 + halfPrg)
-	dis.vectorsStartAddress = uint16(m6502.InterruptVectorStartAddress)
-
-	// fix up calculated code base address for half sized PRG ROMs that have a different
-	// code base address configured in the assembler, like "M.U.S.C.L.E."
-	if resetHandler < dis.codeBaseAddress {
-		dis.codeBaseAddress = nes.CodeBaseAddress
-		dis.vectorsStartAddress -= uint16(halfPrg)
-	}
+func (dis *Disasm) SetCodeBaseAddress(address uint16) {
+	dis.codeBaseAddress = address
 
 	dis.logger.Debug("Code base address",
 		log.String("address", fmt.Sprintf("0x%04X", dis.codeBaseAddress)))
 }
 
-// CodeBaseAddress returns the calculated code base address.
-func (dis *Disasm) CodeBaseAddress() uint16 {
-	return dis.codeBaseAddress
+func (dis *Disasm) SetVectorsStartAddress(address uint16) {
+	dis.vectorsStartAddress = address
+}
+
+func (dis *Disasm) Options() options.Disassembler {
+	return dis.options
 }
 
 // converts the internal disassembly representation to a program type that will be used by
@@ -304,7 +191,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 
 		for i := range len(bnk.offsets) {
 			offsetInfo := bnk.offsets[i]
-			programOffsetInfo, err := getProgramOffset(dis.codeBaseAddress+uint16(i), offsetInfo, dis.options)
+			programOffsetInfo, err := dis.getProgramOffset(dis.codeBaseAddress+uint16(i), offsetInfo)
 			if err != nil {
 				return nil, err
 			}
@@ -368,7 +255,7 @@ func (dis *Disasm) loadCodeDataLog() error {
 		}
 
 		if flags&codedatalog.Code != 0 {
-			dis.addAddressToParse(dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
+			dis.AddAddressToParse(dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
 		}
 		if flags&codedatalog.SubEntryPoint != 0 {
 			bank0.offsets[index].SetType(program.CallDestination)
@@ -399,16 +286,16 @@ func setBankVectors(bnk *bank, prgBank *program.PRGBank) {
 	}
 }
 
-func getProgramOffset(address uint16, offsetInfo offset, options *options.Disassembler) (program.Offset, error) {
+func (dis *Disasm) getProgramOffset(address uint16, offsetInfo offset) (program.Offset, error) {
 	programOffset := offsetInfo.Offset
 	programOffset.Address = address
 
 	if offsetInfo.branchingTo != "" {
-		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code, offsetInfo.branchingTo)
+		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code(), offsetInfo.branchingTo)
 	}
 
 	if offsetInfo.IsType(program.CodeOffset | program.CodeAsData | program.FunctionReference) {
-		if len(programOffset.OpcodeBytes) == 0 && programOffset.Label == "" {
+		if len(programOffset.Data) == 0 && programOffset.Label == "" {
 			return programOffset, nil
 		}
 
@@ -416,7 +303,7 @@ func getProgramOffset(address uint16, offsetInfo offset, options *options.Disass
 			programOffset.Code = ".word " + offsetInfo.branchingTo
 		}
 
-		if err := setComment(address, &programOffset, options); err != nil {
+		if err := dis.setComment(address, &programOffset); err != nil {
 			return program.Offset{}, err
 		}
 	} else {
@@ -426,15 +313,15 @@ func getProgramOffset(address uint16, offsetInfo offset, options *options.Disass
 	return programOffset, nil
 }
 
-func setComment(address uint16, programOffset *program.Offset, options *options.Disassembler) error {
+func (dis *Disasm) setComment(address uint16, programOffset *program.Offset) error {
 	var comments []string
 
-	if options.OffsetComments {
+	if dis.options.OffsetComments {
 		programOffset.HasAddressComment = true
 		comments = []string{fmt.Sprintf("$%04X", address)}
 	}
 
-	if options.HexComments {
+	if dis.options.HexComments {
 		hexCodeComment, err := hexCodeComment(programOffset)
 		if err != nil {
 			return err
@@ -452,7 +339,7 @@ func setComment(address uint16, programOffset *program.Offset, options *options.
 func hexCodeComment(offset *program.Offset) (string, error) {
 	buf := &strings.Builder{}
 
-	for _, b := range offset.OpcodeBytes {
+	for _, b := range offset.Data {
 		if _, err := fmt.Fprintf(buf, "%02X ", b); err != nil {
 			return "", fmt.Errorf("writing hex comment: %w", err)
 		}

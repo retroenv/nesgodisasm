@@ -4,17 +4,17 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 )
 
-// changeAddressRangeToCodeAsData sets a range of code address to code as
+// ChangeAddressRangeToCodeAsData sets a range of code address to code as
 // data types. It combines all data bytes that are not split by a label.
-func (dis *Disasm) changeAddressRangeToCodeAsData(address uint16, data []byte) {
+func (dis *Disasm) ChangeAddressRangeToCodeAsData(address uint16, data []byte) {
 	for i := 0; i < len(data); i++ {
 		offsetInfo := dis.mapper.offsetInfo(address + uint16(i))
 
 		noLabelOffsets := 1
 		for j := i + 1; j < len(data); j++ {
 			offsetInfoNext := dis.mapper.offsetInfo(address + uint16(j))
-			if offsetInfoNext.Label == "" {
-				offsetInfoNext.OpcodeBytes = nil
+			if offsetInfoNext.Label() == "" {
+				offsetInfoNext.SetData(nil)
 				offsetInfoNext.SetType(program.CodeAsData | program.DataOffset)
 				noLabelOffsets++
 
@@ -25,7 +25,7 @@ func (dis *Disasm) changeAddressRangeToCodeAsData(address uint16, data []byte) {
 			break
 		}
 
-		offsetInfo.OpcodeBytes = data[i : i+noLabelOffsets]
+		offsetInfo.SetData(data[i : i+noLabelOffsets])
 		offsetInfo.ClearType(program.CodeOffset)
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 		i += noLabelOffsets - 1
@@ -45,7 +45,7 @@ func (dis *Disasm) processData() {
 				continue
 			}
 
-			bnk.offsets[i].OpcodeBytes = []byte{bnk.prg[i]}
+			bnk.offsets[i].SetData([]byte{bnk.prg[i]})
 		}
 	}
 }

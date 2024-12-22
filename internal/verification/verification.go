@@ -19,7 +19,7 @@ import (
 )
 
 // VerifyOutput verifies that the output file recreates the exact input file.
-func VerifyOutput(logger *log.Logger, options *options.Program,
+func VerifyOutput(logger *log.Logger, options options.Program,
 	cart *cartridge.Cartridge, app *program.Program) error {
 
 	if options.Output == "" {
@@ -71,7 +71,7 @@ func VerifyOutput(logger *log.Logger, options *options.Program,
 	return nil
 }
 
-func assembleFile(options *options.Program, cart *cartridge.Cartridge, app *program.Program,
+func assembleFile(options options.Program, cart *cartridge.Cartridge, app *program.Program,
 	filePart, outputFile string) error {
 
 	switch options.Assembler {

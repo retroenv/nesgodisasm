@@ -25,7 +25,7 @@ type PRGBank struct {
 }
 
 // GetLastNonZeroByte searches for the last byte in PRG that is not zero.
-func (bank PRGBank) GetLastNonZeroByte(options *options.Disassembler) int {
+func (bank PRGBank) GetLastNonZeroByte(options options.Disassembler) int {
 	endIndex := len(bank.Offsets) - 6 // leave space for vectors
 	if options.ZeroBytes {
 		return endIndex
@@ -35,7 +35,7 @@ func (bank PRGBank) GetLastNonZeroByte(options *options.Disassembler) int {
 
 	for i := start; i >= 0; i-- {
 		offset := bank.Offsets[i]
-		if (len(offset.OpcodeBytes) == 0 || offset.OpcodeBytes[0] == 0) && offset.Label == "" {
+		if (len(offset.Data) == 0 || offset.Data[0] == 0) && offset.Label == "" {
 			continue
 		}
 		return i + 1

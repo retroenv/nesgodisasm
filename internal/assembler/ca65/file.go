@@ -22,7 +22,7 @@ var vectors = ".addr %s, %s, %s\n"
 // FileWriter writes the assembly file content.
 type FileWriter struct {
 	app           *program.Program
-	options       *options.Disassembler
+	options       options.Disassembler
 	mainWriter    io.Writer
 	newBankWriter assembler.NewBankWriter
 	writer        *writer.Writer
@@ -47,7 +47,7 @@ type lineWrite string
 
 // New creates a new file writer.
 // nolint: ireturn
-func New(app *program.Program, options *options.Disassembler, mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter {
+func New(app *program.Program, options options.Disassembler, mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter {
 	opts := writer.Options{
 		OffsetComments: options.OffsetComments,
 	}

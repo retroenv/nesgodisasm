@@ -1,5 +1,7 @@
 package disasm
 
+import "github.com/retroenv/nesgodisasm/internal/arch"
+
 const (
 	singleBankName        = "CODE"
 	multiBankNameTemplate = "PRG_BANK_%d"
@@ -8,8 +10,8 @@ const (
 type bank struct {
 	prg []byte
 
-	constants     map[uint16]constTranslation
-	usedConstants map[uint16]constTranslation
+	constants     map[uint16]arch.ConstTranslation
+	usedConstants map[uint16]arch.ConstTranslation
 	variables     map[uint16]*variable
 	usedVariables map[uint16]struct{}
 
@@ -25,8 +27,8 @@ type bankReference struct {
 func newBank(prg []byte) *bank {
 	return &bank{
 		prg:           prg,
-		constants:     map[uint16]constTranslation{},
-		usedConstants: map[uint16]constTranslation{},
+		constants:     map[uint16]arch.ConstTranslation{},
+		usedConstants: map[uint16]arch.ConstTranslation{},
 		variables:     map[uint16]*variable{},
 		usedVariables: map[uint16]struct{}{},
 		offsets:       make([]offset, len(prg)),
