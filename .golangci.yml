@@ -34,7 +34,6 @@ linters:
     - grouper # An analyzer to analyze expression groups
     - ineffassign # Detects when assignments to existing variables are not used
     - intrange # finds places where for loops could make use of an integer range.
-    - ireturn # accept Interfaces, Return Concrete Types
     - maintidx # measures the maintainability index of each function
     - makezero # Finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage

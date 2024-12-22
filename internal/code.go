@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"github.com/retroenv/nesgodisasm/internal/program"
-	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 )
 
 const (
@@ -26,7 +25,7 @@ func (dis *Disasm) processJumpDestinations() {
 	for _, address := range branchDestinations {
 		offsetInfo := dis.mapper.offsetInfo(address)
 
-		name := offsetInfo.Label
+		name := offsetInfo.Label()
 		if name == "" {
 			switch {
 			case offsetInfo.IsType(program.JumpEngine):
@@ -36,13 +35,13 @@ func (dis *Disasm) processJumpDestinations() {
 			default:
 				name = fmt.Sprintf(labelNaming, address)
 			}
-			offsetInfo.Label = name
+			offsetInfo.SetLabel(name)
 		}
 
 		// if the offset is marked as code but does not have opcode bytes, the jump destination
 		// is inside the second or third byte of an instruction.
 		if (offsetInfo.IsType(program.CodeOffset) || offsetInfo.IsType(program.CodeAsData)) &&
-			len(offsetInfo.OpcodeBytes) == 0 {
+			len(offsetInfo.Data()) == 0 {
 
 			dis.handleJumpIntoInstruction(address)
 		}
@@ -53,7 +52,7 @@ func (dis *Disasm) processJumpDestinations() {
 
 			// reference can be a function address of a jump engine
 			if offsetInfo.IsType(program.CodeOffset) {
-				offsetInfo.Code = offsetInfo.opcode.Instruction.Name
+				offsetInfo.SetCode(offsetInfo.opcode.Instruction().Name())
 			}
 		}
 	}
@@ -65,54 +64,27 @@ func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 	// look backwards for instruction start
 	address--
 
-	for offsetInfo := dis.mapper.offsetInfo(address); len(offsetInfo.OpcodeBytes) == 0; {
+	for offsetInfo := dis.mapper.offsetInfo(address); len(offsetInfo.Data()) == 0; {
 		address--
 		offsetInfo = dis.mapper.offsetInfo(address)
 	}
 
 	offsetInfo := dis.mapper.offsetInfo(address)
-	if offsetInfo.Code == "" { // disambiguous instruction
-		offsetInfo.Comment = "branch into instruction detected: " + offsetInfo.Comment
+	if offsetInfo.Code() == "" { // disambiguous instruction
+		offsetInfo.SetComment("branch into instruction detected: " + offsetInfo.Comment())
 	} else {
-		offsetInfo.Comment = "branch into instruction detected: " + offsetInfo.Code
-		offsetInfo.Code = ""
+		offsetInfo.SetComment("branch into instruction detected: " + offsetInfo.Code())
+		offsetInfo.SetCode("")
 	}
 
 	offsetInfo.SetType(program.CodeAsData)
-	dis.changeAddressRangeToCodeAsData(address, offsetInfo.OpcodeBytes)
-}
-
-// handleUnofficialNop translates disambiguous instructions into data bytes as it
-// has multiple opcodes for the same addressing mode which can result in different
-// bytes being assembled and make the resulting ROM not matching the original.
-func (dis *Disasm) handleDisambiguousInstructions(address uint16, offsetInfo *offset) bool {
-	instruction := offsetInfo.opcode.Instruction
-	if !instruction.Unofficial || address >= m6502.InterruptVectorStartAddress {
-		return false
-	}
-
-	if instruction.Name != m6502.Nop.Name &&
-		instruction.Name != m6502.Sbc.Name &&
-		!dis.noUnofficialInstruction {
-
-		return false
-	}
-
-	if offsetInfo.Code == "" { // in case of branch into unofficial nop instruction detected
-		offsetInfo.Comment = "disambiguous instruction: " + offsetInfo.Comment
-	} else {
-		offsetInfo.Comment = "disambiguous instruction: " + offsetInfo.Code
-	}
-
-	offsetInfo.Code = ""
-	offsetInfo.SetType(program.CodeAsData)
-	dis.changeAddressRangeToCodeAsData(address, offsetInfo.OpcodeBytes)
-	return true
+	dis.ChangeAddressRangeToCodeAsData(address, offsetInfo.Data())
 }
 
 // changeAddressRangeToCode sets a range of code addresses to code types.
 func (dis *Disasm) changeAddressRangeToCode(address uint16, data []byte) {
-	for i := 0; i < len(data) && int(address)+i < m6502.InterruptVectorStartAddress; i++ {
+	lastCodeAddress := dis.arch.LastCodeAddress()
+	for i := 0; i < len(data) && int(address)+i < int(lastCodeAddress); i++ {
 		offsetInfo := dis.mapper.offsetInfo(address + uint16(i))
 		offsetInfo.SetType(program.CodeOffset)
 	}

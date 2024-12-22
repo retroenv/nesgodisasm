@@ -164,7 +164,7 @@ func (w Writer) WriteCommentHeader() error {
 }
 
 func (w Writer) writeOffset(bank *program.PRGBank, index, endIndex int, offset program.Offset) (int, error) {
-	if offset.IsType(program.CodeOffset) && len(offset.OpcodeBytes) == 0 {
+	if offset.IsType(program.CodeOffset) && len(offset.Data) == 0 {
 		return 0, nil
 	}
 	if offset.IsType(program.FunctionReference) {
@@ -188,7 +188,7 @@ func (w Writer) writeOffset(bank *program.PRGBank, index, endIndex int, offset p
 	if err := w.writeCodeLine(offset); err != nil {
 		return 0, fmt.Errorf("writing code line: %w", err)
 	}
-	return len(offset.OpcodeBytes) - 1, nil
+	return len(offset.Data) - 1, nil
 }
 
 func (w Writer) writeLabel(index int, offset program.Offset) error {
@@ -275,7 +275,7 @@ func getPrgData(bank *program.PRGBank, startIndex, endIndex int) []byte {
 		offset := bank.Offsets[i]
 
 		// opcode bytes can be nil if data bytes have been combined for an unofficial nop
-		if !offset.IsType(program.DataOffset) || len(offset.OpcodeBytes) == 0 {
+		if !offset.IsType(program.DataOffset) || len(offset.Data) == 0 {
 			break
 		}
 		// stop at first label or code after start index
@@ -288,7 +288,7 @@ func getPrgData(bank *program.PRGBank, startIndex, endIndex int) []byte {
 			break
 		}
 
-		data = append(data, offset.OpcodeBytes...)
+		data = append(data, offset.Data...)
 	}
 
 	return data

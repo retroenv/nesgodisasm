@@ -7,9 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
+	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/nes/parameter"
 	"github.com/retroenv/retrogolib/assert"
 	"github.com/retroenv/retrogolib/log"
 )
@@ -303,7 +306,7 @@ func TestDisasmIndirectJmp(t *testing.T) {
 	runDisasm(t, setup, input, expected)
 }
 
-func testProgram(t *testing.T, options *options.Disassembler, cart *cartridge.Cartridge, code []byte) *Disasm {
+func testProgram(t *testing.T, options options.Disassembler, cart *cartridge.Cartridge, code []byte) *Disasm {
 	t.Helper()
 
 	if len(cart.PRG) == 0x8000 {
@@ -313,8 +316,9 @@ func testProgram(t *testing.T, options *options.Disassembler, cart *cartridge.Ca
 
 	copy(cart.PRG, code)
 
+	ar := m6502.New(parameter.New(ca65.ParamConfig))
 	logger := log.NewTestLogger(t)
-	disasm, err := New(logger, cart, options)
+	disasm, err := New(ar, logger, cart, options, ca65.New)
 	assert.NoError(t, err)
 
 	return disasm
@@ -344,7 +348,7 @@ func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *car
 		opts.HexComments = false
 	}
 
-	disasm := testProgram(t, &opts, cart, input)
+	disasm := testProgram(t, opts, cart, input)
 
 	var buffer bytes.Buffer
 	writer := bufio.NewWriter(&buffer)

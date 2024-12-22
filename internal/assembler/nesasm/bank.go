@@ -79,21 +79,21 @@ func setPrgBankSelector(prg []program.Offset, index int, bankAddress, bankNumber
 	offsetInfo := &prg[index]
 
 	// handle bank switches in the middle of an instruction by converting it to data bytes
-	if offsetInfo.IsType(program.CodeOffset) && len(offsetInfo.OpcodeBytes) == 0 {
+	if offsetInfo.IsType(program.CodeOffset) && len(offsetInfo.Data) == 0 {
 		// look backwards for instruction start
 		instructionStartIndex := index - 1
-		for offsetInfo = &prg[instructionStartIndex]; len(offsetInfo.OpcodeBytes) == 0; {
+		for offsetInfo = &prg[instructionStartIndex]; len(offsetInfo.Data) == 0; {
 			instructionStartIndex--
 			offsetInfo = &prg[instructionStartIndex]
 		}
 
 		offsetInfo.Comment = fmt.Sprintf("bank switch in instruction detected: %s %s",
 			offsetInfo.Comment, offsetInfo.Code)
-		data := offsetInfo.OpcodeBytes
+		data := offsetInfo.Data
 
 		for i := range data {
 			offsetInfo = &prg[instructionStartIndex+i]
-			offsetInfo.OpcodeBytes = data[i : i+1]
+			offsetInfo.Data = data[i : i+1]
 			offsetInfo.ClearType(program.CodeOffset)
 			offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 		}

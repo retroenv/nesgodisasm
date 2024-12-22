@@ -13,7 +13,7 @@ type WriteCallbackFunc func(writer io.Writer) error
 // Offset defines the content of an offset in a program that can represent data or code.
 type Offset struct {
 	// data byte or all opcode bytes that are part of the instruction
-	OpcodeBytes []byte
+	Data []byte
 	// WriteCallback is a custom callback function that gets called before the offset is
 	// written, this allows custom bank switch code to be written at specific offsets.
 	// The output of bundled data bytes will be interrupted.

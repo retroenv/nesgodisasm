@@ -11,12 +11,16 @@ import (
 	"strings"
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
+	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
+	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/verification"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/nes/parameter"
 	"github.com/retroenv/retrogolib/buildinfo"
 	"github.com/retroenv/retrogolib/log"
 )
@@ -33,7 +37,7 @@ func main() {
 		printBanner(logger, opts)
 	}
 
-	files, err := getFiles(opts)
+	files, err := getFiles(&opts)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
@@ -51,23 +55,10 @@ func main() {
 	}
 }
 
-func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
+func initializeApp() (*log.Logger, options.Program, options.Disassembler) {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	opts := &options.Program{}
-	var zeroBytes bool
-
-	flags.StringVar(&opts.Assembler, "a", "ca65", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
-	flags.BoolVar(&opts.Binary, "binary", false, "read input file as raw binary file without any header")
-	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
-	flags.StringVar(&opts.Config, "c", "", "Config file name to write output to for ca65 assembler")
-	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
-	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
-	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
-	flags.BoolVar(&opts.NoOffsets, "nooffsets", false, "do not output offsets in comments")
-	flags.StringVar(&opts.Output, "o", "", "name of the output .asm file, printed on console if no name given")
-	flags.BoolVar(&opts.Quiet, "q", false, "perform operations quietly")
-	flags.BoolVar(&opts.AssembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
-	flags.BoolVar(&zeroBytes, "z", false, "output the trailing zero bytes of banks")
+	var opts options.Program
+	readOptionFlags(flags, &opts)
 
 	logger := createLogger(opts.Debug, opts.Quiet)
 	err := flags.Parse(os.Args[1:])
@@ -94,15 +85,38 @@ func initializeApp() (*log.Logger, *options.Program, *options.Disassembler) {
 	if opts.Assembler == "asm6f" {
 		opts.Assembler = "asm6"
 	}
+	var noUnofficialInstructions bool
+	if opts.Assembler == assembler.Nesasm {
+		noUnofficialInstructions = true
+	}
 
 	if opts.Batch == "" {
 		opts.Input = args[0]
 	}
 
 	disasmOptions := options.NewDisassembler(opts.Assembler)
-	disasmOptions.ZeroBytes = zeroBytes
+	disasmOptions.NoUnofficialInstructions = noUnofficialInstructions
+	readDisasmOptionFlags(flags, &disasmOptions)
 
-	return logger, opts, &disasmOptions
+	return logger, opts, disasmOptions
+}
+
+func readOptionFlags(flags *flag.FlagSet, opts *options.Program) {
+	flags.StringVar(&opts.Assembler, "a", "ca65", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
+	flags.BoolVar(&opts.Binary, "binary", false, "read input file as raw binary file without any header")
+	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
+	flags.StringVar(&opts.Config, "c", "", "Config file name to write output to for ca65 assembler")
+	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
+	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
+	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
+	flags.BoolVar(&opts.NoOffsets, "nooffsets", false, "do not output offsets in comments")
+	flags.StringVar(&opts.Output, "o", "", "name of the output .asm file, printed on console if no name given")
+	flags.BoolVar(&opts.Quiet, "q", false, "perform operations quietly")
+	flags.BoolVar(&opts.AssembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
+}
+
+func readDisasmOptionFlags(flags *flag.FlagSet, opts *options.Disassembler) {
+	flags.BoolVar(&opts.ZeroBytes, "z", false, "output the trailing zero bytes of banks")
 }
 
 func createLogger(debug, quiet bool) *log.Logger {
@@ -116,7 +130,7 @@ func createLogger(debug, quiet bool) *log.Logger {
 	return log.NewWithConfig(cfg)
 }
 
-func printBanner(logger *log.Logger, options *options.Program) {
+func printBanner(logger *log.Logger, options options.Program) {
 	if !options.Quiet {
 		fmt.Println("[------------------------------------]")
 		fmt.Println("[ nesgodisasm - NES ROM disassembler ]")
@@ -145,7 +159,7 @@ func getFiles(options *options.Program) ([]string, error) {
 	return files, nil
 }
 
-func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *options.Disassembler) error {
+func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler) error {
 	file, err := os.Open(opts.Input)
 	if err != nil {
 		return fmt.Errorf("opening file '%s': %w", opts.Input, err)
@@ -182,7 +196,13 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 	disasmOptions.HexComments = !opts.NoHexComments
 	disasmOptions.OffsetComments = !opts.NoOffsets
 
-	dis, err := disasm.New(logger, cart, disasmOptions)
+	fileWriterConstructor, paramConverter, err := initializeAssemblerCompatibleMode(opts.Assembler)
+	if err != nil {
+		return fmt.Errorf("initializing assembler compatible mode: %w", err)
+	}
+
+	ar := m6502.New(paramConverter)
+	dis, err := disasm.New(ar, logger, cart, disasmOptions, fileWriterConstructor)
 	if err != nil {
 		return fmt.Errorf("initializing disassembler: %w", err)
 	}
@@ -194,7 +214,7 @@ func disasmFile(logger *log.Logger, opts *options.Program, disasmOptions *option
 	return processFile(logger, opts, dis)
 }
 
-func processFile(logger *log.Logger, opts *options.Program, dis *disasm.Disasm) error {
+func processFile(logger *log.Logger, opts options.Program, dis *disasm.Disasm) error {
 	var (
 		err           error
 		outputFile    io.WriteCloser
@@ -242,7 +262,7 @@ func processFile(logger *log.Logger, opts *options.Program, dis *disasm.Disasm) 
 	return nil
 }
 
-func processCa65Config(opts *options.Program, cart *cartridge.Cartridge,
+func processCa65Config(opts options.Program, cart *cartridge.Cartridge,
 	app *program.Program) (string, error) {
 
 	if opts.Assembler != assembler.Ca65 || (!opts.Debug && opts.Config == "") {
@@ -268,7 +288,7 @@ func processCa65Config(opts *options.Program, cart *cartridge.Cartridge,
 	return cfg, nil
 }
 
-func openCodeDataLog(options *options.Program, disasmOptions *options.Disassembler) error {
+func openCodeDataLog(options options.Program, disasmOptions options.Disassembler) error {
 	if options.CodeDataLog == "" {
 		return nil
 	}
@@ -297,4 +317,30 @@ func newBankWriterFile(outputFile string) assembler.NewBankWriter {
 
 func newBankWriterStdOut(_ string) (io.WriteCloser, error) {
 	return os.Stdout, nil
+}
+
+// initializeAssemblerCompatibleMode sets the chosen assembler specific instances
+// to be used to output compatible code.
+func initializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterConstructor, parameter.Converter, error) {
+	var fileWriterConstructor disasm.FileWriterConstructor
+	var paramCfg parameter.Config
+
+	switch strings.ToLower(assemblerName) {
+	case assembler.Asm6:
+		fileWriterConstructor = asm6.New
+		paramCfg = asm6.ParamConfig
+
+	case assembler.Ca65:
+		fileWriterConstructor = ca65.New
+		paramCfg = ca65.ParamConfig
+
+	case assembler.Nesasm:
+		fileWriterConstructor = nesasm.New
+		paramCfg = nesasm.ParamConfig
+
+	default:
+		return nil, parameter.Converter{}, fmt.Errorf("unsupported assembler '%s'", assemblerName)
+	}
+
+	return fileWriterConstructor, parameter.New(paramCfg), nil
 }

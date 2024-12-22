@@ -3,11 +3,10 @@ package disasm
 import (
 	"fmt"
 
-	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/nes"
 )
 
-func (dis *Disasm) readMemory(address uint16) (byte, error) {
+func (dis *Disasm) ReadMemory(address uint16) (byte, error) {
 	var value byte
 
 	switch {
@@ -23,14 +22,14 @@ func (dis *Disasm) readMemory(address uint16) (byte, error) {
 	return value, nil
 }
 
-func (dis *Disasm) readMemoryWord(address uint16) (uint16, error) {
-	b, err := dis.readMemory(address)
+func (dis *Disasm) ReadMemoryWord(address uint16) (uint16, error) {
+	b, err := dis.ReadMemory(address)
 	if err != nil {
 		return 0, err
 	}
 	low := uint16(b)
 
-	b, err = dis.readMemory(address + 1)
+	b, err = dis.ReadMemory(address + 1)
 	if err != nil {
 		return 0, err
 	}
@@ -38,14 +37,4 @@ func (dis *Disasm) readMemoryWord(address uint16) (uint16, error) {
 	high := uint16(b)
 	w := (high << 8) | low
 	return w, nil
-}
-
-// readOpParam reads the opcode parameters after the first opcode byte
-// and translates it into emulator specific types.
-func (dis *Disasm) readOpParam(addressing m6502.AddressingMode, address uint16) (any, []byte, error) {
-	fun, ok := paramReader[addressing]
-	if !ok {
-		return nil, nil, fmt.Errorf("unsupported addressing mode %00x", addressing)
-	}
-	return fun(dis, address)
 }

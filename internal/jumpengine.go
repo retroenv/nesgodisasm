@@ -1,18 +1,14 @@
 package disasm
 
 import (
-	"encoding/binary"
 	"fmt"
 
+	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
-	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/log"
 )
 
-const (
-	jumpEngineLastInstructionsCheck = 16
-	jumpEngineMaxContextSize        = 0x25
-)
+const jumpEngineLastInstructionsCheck = 16
 
 // jumpEngineCaller stores info about a caller of a jump engine, which is followed by a list of function addresses
 type jumpEngineCaller struct {
@@ -21,45 +17,15 @@ type jumpEngineCaller struct {
 	tableStartAddress uint16
 }
 
-// checkForJumpEngineJmp checks if the current instruction is the jump instruction inside a jump engine function.
-// The function offsets after the call to the jump engine will be used as destinations to disassemble as code.
-// This can be found in some official games like Super Mario Bros.
-func (dis *Disasm) checkForJumpEngineJmp(jumpAddress uint16, offsetInfo *offset) error {
-	instruction := offsetInfo.opcode.Instruction
-	if instruction.Name != m6502.Jmp.Name || offsetInfo.opcode.Addressing != m6502.IndirectAddressing {
-		return nil
-	}
-
-	contextOffsets, contextAddresses := dis.jumpContextInfo(jumpAddress, offsetInfo)
-	contextSize := jumpAddress - offsetInfo.context + 3
-	dataReferences, err := dis.getContextDataReferences(contextOffsets, contextAddresses)
-	if err != nil {
-		return err
-	}
-
-	if len(dataReferences) > 1 {
-		dis.getFunctionTableReference(offsetInfo.context, dataReferences)
-	}
-
-	dis.logger.Debug("Jump engine detected",
-		log.String("address", fmt.Sprintf("0x%04X", jumpAddress)),
-		log.Uint16("code_size", contextSize),
-	)
-
-	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
-	// in the function, this makes it likely a jump engine
-	dis.jumpEngines[offsetInfo.context] = struct{}{}
-
-	if contextSize < jumpEngineMaxContextSize {
-		return dis.handleJumpEngineCallers(offsetInfo.context)
-	}
-	offsetInfo.Comment = "jump engine detected"
-	return nil
+// AddJumpEngine adds a jump engine function address to the list of jump engines.
+func (dis *Disasm) AddJumpEngine(address uint16) {
+	dis.jumpEngines[address] = struct{}{}
 }
 
+// GetFunctionTableReference detects a jump engine function context and its function table.
 // TODO use jump address as key to be able to handle large function
 // contexts containing multiple jump engines
-func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []uint16) {
+func (dis *Disasm) GetFunctionTableReference(context uint16, dataReferences []uint16) {
 	// if there are multiple data references just look at the last 2
 	if len(dataReferences) > 2 {
 		dataReferences = dataReferences[len(dataReferences)-2:]
@@ -88,46 +54,46 @@ func (dis *Disasm) getFunctionTableReference(context uint16, dataReferences []ui
 	dis.jumpEngineCallersAdded[context].tableStartAddress = smallestReference
 }
 
-// getContextDataReferences parse all instructions of the function context until the jump
+// GetContextDataReferences parse all instructions of the function context until the jump
 // and returns data references that could point to the function table.
-func (dis *Disasm) getContextDataReferences(offsets []*offset, addresses []uint16) ([]uint16, error) {
+func (dis *Disasm) GetContextDataReferences(offsets []arch.Offset, addresses []uint16) ([]uint16, error) {
 	var dataReferences []uint16
 
 	for i, offsetInfoInstruction := range offsets {
 		address := addresses[i]
-		opcode := offsetInfoInstruction.opcode
+		opcode := offsetInfoInstruction.Opcode()
 
 		// look for an instructions that loads data from an address in the code or data
 		// address range. this should be the table containing the function addresses.
-		if opcode.Instruction == nil || !opcode.ReadsMemory(m6502.MemoryReadInstructions) {
+		if opcode.Instruction().IsNil() || !opcode.ReadsMemory() {
 			continue
 		}
 
-		param, _, err := dis.readOpParam(opcode.Addressing, address)
+		param, _, err := dis.arch.ReadOpParam(dis, opcode.Addressing(), address)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("reading opcode parameters: %w", err)
 		}
 
-		reference, ok := getAddressingParam(param)
-		if ok && reference >= dis.codeBaseAddress && reference < m6502.InterruptVectorStartAddress {
+		reference, ok := dis.arch.GetAddressingParam(param)
+		if ok && reference >= dis.codeBaseAddress && reference < dis.arch.LastCodeAddress() {
 			dataReferences = append(dataReferences, reference)
 		}
 	}
 	return dataReferences, nil
 }
 
-// jumpContextInfo builds the list of instructions of the current function context.
+// JumpContextInfo builds the list of instructions of the current function context.
 // in some ROMs the jump engine can be part of a label inside a larger function,
 // the jump engine detection will use the last instructions before the jmp.
-func (dis *Disasm) jumpContextInfo(jumpAddress uint16, offsetInfo *offset) ([]*offset, []uint16) {
-	var offsets []*offset
+func (dis *Disasm) JumpContextInfo(jumpAddress uint16, offsetInfo arch.Offset) ([]arch.Offset, []uint16) {
+	var offsets []arch.Offset
 	var addresses []uint16
 
-	for address := offsetInfo.context; address != 0 && address < jumpAddress; {
+	for address := offsetInfo.Context(); address != 0 && address < jumpAddress; {
 		offsetInfoInstruction := dis.mapper.offsetInfo(address)
 
 		// skip offsets that have not been processed yet
-		if len(offsetInfoInstruction.OpcodeBytes) == 0 {
+		if len(offsetInfoInstruction.Data()) == 0 {
 			address++
 			continue
 		}
@@ -135,7 +101,7 @@ func (dis *Disasm) jumpContextInfo(jumpAddress uint16, offsetInfo *offset) ([]*o
 		offsets = append(offsets, offsetInfoInstruction)
 		addresses = append(addresses, address)
 
-		address += uint16(len(offsetInfoInstruction.OpcodeBytes))
+		address += uint16(len(offsetInfoInstruction.Data()))
 	}
 
 	if len(offsets) > jumpEngineLastInstructionsCheck {
@@ -146,29 +112,18 @@ func (dis *Disasm) jumpContextInfo(jumpAddress uint16, offsetInfo *offset) ([]*o
 	return offsets, addresses
 }
 
-// checkForJumpEngineCall checks if the current instruction is a call into a jump engine function.
-func (dis *Disasm) checkForJumpEngineCall(address uint16, offsetInfo *offset) error {
-	instruction := offsetInfo.opcode.Instruction
-	if instruction.Name != m6502.Jsr.Name || offsetInfo.opcode.Addressing != m6502.AbsoluteAddressing {
-		return nil
-	}
-
-	_, opcodes, err := dis.readOpParam(offsetInfo.opcode.Addressing, dis.pc)
-	if err != nil {
-		return err
-	}
-
-	destination := binary.LittleEndian.Uint16(opcodes)
+// HandleJumpEngineDestination processes a newly detected jump engine destination.
+func (dis *Disasm) HandleJumpEngineDestination(caller, destination uint16) error {
 	for addr := range dis.jumpEngines {
 		if addr == destination {
-			return dis.handleJumpEngineCaller(address)
+			return dis.HandleJumpEngineCallers(caller)
 		}
 	}
 	return nil
 }
 
-// handleJumpEngineCallers processes all callers of a newly detected jump engine function.
-func (dis *Disasm) handleJumpEngineCallers(context uint16) error {
+// HandleJumpEngineCallers processes all callers of a newly detected jump engine function.
+func (dis *Disasm) HandleJumpEngineCallers(context uint16) error {
 	offsetInfo := dis.mapper.offsetInfo(context)
 	offsetInfo.LabelComment = "jump engine detected"
 	offsetInfo.SetType(program.JumpEngine)
@@ -193,7 +148,7 @@ func (dis *Disasm) handleJumpEngineCaller(caller uint16) error {
 
 	// get the address of the function pointers after the jump engine call
 	offsetInfo := dis.mapper.offsetInfo(caller)
-	address := caller + uint16(len(offsetInfo.OpcodeBytes))
+	address := caller + uint16(len(offsetInfo.Data()))
 
 	// remove from code that should be parsed
 	delete(dis.functionReturnsToParseAdded, address)
@@ -211,11 +166,11 @@ func (dis *Disasm) processJumpEngineEntry(address uint16, jumpEngine *jumpEngine
 	}
 
 	// verify that the destination is in valid code address range
-	destination, err := dis.readMemoryWord(address)
+	destination, err := dis.ReadMemoryWord(address)
 	if err != nil {
 		return false, err
 	}
-	if destination < dis.codeBaseAddress || destination >= m6502.InterruptVectorStartAddress {
+	if destination < dis.codeBaseAddress || destination >= dis.arch.LastCodeAddress() {
 		jumpEngine.terminated = true
 		return false, nil
 	}
@@ -236,21 +191,21 @@ func (dis *Disasm) processJumpEngineEntry(address uint16, jumpEngine *jumpEngine
 	offsetInfo1.Offset.SetType(program.FunctionReference)
 	offsetInfo2.Offset.SetType(program.FunctionReference)
 
-	b1, err := dis.readMemory(address)
+	b1, err := dis.ReadMemory(address)
 	if err != nil {
 		return false, err
 	}
-	b2, err := dis.readMemory(address + 1)
+	b2, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return false, err
 	}
 
-	offsetInfo1.OpcodeBytes = []byte{b1, b2}
-	offsetInfo2.OpcodeBytes = nil
+	offsetInfo1.SetData([]byte{b1, b2})
+	offsetInfo2.SetData(nil)
 
 	jumpEngine.entries++
 
-	dis.addAddressToParse(destination, destination, address, nil, true)
+	dis.AddAddressToParse(destination, destination, address, nil, true)
 	return true, nil
 }
 
