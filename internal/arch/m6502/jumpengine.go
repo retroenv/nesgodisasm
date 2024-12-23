@@ -23,15 +23,16 @@ func (ar *Arch6502) checkForJumpEngineJmp(dis arch.Disasm, jumpAddress uint16, o
 		return nil
 	}
 
-	contextOffsets, contextAddresses := dis.JumpContextInfo(jumpAddress, offsetInfo)
+	jumpEngine := dis.JumpEngine()
+	contextOffsets, contextAddresses := jumpEngine.JumpContextInfo(dis, jumpAddress, offsetInfo)
 	contextSize := jumpAddress - offsetInfo.Context() + 3
-	dataReferences, err := dis.GetContextDataReferences(contextOffsets, contextAddresses)
+	dataReferences, err := jumpEngine.GetContextDataReferences(dis, contextOffsets, contextAddresses)
 	if err != nil {
 		return fmt.Errorf("getting context data references: %w", err)
 	}
 
 	if len(dataReferences) > 1 {
-		dis.GetFunctionTableReference(offsetInfo.Context(), dataReferences)
+		jumpEngine.GetFunctionTableReference(offsetInfo.Context(), dataReferences)
 	}
 
 	dis.Logger().Debug("Jump engine detected",
@@ -41,10 +42,10 @@ func (ar *Arch6502) checkForJumpEngineJmp(dis arch.Disasm, jumpAddress uint16, o
 
 	// if code reaches this point, no branching instructions beside the final indirect jmp have been found
 	// in the function, this makes it likely a jump engine
-	dis.AddJumpEngine(offsetInfo.Context())
+	jumpEngine.AddJumpEngine(offsetInfo.Context())
 
 	if contextSize < jumpEngineMaxContextSize {
-		if err := dis.HandleJumpEngineCallers(offsetInfo.Context()); err != nil {
+		if err := jumpEngine.HandleJumpEngineCallers(dis, offsetInfo.Context()); err != nil {
 			return fmt.Errorf("handling jump engine callers: %w", err)
 		}
 		return nil
@@ -67,8 +68,9 @@ func (ar *Arch6502) checkForJumpEngineCall(dis arch.Disasm, address uint16, offs
 		return err
 	}
 
+	jumpEngine := dis.JumpEngine()
 	destination := binary.LittleEndian.Uint16(opcodes)
-	if err := dis.HandleJumpEngineDestination(address, destination); err != nil {
+	if err := jumpEngine.HandleJumpEngineDestination(dis, address, destination); err != nil {
 		return fmt.Errorf("handling jump engine destination: %w", err)
 	}
 	return nil

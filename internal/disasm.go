@@ -10,6 +10,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/consts"
+	"github.com/retroenv/nesgodisasm/internal/jumpengine"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/writer"
@@ -38,14 +39,13 @@ type Disasm struct {
 	codeBaseAddress     uint16 // codebase address of the cartridge, it is not always 0x8000
 	vectorsStartAddress uint16
 
+	jumpEngine *jumpengine.JumpEngine
+
 	constants     *consts.Consts
 	variables     map[uint16]*variable
 	usedVariables map[uint16]struct{}
 
-	jumpEngines            map[uint16]struct{} // set of all jump engine functions addresses
-	jumpEngineCallers      []*jumpEngineCaller // jump engine caller tables to process
-	jumpEngineCallersAdded map[uint16]*jumpEngineCaller
-	branchDestinations     map[uint16]struct{} // set of all addresses that are branched to
+	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
 
 	// TODO handle bank switch
 	offsetsToParse      []uint16
@@ -71,12 +71,11 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 		fileWriterConstructor:       fileWriterConstructor,
 		variables:                   map[uint16]*variable{},
 		usedVariables:               map[uint16]struct{}{},
-		jumpEngineCallersAdded:      map[uint16]*jumpEngineCaller{},
-		jumpEngines:                 map[uint16]struct{}{},
 		branchDestinations:          map[uint16]struct{}{},
 		offsetsToParseAdded:         map[uint16]struct{}{},
 		offsetsParsed:               map[uint16]struct{}{},
 		functionReturnsToParseAdded: map[uint16]struct{}{},
+		jumpEngine:                  jumpengine.New(ar),
 	}
 
 	var err error
@@ -148,6 +147,10 @@ func (dis *Disasm) SetHandlers(handlers program.Handlers) {
 	dis.handlers = handlers
 }
 
+func (dis *Disasm) CodeBaseAddress() uint16 {
+	return dis.codeBaseAddress
+}
+
 func (dis *Disasm) SetCodeBaseAddress(address uint16) {
 	dis.codeBaseAddress = address
 
@@ -166,6 +169,11 @@ func (dis *Disasm) Options() options.Disassembler {
 // Constants returns the constants manager.
 func (dis *Disasm) Constants() arch.ConstantManager {
 	return dis.constants
+}
+
+// JumpEngine returns the jump engine.
+func (dis *Disasm) JumpEngine() arch.JumpEngine {
+	return dis.jumpEngine
 }
 
 // converts the internal disassembly representation to a program type that will be used by

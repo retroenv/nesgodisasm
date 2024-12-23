@@ -90,9 +90,9 @@ func (dis *Disasm) addressToDisassemble() (uint16, error) {
 			return address, nil
 		}
 
-		isEntry, err := dis.scanForNewJumpEngineEntry()
+		isEntry, err := dis.jumpEngine.ScanForNewJumpEngineEntry(dis)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("scanning for new jump engine entry: %w", err)
 		}
 		if !isEntry {
 			return 0, nil
@@ -146,4 +146,9 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 	} else {
 		dis.offsetsToParse = append(dis.offsetsToParse, address)
 	}
+}
+
+// DeleteFunctionReturnToParse deletes a function return address from the list of addresses to parse.
+func (dis *Disasm) DeleteFunctionReturnToParse(address uint16) {
+	delete(dis.functionReturnsToParseAdded, address)
 }

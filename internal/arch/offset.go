@@ -4,6 +4,8 @@ import "github.com/retroenv/nesgodisasm/internal/program"
 
 // Offset represents an offset in the disassembled code.
 type Offset interface {
+	// BranchFrom returns the list of addresses that branch to this offset.
+	BranchFrom() []uint16
 	// ClearType clears the offset type.
 	ClearType(offsetType program.OffsetType)
 	// Code returns the code string of the offset.
@@ -32,8 +34,12 @@ type Offset interface {
 	SetData([]byte)
 	// SetLabel sets the label of the offset.
 	SetLabel(string)
+	// SetLabelComment sets the label comment of the offset.
+	SetLabelComment(string)
 	// SetOpcode sets the opcode of the offset.
 	SetOpcode(Opcode)
 	// SetType sets the offset type.
 	SetType(offsetType program.OffsetType)
+	// Type returns the offset type.
+	Type() program.OffsetType
 }

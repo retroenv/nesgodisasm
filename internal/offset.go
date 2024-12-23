@@ -69,3 +69,19 @@ func (o *offset) Context() uint16 {
 func (o *offset) IsNil() bool {
 	return o == nil
 }
+
+func (o *offset) Type() program.OffsetType {
+	return o.Offset.Type
+}
+
+func (o *offset) SetLabelComment(s string) {
+	o.Offset.LabelComment = s
+}
+
+func (o *offset) BranchFrom() []uint16 {
+	branches := make([]uint16, 0, len(o.branchFrom))
+	for _, ref := range o.branchFrom {
+		branches = append(branches, ref.address)
+	}
+	return branches
+}

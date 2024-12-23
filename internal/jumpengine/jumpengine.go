@@ -1,4 +1,5 @@
-package disasm
+// Package jumpengine provides jump engine detection and processing.
+package jumpengine
 
 import (
 	"fmt"
@@ -7,6 +8,8 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/log"
 )
+
+var _ arch.JumpEngine = &JumpEngine{}
 
 const jumpEngineLastInstructionsCheck = 16
 
@@ -17,15 +20,32 @@ type jumpEngineCaller struct {
 	tableStartAddress uint16
 }
 
+type JumpEngine struct {
+	arch arch.Architecture
+
+	jumpEngines            map[uint16]struct{} // set of all jump engine functions addresses
+	jumpEngineCallers      []*jumpEngineCaller // jump engine caller tables to process
+	jumpEngineCallersAdded map[uint16]*jumpEngineCaller
+}
+
+func New(ar arch.Architecture) *JumpEngine {
+	return &JumpEngine{
+		arch:                   ar,
+		jumpEngines:            map[uint16]struct{}{},
+		jumpEngineCallers:      []*jumpEngineCaller{},
+		jumpEngineCallersAdded: map[uint16]*jumpEngineCaller{},
+	}
+}
+
 // AddJumpEngine adds a jump engine function address to the list of jump engines.
-func (dis *Disasm) AddJumpEngine(address uint16) {
-	dis.jumpEngines[address] = struct{}{}
+func (j *JumpEngine) AddJumpEngine(address uint16) {
+	j.jumpEngines[address] = struct{}{}
 }
 
 // GetFunctionTableReference detects a jump engine function context and its function table.
 // TODO use jump address as key to be able to handle large function
 // contexts containing multiple jump engines
-func (dis *Disasm) GetFunctionTableReference(context uint16, dataReferences []uint16) {
+func (j *JumpEngine) GetFunctionTableReference(context uint16, dataReferences []uint16) {
 	// if there are multiple data references just look at the last 2
 	if len(dataReferences) > 2 {
 		dataReferences = dataReferences[len(dataReferences)-2:]
@@ -48,15 +68,18 @@ func (dis *Disasm) GetFunctionTableReference(context uint16, dataReferences []ui
 	}
 
 	jumpEngine := &jumpEngineCaller{}
-	dis.jumpEngineCallersAdded[context] = jumpEngine
-	dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
+	j.jumpEngineCallersAdded[context] = jumpEngine
+	j.jumpEngineCallers = append(j.jumpEngineCallers, jumpEngine)
 
-	dis.jumpEngineCallersAdded[context].tableStartAddress = smallestReference
+	j.jumpEngineCallersAdded[context].tableStartAddress = smallestReference
 }
 
 // GetContextDataReferences parse all instructions of the function context until the jump
 // and returns data references that could point to the function table.
-func (dis *Disasm) GetContextDataReferences(offsets []arch.Offset, addresses []uint16) ([]uint16, error) {
+func (j *JumpEngine) GetContextDataReferences(dis arch.Disasm, offsets []arch.Offset,
+	addresses []uint16) ([]uint16, error) {
+
+	codeBaseAddress := dis.CodeBaseAddress()
 	var dataReferences []uint16
 
 	for i, offsetInfoInstruction := range offsets {
@@ -69,13 +92,13 @@ func (dis *Disasm) GetContextDataReferences(offsets []arch.Offset, addresses []u
 			continue
 		}
 
-		param, _, err := dis.arch.ReadOpParam(dis, opcode.Addressing(), address)
+		param, _, err := j.arch.ReadOpParam(dis, opcode.Addressing(), address)
 		if err != nil {
 			return nil, fmt.Errorf("reading opcode parameters: %w", err)
 		}
 
-		reference, ok := dis.arch.GetAddressingParam(param)
-		if ok && reference >= dis.codeBaseAddress && reference < dis.arch.LastCodeAddress() {
+		reference, ok := j.arch.GetAddressingParam(param)
+		if ok && reference >= codeBaseAddress && reference < j.arch.LastCodeAddress() {
 			dataReferences = append(dataReferences, reference)
 		}
 	}
@@ -85,12 +108,12 @@ func (dis *Disasm) GetContextDataReferences(offsets []arch.Offset, addresses []u
 // JumpContextInfo builds the list of instructions of the current function context.
 // in some ROMs the jump engine can be part of a label inside a larger function,
 // the jump engine detection will use the last instructions before the jmp.
-func (dis *Disasm) JumpContextInfo(jumpAddress uint16, offsetInfo arch.Offset) ([]arch.Offset, []uint16) {
+func (j *JumpEngine) JumpContextInfo(dis arch.Disasm, jumpAddress uint16, offsetInfo arch.Offset) ([]arch.Offset, []uint16) {
 	var offsets []arch.Offset
 	var addresses []uint16
 
 	for address := offsetInfo.Context(); address != 0 && address < jumpAddress; {
-		offsetInfoInstruction := dis.mapper.offsetInfo(address)
+		offsetInfoInstruction := dis.OffsetInfo(address)
 
 		// skip offsets that have not been processed yet
 		if len(offsetInfoInstruction.Data()) == 0 {
@@ -113,23 +136,24 @@ func (dis *Disasm) JumpContextInfo(jumpAddress uint16, offsetInfo arch.Offset) (
 }
 
 // HandleJumpEngineDestination processes a newly detected jump engine destination.
-func (dis *Disasm) HandleJumpEngineDestination(caller, destination uint16) error {
-	for addr := range dis.jumpEngines {
+func (j *JumpEngine) HandleJumpEngineDestination(dis arch.Disasm, caller, destination uint16) error {
+	for addr := range j.jumpEngines {
 		if addr == destination {
-			return dis.HandleJumpEngineCallers(caller)
+			return j.HandleJumpEngineCallers(dis, caller)
 		}
 	}
 	return nil
 }
 
 // HandleJumpEngineCallers processes all callers of a newly detected jump engine function.
-func (dis *Disasm) HandleJumpEngineCallers(context uint16) error {
-	offsetInfo := dis.mapper.offsetInfo(context)
-	offsetInfo.LabelComment = "jump engine detected"
+func (j *JumpEngine) HandleJumpEngineCallers(dis arch.Disasm, context uint16) error {
+	offsetInfo := dis.OffsetInfo(context)
+	offsetInfo.SetLabelComment("jump engine detected")
 	offsetInfo.SetType(program.JumpEngine)
 
-	for _, bankRef := range offsetInfo.branchFrom {
-		if err := dis.handleJumpEngineCaller(bankRef.address); err != nil {
+	branchFrom := offsetInfo.BranchFrom()
+	for _, address := range branchFrom {
+		if err := j.handleJumpEngineCaller(dis, address); err != nil {
 			return err
 		}
 	}
@@ -138,29 +162,29 @@ func (dis *Disasm) HandleJumpEngineCallers(context uint16) error {
 
 // handleJumpEngineCaller processes a newly detected jump engine caller, the return address of the call is
 // marked as function reference instead of code. The first entry of the function table is processed.
-func (dis *Disasm) handleJumpEngineCaller(caller uint16) error {
-	jumpEngine, ok := dis.jumpEngineCallersAdded[caller]
+func (j *JumpEngine) handleJumpEngineCaller(dis arch.Disasm, caller uint16) error {
+	jumpEngine, ok := j.jumpEngineCallersAdded[caller]
 	if !ok {
 		jumpEngine = &jumpEngineCaller{}
-		dis.jumpEngineCallersAdded[caller] = jumpEngine
-		dis.jumpEngineCallers = append(dis.jumpEngineCallers, jumpEngine)
+		j.jumpEngineCallersAdded[caller] = jumpEngine
+		j.jumpEngineCallers = append(j.jumpEngineCallers, jumpEngine)
 	}
 
 	// get the address of the function pointers after the jump engine call
-	offsetInfo := dis.mapper.offsetInfo(caller)
+	offsetInfo := dis.OffsetInfo(caller)
 	address := caller + uint16(len(offsetInfo.Data()))
 
 	// remove from code that should be parsed
-	delete(dis.functionReturnsToParseAdded, address)
+	dis.DeleteFunctionReturnToParse(address)
 	jumpEngine.tableStartAddress = address
 
-	_, err := dis.processJumpEngineEntry(address, jumpEngine)
+	_, err := j.processJumpEngineEntry(dis, address, jumpEngine)
 	return err
 }
 
 // processJumpEngineEntry processes a potential function reference in a jump engine table.
 // It returns whether the entry was a valid function reference address and has been added for processing.
-func (dis *Disasm) processJumpEngineEntry(address uint16, jumpEngine *jumpEngineCaller) (bool, error) {
+func (j *JumpEngine) processJumpEngineEntry(dis arch.Disasm, address uint16, jumpEngine *jumpEngineCaller) (bool, error) {
 	if jumpEngine.terminated {
 		return false, nil
 	}
@@ -168,36 +192,37 @@ func (dis *Disasm) processJumpEngineEntry(address uint16, jumpEngine *jumpEngine
 	// verify that the destination is in valid code address range
 	destination, err := dis.ReadMemoryWord(address)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("reading memory word: %w", err)
 	}
-	if destination < dis.codeBaseAddress || destination >= dis.arch.LastCodeAddress() {
+	codeBaseAddress := dis.CodeBaseAddress()
+	if destination < codeBaseAddress || destination >= j.arch.LastCodeAddress() {
 		jumpEngine.terminated = true
 		return false, nil
 	}
 
-	offsetInfo1 := dis.mapper.offsetInfo(address)
-	offsetInfo2 := dis.mapper.offsetInfo(address + 1)
+	offsetInfo1 := dis.OffsetInfo(address)
+	offsetInfo2 := dis.OffsetInfo(address + 1)
 
 	// if the potential jump table entry is already marked as code, the table end is reached
-	if offsetInfo1.Offset.Type == program.CodeOffset || offsetInfo2.Offset.Type == program.CodeOffset {
+	if offsetInfo1.Type() == program.CodeOffset || offsetInfo2.Type() == program.CodeOffset {
 		jumpEngine.terminated = true
 		return false, nil
 	}
 
 	if jumpEngine.entries == 0 {
-		offsetInfo1.Offset.SetType(program.JumpTable)
+		offsetInfo1.SetType(program.JumpTable)
 	}
 
-	offsetInfo1.Offset.SetType(program.FunctionReference)
-	offsetInfo2.Offset.SetType(program.FunctionReference)
+	offsetInfo1.SetType(program.FunctionReference)
+	offsetInfo2.SetType(program.FunctionReference)
 
 	b1, err := dis.ReadMemory(address)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("reading memory: %w", err)
 	}
 	b2, err := dis.ReadMemory(address + 1)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("reading memory: %w", err)
 	}
 
 	offsetInfo1.SetData([]byte{b1, b2})
@@ -209,19 +234,21 @@ func (dis *Disasm) processJumpEngineEntry(address uint16, jumpEngine *jumpEngine
 	return true, nil
 }
 
-// scanForNewJumpEngineEntry scans all jump engine calls for an unprocessed entry in the function address table that
+// ScanForNewJumpEngineEntry scans all jump engine calls for an unprocessed entry in the function address table that
 // follows the call. It returns whether a new address to parse was added.
-func (dis *Disasm) scanForNewJumpEngineEntry() (bool, error) {
-	for len(dis.jumpEngineCallers) != 0 {
+func (j *JumpEngine) ScanForNewJumpEngineEntry(dis arch.Disasm) (bool, error) {
+	logger := dis.Logger()
+
+	for len(j.jumpEngineCallers) != 0 {
 		minEntries := -1
 
 		// find the jump engine table with the smallest number of processed entries,
 		// this conservative approach avoids interpreting code in the table area as function references
-		for i := 0; i < len(dis.jumpEngineCallers); i++ {
-			engineCaller := dis.jumpEngineCallers[i]
+		for i := 0; i < len(j.jumpEngineCallers); i++ {
+			engineCaller := j.jumpEngineCallers[i]
 			if engineCaller.terminated {
 				// jump engine table is processed, remove it from list to process
-				dis.jumpEngineCallers = append(dis.jumpEngineCallers[:i], dis.jumpEngineCallers[i+1:]...)
+				j.jumpEngineCallers = append(j.jumpEngineCallers[:i], j.jumpEngineCallers[i+1:]...)
 			}
 
 			if i := engineCaller.entries; !engineCaller.terminated && (i < minEntries || minEntries == -1) {
@@ -232,28 +259,28 @@ func (dis *Disasm) scanForNewJumpEngineEntry() (bool, error) {
 			return false, nil
 		}
 
-		for i := 0; i < len(dis.jumpEngineCallers); i++ {
-			engineCaller := dis.jumpEngineCallers[i]
+		for i := 0; i < len(j.jumpEngineCallers); i++ {
+			engineCaller := j.jumpEngineCallers[i]
 			if engineCaller.entries != minEntries {
 				continue
 			}
 
 			// calculate next address in table to process
 			address := engineCaller.tableStartAddress + uint16(2*engineCaller.entries)
-			isEntry, err := dis.processJumpEngineEntry(address, engineCaller)
+			isEntry, err := j.processJumpEngineEntry(dis, address, engineCaller)
 			if err != nil {
 				return false, err
 			}
 			if isEntry {
 				return true, nil
 			}
-			dis.logger.Debug("Jump engine table",
+			logger.Debug("Jump engine table",
 				log.String("address", fmt.Sprintf("0x%04X", engineCaller.tableStartAddress)),
 				log.Int("entries", engineCaller.entries),
 			)
 
 			// jump engine table is processed, remove it from list to process
-			dis.jumpEngineCallers = append(dis.jumpEngineCallers[:i], dis.jumpEngineCallers[i+1:]...)
+			j.jumpEngineCallers = append(j.jumpEngineCallers[:i], j.jumpEngineCallers[i+1:]...)
 			i--
 		}
 	}
