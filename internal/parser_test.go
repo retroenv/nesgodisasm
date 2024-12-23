@@ -3,6 +3,7 @@ package disasm
 import (
 	"testing"
 
+	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
@@ -21,32 +22,26 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 
 	tests := []struct {
 		Name     string
-		Input    func() []offset
+		Input    func(offsets []*arch.Offset)
 		Expected [][]byte
 	}{
 		{
-			Name: "no label",
-			Input: func() []offset {
-				return make([]offset, 3)
-			},
+			Name:     "no label",
+			Input:    func(offsets []*arch.Offset) {},
 			Expected: [][]byte{{12, 34, 56}},
 		},
 		{
 			Name: "1 label",
-			Input: func() []offset {
-				data := make([]offset, 3)
-				data[1].SetLabel("label1")
-				return data
+			Input: func(offsets []*arch.Offset) {
+				offsets[1].Label = "label1"
 			},
 			Expected: [][]byte{{12}, {34, 56}},
 		},
 		{
 			Name: "2 labels",
-			Input: func() []offset {
-				data := make([]offset, 3)
-				data[1].SetLabel("label1")
-				data[2].SetLabel("label2")
-				return data
+			Input: func(offsets []*arch.Offset) {
+				offsets[1].Label = "label1"
+				offsets[2].Label = "label2"
 			},
 			Expected: [][]byte{{12}, {34}, {56}},
 		},
@@ -65,13 +60,20 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 			ar := m6502.New(parameter.New(ca65.ParamConfig))
 			disasm, err := New(ar, logger, cart, opts, ca65.New)
 			assert.NoError(t, err)
-			input := test.Input()
-			mapped := disasm.mapper.getMappedBank(0x8000)
-			mapped.bank.offsets = input
+
+			offsets := make([]*arch.Offset, 3)
+			for i := range offsets {
+				offsets[i] = &arch.Offset{}
+			}
+			test.Input(offsets)
+
+			m := disasm.mapper.getMappedBank(0x8000)
+			mapped := m.(mappedBank)
+			mapped.bank.offsets = offsets
 			disasm.ChangeAddressRangeToCodeAsData(0x8000, data)
 
 			for i := range test.Expected {
-				assert.Equal(t, test.Expected[i], mapped.bank.offsets[i].Data())
+				assert.Equal(t, test.Expected[i], mapped.bank.offsets[i].Data)
 			}
 		})
 	}

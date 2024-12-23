@@ -30,7 +30,7 @@ type Disasm interface {
 	// Logger returns the logger.
 	Logger() *log.Logger
 	// OffsetInfo returns the offset information for the given address.
-	OffsetInfo(address uint16) Offset
+	OffsetInfo(address uint16) *Offset
 	// Options returns the disassembler options.
 	Options() options.Disassembler
 	// ProgramCounter returns the current program counter of the execution tracer.

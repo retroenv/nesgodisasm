@@ -2,6 +2,8 @@ package disasm
 
 import (
 	"fmt"
+
+	"github.com/retroenv/nesgodisasm/internal/arch"
 )
 
 type mappedBank struct {
@@ -67,7 +69,7 @@ func (m *mapper) setMappedBank(address uint16, bank mappedBank) {
 	m.mapped[bankWindow] = bank
 }
 
-func (m *mapper) getMappedBank(address uint16) mappedBank {
+func (m *mapper) getMappedBank(address uint16) arch.MappedBank {
 	bankWindow := address >> m.addressShifts
 	mapped := m.mapped[bankWindow]
 	return mapped
@@ -87,7 +89,7 @@ func (m *mapper) readMemory(address uint16) byte {
 	return b
 }
 
-func (m *mapper) offsetInfo(address uint16) *offset {
+func (m *mapper) offsetInfo(address uint16) *arch.Offset {
 	bankWindow := address >> m.addressShifts
 	bnk := m.mapped[bankWindow]
 	if bnk == m.emptyMappedBank {
@@ -96,14 +98,18 @@ func (m *mapper) offsetInfo(address uint16) *offset {
 
 	index := int(address) % bankWindowSize
 	pointer := bnk.dataStart + index
-	offsetInfo := &bnk.bank.offsets[pointer]
+	offsetInfo := bnk.bank.offsets[pointer]
 	return offsetInfo
 }
 
-func (m mappedBank) offsetInfo(index uint16) *offset {
+func (m mappedBank) OffsetInfo(index uint16) *arch.Offset {
 	offset := int(index) + m.dataStart
-	offsetInfo := &m.bank.offsets[offset]
+	offsetInfo := m.bank.offsets[offset]
 	return offsetInfo
+}
+
+func (m mappedBank) Bank() arch.Bank {
+	return m.bank
 }
 
 // log2 computes the binary logarithm of x, rounded up to the next integer.

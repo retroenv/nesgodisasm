@@ -15,7 +15,7 @@ var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ han
 
 // initializeOffsetInfo initializes the offset info and returns
 // whether the offset should process inspection for code parameters.
-func initializeOffsetInfo(dis arch.Disasm, offsetInfo arch.Offset) (bool, error) {
+func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error) {
 	if offsetInfo.IsType(program.CodeOffset) {
 		return false, nil // was set by CDL
 	}
@@ -25,9 +25,8 @@ func initializeOffsetInfo(dis arch.Disasm, offsetInfo arch.Offset) (bool, error)
 	if err != nil {
 		return false, fmt.Errorf("reading memory at address %04x: %w", pc, err)
 	}
-	opcodes := make([]byte, 1, m6502.MaxOpcodeSize)
-	opcodes[0] = b
-	offsetInfo.SetData(opcodes)
+	offsetInfo.Data = make([]byte, 1, m6502.MaxOpcodeSize)
+	offsetInfo.Data[0] = b
 
 	if offsetInfo.IsType(program.DataOffset) {
 		return false, nil // was set by CDL
@@ -43,22 +42,22 @@ func initializeOffsetInfo(dis arch.Disasm, offsetInfo arch.Offset) (bool, error)
 	op := &Opcode{
 		op: opcode,
 	}
-	offsetInfo.SetOpcode(op)
+	offsetInfo.Opcode = op
 	return true, nil
 }
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
-func (ar *Arch6502) processParamInstruction(dis arch.Disasm, address uint16, offsetInfo arch.Offset) (string, error) {
-	opcode := offsetInfo.Opcode()
+func (ar *Arch6502) processParamInstruction(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (string, error) {
+	opcode := offsetInfo.Opcode
 	pc := dis.ProgramCounter()
 	param, opcodes, err := ar.ReadOpParam(dis, opcode.Addressing(), pc)
 	if err != nil {
 		return "", fmt.Errorf("reading opcode parameters: %w", err)
 	}
-	offsetInfo.SetData(append(offsetInfo.Data(), opcodes...))
+	offsetInfo.Data = append(offsetInfo.Data, opcodes...)
 
-	if address+uint16(len(offsetInfo.Data())) > m6502.InterruptVectorStartAddress {
+	if address+uint16(len(offsetInfo.Data)) > m6502.InterruptVectorStartAddress {
 		return "", errInstructionOverlapsIRQHandlers
 	}
 
@@ -72,7 +71,7 @@ func (ar *Arch6502) processParamInstruction(dis arch.Disasm, address uint16, off
 	if _, ok := m6502.BranchingInstructions[opcode.Instruction().Name()]; ok {
 		addr, ok := param.(m6502.Absolute)
 		if ok {
-			dis.AddAddressToParse(uint16(addr), offsetInfo.Context(), pc, opcode.Instruction(), true)
+			dis.AddAddressToParse(uint16(addr), offsetInfo.Context, pc, opcode.Instruction(), true)
 		}
 	}
 
@@ -81,13 +80,13 @@ func (ar *Arch6502) processParamInstruction(dis arch.Disasm, address uint16, off
 
 // handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
 // The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
-func (ar *Arch6502) handleInstructionIRQOverlap(dis arch.Disasm, address uint16, offsetInfo arch.Offset) {
+func (ar *Arch6502) handleInstructionIRQOverlap(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) {
 	if address > m6502.InterruptVectorStartAddress {
 		return
 	}
 
 	keepLength := int(m6502.InterruptVectorStartAddress - address)
-	offsetInfo.SetData(offsetInfo.Data()[:keepLength])
+	offsetInfo.Data = offsetInfo.Data[:keepLength]
 
 	for i := range keepLength {
 		offsetInfo = dis.OffsetInfo(address + uint16(i))

@@ -139,7 +139,7 @@ func (dis *Disasm) Logger() *log.Logger {
 	return dis.logger
 }
 
-func (dis *Disasm) OffsetInfo(address uint16) arch.Offset {
+func (dis *Disasm) OffsetInfo(address uint16) *arch.Offset {
 	return dis.mapper.offsetInfo(address)
 }
 
@@ -249,12 +249,12 @@ func (dis *Disasm) loadCodeDataLog() error {
 	return nil
 }
 
-func (dis *Disasm) getProgramOffset(address uint16, offsetInfo offset) (program.Offset, error) {
+func (dis *Disasm) getProgramOffset(address uint16, offsetInfo *arch.Offset) (program.Offset, error) {
 	programOffset := offsetInfo.Offset
 	programOffset.Address = address
 
-	if offsetInfo.branchingTo != "" {
-		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code(), offsetInfo.branchingTo)
+	if offsetInfo.BranchingTo != "" {
+		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code, offsetInfo.BranchingTo)
 	}
 
 	if offsetInfo.IsType(program.CodeOffset | program.CodeAsData | program.FunctionReference) {
@@ -263,7 +263,7 @@ func (dis *Disasm) getProgramOffset(address uint16, offsetInfo offset) (program.
 		}
 
 		if offsetInfo.IsType(program.FunctionReference) {
-			programOffset.Code = ".word " + offsetInfo.branchingTo
+			programOffset.Code = ".word " + offsetInfo.BranchingTo
 		}
 
 		if err := dis.setComment(address, &programOffset); err != nil {

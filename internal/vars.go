@@ -23,8 +23,8 @@ type variable struct {
 
 	address      uint16
 	name         string
-	indexedUsage bool            // access with X/Y registers indicates table
-	usageAt      []bankReference // list of all indexes that use this offset
+	indexedUsage bool                 // access with X/Y registers indicates table
+	usageAt      []arch.BankReference // list of all indexes that use this offset
 }
 
 // AddVariableReference adds a variable reference if the opcode is accessing
@@ -53,10 +53,10 @@ func (dis *Disasm) AddVariableReference(addressReference, usageAddress uint16,
 		dis.variables[addressReference] = varInfo
 	}
 
-	bankRef := bankReference{
-		mapped:  dis.mapper.getMappedBank(usageAddress),
-		address: usageAddress,
-		index:   dis.mapper.getMappedBankIndex(usageAddress),
+	bankRef := arch.BankReference{
+		Mapped:  dis.mapper.getMappedBank(usageAddress),
+		Address: usageAddress,
+		Index:   dis.mapper.getMappedBankIndex(usageAddress),
 	}
 	varInfo.usageAt = append(varInfo.usageAt, bankRef)
 
@@ -90,7 +90,7 @@ func (dis *Disasm) processVariables() error {
 			}
 		}
 
-		var dataOffsetInfo *offset
+		var dataOffsetInfo *arch.Offset
 		var addressAdjustment uint16
 		if varInfo.address >= dis.codeBaseAddress {
 			// if the referenced address is inside the code, a label will be created for it
@@ -98,9 +98,10 @@ func (dis *Disasm) processVariables() error {
 		} else {
 			// if the address is outside of the code bank a variable will be created
 			dis.usedVariables[varInfo.address] = struct{}{}
+
 			for _, bankRef := range varInfo.usageAt {
-				bankRef.mapped.bank.variables[varInfo.address] = varInfo
-				bankRef.mapped.bank.usedVariables[varInfo.address] = struct{}{}
+				bank := bankRef.Mapped.Bank()
+				bank.AddVariableUsage(varInfo)
 			}
 		}
 
@@ -108,7 +109,7 @@ func (dis *Disasm) processVariables() error {
 		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
 
 		for _, bankRef := range varInfo.usageAt {
-			offsetInfo := bankRef.mapped.offsetInfo(bankRef.index)
+			offsetInfo := bankRef.Mapped.OffsetInfo(bankRef.Index)
 
 			if err := dis.arch.ProcessVarUsage(offsetInfo, reference); err != nil {
 				return fmt.Errorf("processing variable usage: %w", err)
@@ -121,12 +122,12 @@ func (dis *Disasm) processVariables() error {
 // getOpcodeStart returns a reference to the opcode start of the given address.
 // In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
 // converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.
-func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
+func (dis *Disasm) getOpcodeStart(address uint16) (*arch.Offset, uint16, uint16) {
 	var addressAdjustment uint16
 
 	for {
 		offsetInfo := dis.mapper.offsetInfo(address)
-		if len(offsetInfo.Data()) == 0 {
+		if len(offsetInfo.Data) == 0 {
 			address--
 			addressAdjustment++
 			continue
@@ -138,12 +139,12 @@ func (dis *Disasm) getOpcodeStart(address uint16) (*offset, uint16, uint16) {
 // dataName calculates the name of a variable based on its address and optional address adjustment.
 // It returns the name of the variable and a string to reference it, it is possible that the reference
 // is using an adjuster like +1 or +2.
-func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
+func (dis *Disasm) dataName(offsetInfo *arch.Offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
 	var name string
 
-	if offsetInfo != nil && offsetInfo.Label() != "" {
+	if offsetInfo != nil && offsetInfo.Label != "" {
 		// if destination has an existing label, reuse it
-		name = offsetInfo.Label()
+		name = offsetInfo.Label
 	} else {
 		prgAccess := offsetInfo != nil
 		var jumpTable bool
@@ -169,8 +170,8 @@ func (dis *Disasm) dataName(offsetInfo *offset, indexedUsage bool, address, addr
 	if addressAdjustment > 0 {
 		reference = fmt.Sprintf("%s+%d", reference, addressAdjustment)
 	}
-	if offsetInfo != nil && offsetInfo.Label() == "" {
-		offsetInfo.SetLabel(name)
+	if offsetInfo != nil && offsetInfo.Label == "" {
+		offsetInfo.Label = name
 	}
 	return name, reference
 }

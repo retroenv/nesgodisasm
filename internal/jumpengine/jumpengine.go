@@ -76,7 +76,7 @@ func (j *JumpEngine) GetFunctionTableReference(context uint16, dataReferences []
 
 // GetContextDataReferences parse all instructions of the function context until the jump
 // and returns data references that could point to the function table.
-func (j *JumpEngine) GetContextDataReferences(dis arch.Disasm, offsets []arch.Offset,
+func (j *JumpEngine) GetContextDataReferences(dis arch.Disasm, offsets []*arch.Offset,
 	addresses []uint16) ([]uint16, error) {
 
 	codeBaseAddress := dis.CodeBaseAddress()
@@ -84,7 +84,7 @@ func (j *JumpEngine) GetContextDataReferences(dis arch.Disasm, offsets []arch.Of
 
 	for i, offsetInfoInstruction := range offsets {
 		address := addresses[i]
-		opcode := offsetInfoInstruction.Opcode()
+		opcode := offsetInfoInstruction.Opcode
 
 		// look for an instructions that loads data from an address in the code or data
 		// address range. this should be the table containing the function addresses.
@@ -108,15 +108,15 @@ func (j *JumpEngine) GetContextDataReferences(dis arch.Disasm, offsets []arch.Of
 // JumpContextInfo builds the list of instructions of the current function context.
 // in some ROMs the jump engine can be part of a label inside a larger function,
 // the jump engine detection will use the last instructions before the jmp.
-func (j *JumpEngine) JumpContextInfo(dis arch.Disasm, jumpAddress uint16, offsetInfo arch.Offset) ([]arch.Offset, []uint16) {
-	var offsets []arch.Offset
+func (j *JumpEngine) JumpContextInfo(dis arch.Disasm, jumpAddress uint16, offsetInfo *arch.Offset) ([]*arch.Offset, []uint16) {
+	var offsets []*arch.Offset
 	var addresses []uint16
 
-	for address := offsetInfo.Context(); address != 0 && address < jumpAddress; {
+	for address := offsetInfo.Context; address != 0 && address < jumpAddress; {
 		offsetInfoInstruction := dis.OffsetInfo(address)
 
 		// skip offsets that have not been processed yet
-		if len(offsetInfoInstruction.Data()) == 0 {
+		if len(offsetInfoInstruction.Data) == 0 {
 			address++
 			continue
 		}
@@ -124,7 +124,7 @@ func (j *JumpEngine) JumpContextInfo(dis arch.Disasm, jumpAddress uint16, offset
 		offsets = append(offsets, offsetInfoInstruction)
 		addresses = append(addresses, address)
 
-		address += uint16(len(offsetInfoInstruction.Data()))
+		address += uint16(len(offsetInfoInstruction.Data))
 	}
 
 	if len(offsets) > jumpEngineLastInstructionsCheck {
@@ -148,12 +148,11 @@ func (j *JumpEngine) HandleJumpEngineDestination(dis arch.Disasm, caller, destin
 // HandleJumpEngineCallers processes all callers of a newly detected jump engine function.
 func (j *JumpEngine) HandleJumpEngineCallers(dis arch.Disasm, context uint16) error {
 	offsetInfo := dis.OffsetInfo(context)
-	offsetInfo.SetLabelComment("jump engine detected")
+	offsetInfo.LabelComment = "jump engine detected"
 	offsetInfo.SetType(program.JumpEngine)
 
-	branchFrom := offsetInfo.BranchFrom()
-	for _, address := range branchFrom {
-		if err := j.handleJumpEngineCaller(dis, address); err != nil {
+	for _, ref := range offsetInfo.BranchFrom {
+		if err := j.handleJumpEngineCaller(dis, ref.Address); err != nil {
 			return err
 		}
 	}
@@ -172,7 +171,7 @@ func (j *JumpEngine) handleJumpEngineCaller(dis arch.Disasm, caller uint16) erro
 
 	// get the address of the function pointers after the jump engine call
 	offsetInfo := dis.OffsetInfo(caller)
-	address := caller + uint16(len(offsetInfo.Data()))
+	address := caller + uint16(len(offsetInfo.Data))
 
 	// remove from code that should be parsed
 	dis.DeleteFunctionReturnToParse(address)
@@ -204,7 +203,7 @@ func (j *JumpEngine) processJumpEngineEntry(dis arch.Disasm, address uint16, jum
 	offsetInfo2 := dis.OffsetInfo(address + 1)
 
 	// if the potential jump table entry is already marked as code, the table end is reached
-	if offsetInfo1.Type() == program.CodeOffset || offsetInfo2.Type() == program.CodeOffset {
+	if offsetInfo1.Type == program.CodeOffset || offsetInfo2.Type == program.CodeOffset {
 		jumpEngine.terminated = true
 		return false, nil
 	}
@@ -225,8 +224,8 @@ func (j *JumpEngine) processJumpEngineEntry(dis arch.Disasm, address uint16, jum
 		return false, fmt.Errorf("reading memory: %w", err)
 	}
 
-	offsetInfo1.SetData([]byte{b1, b2})
-	offsetInfo2.SetData(nil)
+	offsetInfo1.Data = []byte{b1, b2}
+	offsetInfo2.Data = nil
 
 	jumpEngine.entries++
 

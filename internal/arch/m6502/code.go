@@ -9,8 +9,8 @@ import (
 // HandleDisambiguousInstructions translates disambiguous instructions into data bytes as it
 // has multiple opcodes for the same addressing mode which can result in different
 // bytes being assembled and make the resulting ROM not matching the original.
-func (ar *Arch6502) HandleDisambiguousInstructions(dis arch.Disasm, address uint16, offsetInfo arch.Offset) bool {
-	instruction := offsetInfo.Opcode().Instruction()
+func (ar *Arch6502) HandleDisambiguousInstructions(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) bool {
+	instruction := offsetInfo.Opcode.Instruction()
 	if !instruction.Unofficial() || address >= m6502.InterruptVectorStartAddress {
 		return false
 	}
@@ -23,15 +23,15 @@ func (ar *Arch6502) HandleDisambiguousInstructions(dis arch.Disasm, address uint
 		return false
 	}
 
-	code := offsetInfo.Code()
+	code := offsetInfo.Code
 	if code == "" { // in case of branch into unofficial nop instruction detected
-		offsetInfo.SetComment("disambiguous instruction: " + offsetInfo.Comment())
+		offsetInfo.Comment = "disambiguous instruction: " + offsetInfo.Comment
 	} else {
-		offsetInfo.SetComment("disambiguous instruction: " + offsetInfo.Code())
+		offsetInfo.Comment = "disambiguous instruction: " + offsetInfo.Code
 	}
 
-	offsetInfo.SetCode("")
+	offsetInfo.Code = ""
 	offsetInfo.SetType(program.CodeAsData)
-	dis.ChangeAddressRangeToCodeAsData(address, offsetInfo.Data())
+	dis.ChangeAddressRangeToCodeAsData(address, offsetInfo.Data)
 	return true
 }

@@ -3,6 +3,7 @@ package disasm
 import (
 	"fmt"
 
+	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
 )
 
@@ -17,22 +18,26 @@ type bank struct {
 	variables     map[uint16]*variable
 	usedVariables map[uint16]struct{}
 
-	offsets []offset
+	offsets []*arch.Offset
 }
 
-type bankReference struct {
-	mapped  mappedBank
-	address uint16
-	index   uint16
+func (b *bank) AddVariableUsage(ref any) {
+	varInfo := ref.(*variable)
+	b.variables[varInfo.address] = varInfo
+	b.usedVariables[varInfo.address] = struct{}{}
 }
 
 func newBank(prg []byte) *bank {
-	return &bank{
+	b := &bank{
 		prg:           prg,
 		variables:     map[uint16]*variable{},
 		usedVariables: map[uint16]struct{}{},
-		offsets:       make([]offset, len(prg)),
+		offsets:       make([]*arch.Offset, len(prg)),
 	}
+	for i := range b.offsets {
+		b.offsets[i] = &arch.Offset{}
+	}
+	return b
 }
 
 func (dis *Disasm) initializeBanks(prg []byte) {

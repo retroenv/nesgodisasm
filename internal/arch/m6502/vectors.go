@@ -36,8 +36,8 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 	if nmi != 0 {
 		logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
 		offsetInfo := dis.OffsetInfo(nmi)
-		if !offsetInfo.IsNil() {
-			offsetInfo.SetLabel("NMI")
+		if offsetInfo != nil {
+			offsetInfo.Label = "NMI"
 			offsetInfo.SetType(program.CallDestination)
 		}
 		handlers.NMI = "NMI"
@@ -55,11 +55,11 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 
 	logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
 	offsetInfo := dis.OffsetInfo(reset)
-	if !offsetInfo.IsNil() {
-		if offsetInfo.Label() != "" {
+	if offsetInfo != nil {
+		if offsetInfo.Label != "" {
 			handlers.NMI = "Reset"
 		}
-		offsetInfo.SetLabel("Reset")
+		offsetInfo.Label = "Reset"
 		offsetInfo.SetType(program.CallDestination)
 	}
 
@@ -70,12 +70,12 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 	if irq != 0 {
 		logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
 		offsetInfo = dis.OffsetInfo(irq)
-		if !offsetInfo.IsNil() {
-			if offsetInfo.Label() == "" {
-				offsetInfo.SetLabel("IRQ")
+		if offsetInfo != nil {
+			if offsetInfo.Label == "" {
+				offsetInfo.Label = "IRQ"
 				handlers.IRQ = "IRQ"
 			} else {
-				handlers.IRQ = offsetInfo.Label()
+				handlers.IRQ = offsetInfo.Label
 			}
 			offsetInfo.SetType(program.CallDestination)
 		}

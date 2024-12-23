@@ -11,7 +11,7 @@ type Architecture interface {
 	// HandleDisambiguousInstructions translates disambiguous instructions into data bytes as it
 	// has multiple opcodes for the same addressing mode which can result in different
 	// bytes being assembled and make the resulting ROM not matching the original.
-	HandleDisambiguousInstructions(dis Disasm, address uint16, offsetInfo Offset) bool
+	HandleDisambiguousInstructions(dis Disasm, address uint16, offsetInfo *Offset) bool
 	// Initialize the architecture.
 	Initialize(dis Disasm) error
 	// IsAddressingIndexed returns if the opcode is using indexed addressing.
@@ -21,9 +21,9 @@ type Architecture interface {
 	// the interrupt vector table.
 	LastCodeAddress() uint16
 	// ProcessOffset processes an offset and returns if the offset was processed and an error if any.
-	ProcessOffset(dis Disasm, address uint16, offsetInfo Offset) (bool, error)
+	ProcessOffset(dis Disasm, address uint16, offsetInfo *Offset) (bool, error)
 	// ProcessVarUsage processes the variable usage of an offset.
-	ProcessVarUsage(offsetInfo Offset, reference string) error
+	ProcessVarUsage(offsetInfo *Offset, reference string) error
 	// ReadOpParam reads the parameter of an opcode.
 	ReadOpParam(dis Disasm, addressing int, address uint16) (any, []byte, error)
 }

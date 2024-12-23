@@ -41,24 +41,24 @@ func (dis *Disasm) followExecutionFlow() error {
 			continue
 		}
 
-		dis.changeAddressRangeToCode(address, offsetInfo.Data())
+		dis.changeAddressRangeToCode(address, offsetInfo.Data)
 	}
 	return nil
 }
 
 // in case the current instruction overlaps with an already existing instruction,
 // cut the current one short.
-func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset) {
-	for i := 1; i < len(offsetInfo.Data()) && int(address)+i < int(dis.arch.LastCodeAddress()); i++ {
+func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *arch.Offset) {
+	for i := 1; i < len(offsetInfo.Data) && int(address)+i < int(dis.arch.LastCodeAddress()); i++ {
 		offsetInfoFollowing := dis.mapper.offsetInfo(address + uint16(i))
 		if !offsetInfoFollowing.IsType(program.CodeOffset) {
 			continue
 		}
 
-		offsetInfoFollowing.SetComment("branch into instruction detected")
-		offsetInfo.SetComment(offsetInfo.Code())
-		offsetInfo.SetData(offsetInfo.Data()[:i])
-		offsetInfo.SetCode("")
+		offsetInfoFollowing.Comment = "branch into instruction detected"
+		offsetInfo.Comment = offsetInfo.Code
+		offsetInfo.Data = offsetInfo.Data[:i]
+		offsetInfo.Code = ""
 		offsetInfo.ClearType(program.CodeOffset)
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 		return
@@ -113,21 +113,21 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 	offsetInfo := dis.mapper.offsetInfo(address)
 	if isABranchDestination && currentInstruction != nil && currentInstruction.IsCall() {
 		offsetInfo.SetType(program.CallDestination)
-		if offsetInfo.context == 0 {
-			offsetInfo.context = address // begin a new context
+		if offsetInfo.Context == 0 {
+			offsetInfo.Context = address // begin a new context
 		}
-	} else if offsetInfo.context == 0 {
-		offsetInfo.context = context // continue current context
+	} else if offsetInfo.Context == 0 {
+		offsetInfo.Context = context // continue current context
 	}
 
 	if isABranchDestination {
 		if from > 0 {
-			bankRef := bankReference{
-				mapped:  dis.mapper.getMappedBank(from),
-				address: from,
-				index:   dis.mapper.getMappedBankIndex(from),
+			bankRef := arch.BankReference{
+				Mapped:  dis.mapper.getMappedBank(from),
+				Address: from,
+				Index:   dis.mapper.getMappedBankIndex(from),
 			}
-			offsetInfo.branchFrom = append(offsetInfo.branchFrom, bankRef)
+			offsetInfo.BranchFrom = append(offsetInfo.BranchFrom, bankRef)
 		}
 		dis.branchDestinations[address] = struct{}{}
 	}

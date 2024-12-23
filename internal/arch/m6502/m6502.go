@@ -30,7 +30,7 @@ func (ar *Arch6502) LastCodeAddress() uint16 {
 	return m6502.InterruptVectorStartAddress
 }
 
-func (ar *Arch6502) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo arch.Offset) (bool, error) {
+func (ar *Arch6502) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (bool, error) {
 	inspectCode, err := initializeOffsetInfo(dis, offsetInfo)
 	if err != nil {
 		return false, err
@@ -39,13 +39,13 @@ func (ar *Arch6502) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo ar
 		return false, nil
 	}
 
-	op := offsetInfo.Opcode()
+	op := offsetInfo.Opcode
 	instruction := op.Instruction()
 	name := instruction.Name()
 	pc := dis.ProgramCounter()
 
 	if op.Addressing() == int(m6502.ImpliedAddressing) {
-		offsetInfo.SetCode(name)
+		offsetInfo.Code = name
 	} else {
 		params, err := ar.processParamInstruction(dis, pc, offsetInfo)
 		if err != nil {
@@ -55,7 +55,7 @@ func (ar *Arch6502) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo ar
 			}
 			return false, err
 		}
-		offsetInfo.SetCode(fmt.Sprintf("%s %s", name, params))
+		offsetInfo.Code = fmt.Sprintf("%s %s", name, params)
 	}
 
 	if _, ok := m6502.NotExecutingFollowingOpcodeInstructions[name]; ok {
@@ -63,9 +63,9 @@ func (ar *Arch6502) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo ar
 			return false, err
 		}
 	} else {
-		opcodeLength := uint16(len(offsetInfo.Data()))
+		opcodeLength := uint16(len(offsetInfo.Data))
 		followingOpcodeAddress := pc + opcodeLength
-		dis.AddAddressToParse(followingOpcodeAddress, offsetInfo.Context(), address, instruction, false)
+		dis.AddAddressToParse(followingOpcodeAddress, offsetInfo.Context, address, instruction, false)
 		if err := ar.checkForJumpEngineCall(dis, pc, offsetInfo); err != nil {
 			return false, err
 		}

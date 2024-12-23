@@ -2,44 +2,13 @@ package arch
 
 import "github.com/retroenv/nesgodisasm/internal/program"
 
-// Offset represents an offset in the disassembled code.
-type Offset interface {
-	// BranchFrom returns the list of addresses that branch to this offset.
-	BranchFrom() []uint16
-	// ClearType clears the offset type.
-	ClearType(offsetType program.OffsetType)
-	// Code returns the code string of the offset.
-	Code() string
-	// Comment returns the comment of the offset.
-	Comment() string
-	// Context returns the context of the offset.
-	Context() uint16
-	// Data returns the opcode bytes of the offset.
-	Data() []byte
-	// Instruction returns the instruction of the offset.
-	Instruction() Instruction
-	// IsNil returns true if the offset is nil.
-	IsNil() bool
-	// IsType returns true if the offset type is the given type.
-	IsType(typ program.OffsetType) bool
-	// Label returns the label of the offset, can be empty.
-	Label() string
-	// Opcode returns the opcode of the offset.
-	Opcode() Opcode
-	// SetCode sets the code string of the offset.
-	SetCode(string)
-	// SetComment sets the comment of the offset.
-	SetComment(string)
-	// SetData sets the opcode bytes of the offset.
-	SetData([]byte)
-	// SetLabel sets the label of the offset.
-	SetLabel(string)
-	// SetLabelComment sets the label comment of the offset.
-	SetLabelComment(string)
-	// SetOpcode sets the opcode of the offset.
-	SetOpcode(Opcode)
-	// SetType sets the offset type.
-	SetType(offsetType program.OffsetType)
-	// Type returns the offset type.
-	Type() program.OffsetType
+// Offset defines the content of an offset in a program that can represent data or code.
+type Offset struct {
+	program.Offset
+
+	Opcode Opcode // opcode this offset represents
+
+	BranchFrom  []BankReference // list of all addresses that branch to this offset
+	BranchingTo string          // label to jump to if instruction branches
+	Context     uint16          // function or interrupt context that the offset is part of
 }
