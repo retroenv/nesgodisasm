@@ -10,8 +10,8 @@ import (
 
 // Constants builds the map of all known NES constants from all
 // modules that maps an address to a constant name.
-func (ar *Arch6502) Constants() (map[uint16]arch.ConstTranslation, error) {
-	m := map[uint16]arch.ConstTranslation{}
+func (ar *Arch6502) Constants() (map[uint16]arch.Constant, error) {
+	m := map[uint16]arch.Constant{}
 	if err := mergeConstantsMaps(m, register.APUAddressToName); err != nil {
 		return nil, fmt.Errorf("processing apu constants: %w", err)
 	}
@@ -24,7 +24,7 @@ func (ar *Arch6502) Constants() (map[uint16]arch.ConstTranslation, error) {
 	return m, nil
 }
 
-func mergeConstantsMaps(destination map[uint16]arch.ConstTranslation, source map[uint16]m6502.AccessModeConstant) error {
+func mergeConstantsMaps(destination map[uint16]arch.Constant, source map[uint16]m6502.AccessModeConstant) error {
 	for address, constantInfo := range source {
 		translation := destination[address]
 		translation.Address = address

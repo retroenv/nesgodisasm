@@ -113,7 +113,8 @@ func (ar *Arch6502) replaceParamByAlias(dis arch.Disasm, address uint16, opcode 
 		}
 	}
 
-	changedParamAsString, ok := dis.ReplaceParamByConstant(addressReference, opcode, paramAsString)
+	consts := dis.Constants()
+	changedParamAsString, ok := consts.ReplaceParameter(addressReference, opcode, paramAsString)
 	if ok {
 		return changedParamAsString
 	}

@@ -21,6 +21,8 @@ type Disasm interface {
 	// ChangeAddressRangeToCodeAsData sets a range of code address to code as
 	// data types. It combines all data bytes that are not split by a label.
 	ChangeAddressRangeToCodeAsData(address uint16, data []byte)
+	// Constants returns the constants manager.
+	Constants() ConstantManager
 	// Logger returns the logger.
 	Logger() *log.Logger
 	// OffsetInfo returns the offset information for the given address.
@@ -33,15 +35,18 @@ type Disasm interface {
 	ReadMemory(address uint16) (byte, error)
 	// ReadMemoryWord reads a word from the memory at the given address.
 	ReadMemoryWord(address uint16) (uint16, error)
-	// ReplaceParamByConstant replaces the parameter of an instruction by a constant name
-	// if the address of the instruction is found in the constants map.
-	ReplaceParamByConstant(address uint16, opcode Opcode, paramAsString string) (string, bool)
 	// SetCodeBaseAddress sets the code base address.
 	SetCodeBaseAddress(address uint16)
 	// SetHandlers sets the program vector handlers.
 	SetHandlers(handlers program.Handlers)
 	// SetVectorsStartAddress sets the start address of the vectors.
 	SetVectorsStartAddress(address uint16)
+}
+
+type ConstantManager interface {
+	// ReplaceParameter replaces the parameter of an instruction by a constant name
+	// if the address of the instruction is found in the constants map.
+	ReplaceParameter(address uint16, opcode Opcode, paramAsString string) (string, bool)
 }
 
 // JumpEngine contains jump engine related helper.

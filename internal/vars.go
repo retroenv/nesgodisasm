@@ -118,31 +118,6 @@ func (dis *Disasm) processVariables() error {
 	return nil
 }
 
-// processConstants processes all constants and updates all banks with the used ones. There is currently no tracking
-// for in which bank a constant is used, it will be added to all banks for now.
-// TODO fix constants to only output in used banks
-func (dis *Disasm) processConstants() {
-	constants := make([]arch.ConstTranslation, 0, len(dis.constants))
-	for _, translation := range dis.constants {
-		constants = append(constants, translation)
-	}
-	sort.Slice(constants, func(i, j int) bool {
-		return constants[i].Address < constants[j].Address
-	})
-
-	for _, constInfo := range constants {
-		_, used := dis.usedConstants[constInfo.Address]
-		if !used {
-			continue
-		}
-
-		for _, bnk := range dis.banks {
-			bnk.constants[constInfo.Address] = constInfo
-			bnk.usedConstants[constInfo.Address] = constInfo
-		}
-	}
-}
-
 // getOpcodeStart returns a reference to the opcode start of the given address.
 // In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
 // converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.

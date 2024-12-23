@@ -5,7 +5,7 @@ package arch
 // Architecture contains architecture specific information.
 type Architecture interface {
 	// Constants returns the constants translation map.
-	Constants() (map[uint16]ConstTranslation, error)
+	Constants() (map[uint16]Constant, error)
 	// GetAddressingParam returns the address of the param if it references an address.
 	GetAddressingParam(param any) (uint16, bool)
 	// HandleDisambiguousInstructions translates disambiguous instructions into data bytes as it
@@ -28,8 +28,9 @@ type Architecture interface {
 	ReadOpParam(dis Disasm, addressing int, address uint16) (any, []byte, error)
 }
 
-// ConstTranslation represents a constant translation from a read and write operation to a name.
-type ConstTranslation struct {
+// Constant represents a constant translation from a read and write operation to a name.
+// This is used to replace the parameter of an instruction by a constant name.
+type Constant struct {
 	Address uint16
 
 	Read  string

@@ -9,6 +9,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
+	"github.com/retroenv/nesgodisasm/internal/consts"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/writer"
@@ -37,8 +38,7 @@ type Disasm struct {
 	codeBaseAddress     uint16 // codebase address of the cartridge, it is not always 0x8000
 	vectorsStartAddress uint16
 
-	constants     map[uint16]arch.ConstTranslation
-	usedConstants map[uint16]arch.ConstTranslation
+	constants     *consts.Consts
 	variables     map[uint16]*variable
 	usedVariables map[uint16]struct{}
 
@@ -71,7 +71,6 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 		fileWriterConstructor:       fileWriterConstructor,
 		variables:                   map[uint16]*variable{},
 		usedVariables:               map[uint16]struct{}{},
-		usedConstants:               map[uint16]arch.ConstTranslation{},
 		jumpEngineCallersAdded:      map[uint16]*jumpEngineCaller{},
 		jumpEngines:                 map[uint16]struct{}{},
 		branchDestinations:          map[uint16]struct{}{},
@@ -81,9 +80,9 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 	}
 
 	var err error
-	dis.constants, err = ar.Constants()
+	dis.constants, err = consts.New(ar)
 	if err != nil {
-		return nil, fmt.Errorf("getting constants: %w", err)
+		return nil, fmt.Errorf("creating constants: %w", err)
 	}
 
 	dis.initializeBanks(cart.PRG)
@@ -114,7 +113,7 @@ func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBank
 	if err := dis.processVariables(); err != nil {
 		return nil, err
 	}
-	dis.processConstants()
+	dis.constants.ProcessConstants()
 	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
@@ -149,20 +148,6 @@ func (dis *Disasm) SetHandlers(handlers program.Handlers) {
 	dis.handlers = handlers
 }
 
-func (dis *Disasm) initializeBanks(prg []byte) {
-	for i := 0; i < len(prg); {
-		size := len(prg) - i
-		if size > 0x8000 {
-			size = 0x8000
-		}
-
-		b := prg[i : i+size]
-		bnk := newBank(b)
-		dis.banks = append(dis.banks, bnk)
-		i += size
-	}
-}
-
 func (dis *Disasm) SetCodeBaseAddress(address uint16) {
 	dis.codeBaseAddress = address
 
@@ -176,6 +161,11 @@ func (dis *Disasm) SetVectorsStartAddress(address uint16) {
 
 func (dis *Disasm) Options() options.Disassembler {
 	return dis.options
+}
+
+// Constants returns the constants manager.
+func (dis *Disasm) Constants() arch.ConstantManager {
+	return dis.constants
 }
 
 // converts the internal disassembly representation to a program type that will be used by
@@ -199,15 +189,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 			prgBank.Offsets[i] = programOffsetInfo
 		}
 
-		for address := range bnk.usedConstants {
-			constantInfo := bnk.constants[address]
-			if constantInfo.Read != "" {
-				prgBank.Constants[constantInfo.Read] = address
-			}
-			if constantInfo.Write != "" {
-				prgBank.Constants[constantInfo.Write] = address
-			}
-		}
+		dis.constants.SetBankConstants(bnkIndex, prgBank)
+
 		for address := range bnk.usedVariables {
 			varInfo := bnk.variables[address]
 			prgBank.Variables[varInfo.name] = address
@@ -219,15 +202,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		app.PRG = append(app.PRG, prgBank)
 	}
 
-	for address := range dis.usedConstants {
-		constantInfo := dis.constants[address]
-		if constantInfo.Read != "" {
-			app.Constants[constantInfo.Read] = address
-		}
-		if constantInfo.Write != "" {
-			app.Constants[constantInfo.Write] = address
-		}
-	}
+	dis.constants.SetProgramConstants(app)
+
 	for address := range dis.usedVariables {
 		varInfo := dis.variables[address]
 		app.Variables[varInfo.name] = address
@@ -263,27 +239,6 @@ func (dis *Disasm) loadCodeDataLog() error {
 	}
 
 	return nil
-}
-
-func setBankName(prgBank *program.PRGBank, bnkIndex, numBanks int) {
-	if bnkIndex == 0 && numBanks == 1 {
-		prgBank.Name = singleBankName
-		return
-	}
-
-	prgBank.Name = fmt.Sprintf(multiBankNameTemplate, bnkIndex)
-}
-
-func setBankVectors(bnk *bank, prgBank *program.PRGBank) {
-	idx := len(bnk.prg) - 6
-	for i := range 3 {
-		b1 := bnk.prg[idx]
-		idx++
-		b2 := bnk.prg[idx]
-		idx++
-		addr := uint16(b2)<<8 | uint16(b1)
-		prgBank.Vectors[i] = addr
-	}
 }
 
 func (dis *Disasm) getProgramOffset(address uint16, offsetInfo offset) (program.Offset, error) {
