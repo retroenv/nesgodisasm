@@ -20,8 +20,7 @@ type Chip8 struct {
 }
 
 func (c Chip8) Constants() (map[uint16]arch.Constant, error) {
-	//TODO implement me
-	panic("implement me")
+	return map[uint16]arch.Constant{}, nil
 }
 
 func (c Chip8) GetAddressingParam(param any) (uint16, bool) {
@@ -35,8 +34,7 @@ func (c Chip8) HandleDisambiguousInstructions(dis arch.Disasm, address uint16, o
 }
 
 func (c Chip8) Initialize(dis arch.Disasm) error {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (c Chip8) IsAddressingIndexed(opcode arch.Opcode) bool {

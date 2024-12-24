@@ -73,6 +73,11 @@ func initializeApp() (*log.Logger, options.Program, options.Disassembler) {
 		os.Exit(1)
 	}
 
+	if err = autoDetectSystem(&opts); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	for i, arg := range args {
 		if i > 0 && arg[0] == '-' {
 			fmt.Printf("Potential argument %s found after file to disassemble, please pass the file to disassemble as last argument\n\n", arg)
@@ -122,6 +127,27 @@ func readDisasmOptionFlags(flags *flag.FlagSet, opts *options.Disassembler) {
 	flags.BoolVar(&opts.ZeroBytes, "z", false, "output the trailing zero bytes of banks")
 }
 
+func autoDetectSystem(opts *options.Program) error {
+	opts.System = strings.ToLower(opts.System)
+	if opts.System == "" {
+		ext := filepath.Ext(opts.Input)
+		switch strings.ToLower(ext) {
+		case ".nes":
+			opts.System = arch.SystemNES
+		case ".ch8":
+			opts.System = arch.SystemChip8
+		}
+	}
+
+	switch opts.System {
+	case arch.SystemNES:
+	case arch.SystemChip8:
+	default:
+		return errors.New("unsupported system or missing parameter")
+	}
+	return nil
+}
+
 func createLogger(debug, quiet bool) *log.Logger {
 	cfg := log.DefaultConfig()
 	if debug {
@@ -169,28 +195,6 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 	}
 
 	disasmOptions.Binary = opts.Binary
-	var cart *cartridge.Cartridge
-
-	if opts.Binary {
-		cart, err = cartridge.LoadBuffer(file)
-	} else {
-		cart, err = cartridge.LoadFile(file)
-	}
-	if err != nil {
-		return fmt.Errorf("reading file: %w", err)
-	}
-	_ = file.Close()
-
-	if !opts.Quiet {
-		logger.Info("Processing ROM",
-			log.String("file", opts.Input),
-			log.Uint8("mapper", cart.Mapper),
-			log.String("assembler", opts.Assembler),
-		)
-	}
-	if cart.Mapper != 0 && cart.Mapper != 3 {
-		logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
-	}
 
 	if err := openCodeDataLog(opts, disasmOptions); err != nil {
 		return err
@@ -204,10 +208,24 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 		return fmt.Errorf("initializing assembler compatible mode: %w", err)
 	}
 
-	ar, err := systemArchitecture(opts.Input, paramConverter, opts.System)
+	ar, binaryLoad, err := systemArchitecture(paramConverter, opts.System)
 	if err != nil {
 		return fmt.Errorf("initializing system architecture: %w", err)
 	}
+
+	var cart *cartridge.Cartridge
+
+	if binaryLoad || opts.Binary {
+		cart, err = cartridge.LoadBuffer(file)
+	} else {
+		cart, err = cartridge.LoadFile(file)
+	}
+	if err != nil {
+		return fmt.Errorf("reading file: %w", err)
+	}
+	_ = file.Close()
+
+	printInfo(logger, opts, cart)
 
 	dis, err := disasm.New(ar, logger, cart, disasmOptions, fileWriterConstructor)
 	if err != nil {
@@ -219,27 +237,6 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 	}
 
 	return processFile(logger, opts, dis)
-}
-
-func systemArchitecture(fileName string, paramConverter parameter.Converter, system string) (arch.Architecture, error) {
-	if system == "" {
-		ext := filepath.Ext(fileName)
-		switch strings.ToLower(ext) {
-		case ".nes":
-			system = arch.SystemNES
-		case ".ch8":
-			system = arch.SystemChip8
-		}
-	}
-
-	switch strings.ToLower(system) {
-	case arch.SystemNES:
-		return m6502.New(paramConverter), nil
-	case arch.SystemChip8:
-		return chip8.New(paramConverter), nil
-	default:
-		return nil, errors.New("unsupported system or missing parameter")
-	}
 }
 
 func processFile(logger *log.Logger, opts options.Program, dis *disasm.Disasm) error {
@@ -371,4 +368,37 @@ func initializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterC
 	}
 
 	return fileWriterConstructor, parameter.New(paramCfg), nil
+}
+
+func systemArchitecture(paramConverter parameter.Converter, system string) (arch.Architecture, bool, error) {
+	switch system {
+	case arch.SystemNES:
+		return m6502.New(paramConverter), false, nil
+	case arch.SystemChip8:
+		return chip8.New(paramConverter), true, nil
+	default:
+		return nil, false, errors.New("unsupported system or missing parameter")
+	}
+}
+
+func printInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartridge) {
+	if opts.Quiet {
+		return
+	}
+
+	switch opts.System {
+	case arch.SystemNES:
+		logger.Info("Processing NES ROM",
+			log.String("file", opts.Input),
+			log.Uint8("mapper", cart.Mapper),
+			log.String("assembler", opts.Assembler),
+		)
+		if cart.Mapper != 0 && cart.Mapper != 3 {
+			logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
+		}
+	case arch.SystemChip8:
+		logger.Info("Processing Chip-8 ROM",
+			log.String("file", opts.Input),
+		)
+	}
 }
