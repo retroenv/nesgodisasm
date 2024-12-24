@@ -14,6 +14,7 @@ type Program struct {
 	Config      string
 	Input       string
 	Output      string
+	System      string
 
 	AssembleTest bool
 	Binary       bool

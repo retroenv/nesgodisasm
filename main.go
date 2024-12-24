@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
+	"github.com/retroenv/nesgodisasm/internal/arch"
+	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
 	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
@@ -111,6 +113,7 @@ func readOptionFlags(flags *flag.FlagSet, opts *options.Program) {
 	flags.BoolVar(&opts.NoHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&opts.NoOffsets, "nooffsets", false, "do not output offsets in comments")
 	flags.StringVar(&opts.Output, "o", "", "name of the output .asm file, printed on console if no name given")
+	flags.StringVar(&opts.System, "s", "", "system to disassemble for (nes, chip8) - if not auto-detected from file extension")
 	flags.BoolVar(&opts.Quiet, "q", false, "perform operations quietly")
 	flags.BoolVar(&opts.AssembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
 }
@@ -201,7 +204,11 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 		return fmt.Errorf("initializing assembler compatible mode: %w", err)
 	}
 
-	ar := m6502.New(paramConverter)
+	ar, err := systemArchitecture(opts.Input, paramConverter, opts.System)
+	if err != nil {
+		return fmt.Errorf("initializing system architecture: %w", err)
+	}
+
 	dis, err := disasm.New(ar, logger, cart, disasmOptions, fileWriterConstructor)
 	if err != nil {
 		return fmt.Errorf("initializing disassembler: %w", err)
@@ -212,6 +219,27 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 	}
 
 	return processFile(logger, opts, dis)
+}
+
+func systemArchitecture(fileName string, paramConverter parameter.Converter, system string) (arch.Architecture, error) {
+	if system == "" {
+		ext := filepath.Ext(fileName)
+		switch strings.ToLower(ext) {
+		case ".nes":
+			system = arch.SystemNES
+		case ".ch8":
+			system = arch.SystemChip8
+		}
+	}
+
+	switch strings.ToLower(system) {
+	case arch.SystemNES:
+		return m6502.New(paramConverter), nil
+	case arch.SystemChip8:
+		return chip8.New(paramConverter), nil
+	default:
+		return nil, errors.New("unsupported system or missing parameter")
+	}
 }
 
 func processFile(logger *log.Logger, opts options.Program, dis *disasm.Disasm) error {
