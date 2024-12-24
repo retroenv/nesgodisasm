@@ -6,9 +6,16 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/arch"
 )
 
+var _ arch.MappedBank = mappedBank{}
+
 type mappedBank struct {
 	bank      *bank
+	id        int
 	dataStart int
+}
+
+func (m mappedBank) ID() int {
+	return m.id
 }
 
 type mapper struct {
@@ -36,7 +43,7 @@ func newMapper(banks []*bank, prgSize int) (*mapper, error) {
 	}
 
 	bankNumber := 0
-	for _, bnk := range banks {
+	for bankIndex, bnk := range banks {
 		if len(bnk.prg)%bankWindowSize != 0 {
 			return nil, fmt.Errorf("invalid bank alignment for bank size %d", len(bnk.prg))
 		}
@@ -44,6 +51,7 @@ func newMapper(banks []*bank, prgSize int) (*mapper, error) {
 		for pointer := 0; pointer < len(bnk.prg); pointer += bankWindowSize {
 			mapped := mappedBank{
 				bank:      bnk,
+				id:        bankIndex,
 				dataStart: pointer,
 			}
 			m.banks[bankNumber] = mapped
@@ -69,13 +77,13 @@ func (m *mapper) setMappedBank(address uint16, bank mappedBank) {
 	m.mapped[bankWindow] = bank
 }
 
-func (m *mapper) getMappedBank(address uint16) arch.MappedBank {
+func (m *mapper) GetMappedBank(address uint16) arch.MappedBank {
 	bankWindow := address >> m.addressShifts
 	mapped := m.mapped[bankWindow]
 	return mapped
 }
 
-func (m *mapper) getMappedBankIndex(address uint16) uint16 {
+func (m *mapper) GetMappedBankIndex(address uint16) uint16 {
 	index := int(address) % bankWindowSize
 	return uint16(index)
 }
@@ -106,10 +114,6 @@ func (m mappedBank) OffsetInfo(index uint16) *arch.Offset {
 	offset := int(index) + m.dataStart
 	offsetInfo := m.bank.offsets[offset]
 	return offsetInfo
-}
-
-func (m mappedBank) Bank() arch.Bank {
-	return m.bank
 }
 
 // log2 computes the binary logarithm of x, rounded up to the next integer.

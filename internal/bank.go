@@ -15,24 +15,13 @@ const (
 type bank struct {
 	prg []byte
 
-	variables     map[uint16]*variable
-	usedVariables map[uint16]struct{}
-
 	offsets []*arch.Offset
-}
-
-func (b *bank) AddVariableUsage(ref any) {
-	varInfo := ref.(*variable)
-	b.variables[varInfo.address] = varInfo
-	b.usedVariables[varInfo.address] = struct{}{}
 }
 
 func newBank(prg []byte) *bank {
 	b := &bank{
-		prg:           prg,
-		variables:     map[uint16]*variable{},
-		usedVariables: map[uint16]struct{}{},
-		offsets:       make([]*arch.Offset, len(prg)),
+		prg:     prg,
+		offsets: make([]*arch.Offset, len(prg)),
 	}
 	for i := range b.offsets {
 		b.offsets[i] = &arch.Offset{}
@@ -53,6 +42,7 @@ func (dis *Disasm) initializeBanks(prg []byte) {
 		i += size
 
 		dis.constants.AddBank()
+		dis.vars.AddBank()
 	}
 }
 

@@ -118,7 +118,7 @@ func (ar *Arch6502) replaceParamByAlias(dis arch.Disasm, address uint16, opcode 
 		return changedParamAsString
 	}
 
-	dis.AddVariableReference(addressReference, address, opcode, forceVariableUsage)
+	dis.Variables().AddReference(dis, addressReference, address, opcode, forceVariableUsage)
 	return paramAsString
 }
 

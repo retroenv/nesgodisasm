@@ -67,7 +67,7 @@ func TestChangeOffsetRangeToData(t *testing.T) {
 			}
 			test.Input(offsets)
 
-			m := disasm.mapper.getMappedBank(0x8000)
+			m := disasm.mapper.GetMappedBank(0x8000)
 			mapped := m.(mappedBank)
 			mapped.bank.offsets = offsets
 			disasm.ChangeAddressRangeToCodeAsData(0x8000, data)

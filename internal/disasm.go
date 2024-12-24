@@ -13,6 +13,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/jumpengine"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/nesgodisasm/internal/vars"
 	"github.com/retroenv/nesgodisasm/internal/writer"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
@@ -39,11 +40,9 @@ type Disasm struct {
 	codeBaseAddress     uint16 // codebase address of the cartridge, it is not always 0x8000
 	vectorsStartAddress uint16
 
+	constants  *consts.Consts
 	jumpEngine *jumpengine.JumpEngine
-
-	constants     *consts.Consts
-	variables     map[uint16]*variable
-	usedVariables map[uint16]struct{}
+	vars       *vars.Vars
 
 	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
 
@@ -68,9 +67,8 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 		logger:                      logger,
 		options:                     options,
 		cart:                        cart,
+		vars:                        vars.New(ar),
 		fileWriterConstructor:       fileWriterConstructor,
-		variables:                   map[uint16]*variable{},
-		usedVariables:               map[uint16]struct{}{},
 		branchDestinations:          map[uint16]struct{}{},
 		offsetsToParseAdded:         map[uint16]struct{}{},
 		offsetsParsed:               map[uint16]struct{}{},
@@ -109,8 +107,8 @@ func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBank
 	}
 
 	dis.processData()
-	if err := dis.processVariables(); err != nil {
-		return nil, err
+	if err := dis.vars.Process(dis); err != nil {
+		return nil, fmt.Errorf("processing variables: %w", err)
 	}
 	dis.constants.ProcessConstants()
 	dis.processJumpDestinations()
@@ -171,9 +169,19 @@ func (dis *Disasm) Constants() arch.ConstantManager {
 	return dis.constants
 }
 
+// Variables returns the variable manager.
+func (dis *Disasm) Variables() arch.VariableManager {
+	return dis.vars
+}
+
 // JumpEngine returns the jump engine.
 func (dis *Disasm) JumpEngine() arch.JumpEngine {
 	return dis.jumpEngine
+}
+
+// Mapper returns the mapper.
+func (dis *Disasm) Mapper() arch.Mapper {
+	return dis.mapper
 }
 
 // converts the internal disassembly representation to a program type that will be used by
@@ -198,11 +206,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		}
 
 		dis.constants.SetBankConstants(bnkIndex, prgBank)
-
-		for address := range bnk.usedVariables {
-			varInfo := bnk.variables[address]
-			prgBank.Variables[varInfo.name] = address
-		}
+		dis.vars.SetBankVariables(bnkIndex, prgBank)
 
 		setBankName(prgBank, bnkIndex, len(dis.banks))
 		setBankVectors(bnk, prgBank)
@@ -211,11 +215,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	}
 
 	dis.constants.SetProgramConstants(app)
-
-	for address := range dis.usedVariables {
-		varInfo := dis.variables[address]
-		app.Variables[varInfo.name] = address
-	}
+	dis.vars.SetProgramVariables(app)
 
 	crc32q := crc32.MakeTable(crc32.IEEE)
 	app.Checksums.PRG = crc32.Checksum(dis.cart.PRG, crc32q)

@@ -1,4 +1,5 @@
-package disasm
+// Package vars manages variables in the disassembled program.
+package vars
 
 import (
 	"fmt"
@@ -17,6 +18,21 @@ const (
 	variableNamingIndexed = "_var_%04x_indexed"
 )
 
+// Vars manages variables in the disassembled program.
+type Vars struct {
+	arch arch.Architecture
+
+	banks []*bank
+
+	variables     map[uint16]*variable
+	usedVariables map[uint16]struct{}
+}
+
+type bank struct {
+	variables     map[uint16]*variable
+	usedVariables map[uint16]struct{}
+}
+
 type variable struct {
 	reads  bool
 	writes bool
@@ -27,11 +43,20 @@ type variable struct {
 	usageAt      []arch.BankReference // list of all indexes that use this offset
 }
 
-// AddVariableReference adds a variable reference if the opcode is accessing
+// New creates a new variables manager.
+func New(arch arch.Architecture) *Vars {
+	return &Vars{
+		arch:          arch,
+		variables:     make(map[uint16]*variable),
+		usedVariables: make(map[uint16]struct{}),
+	}
+}
+
+// AddReference adds a variable reference if the opcode is accessing
 // the given address directly by reading or writing. In a special case like
 // branching into a zeropage address the variable usage can be forced.
-func (dis *Disasm) AddVariableReference(addressReference, usageAddress uint16,
-	opcode arch.Opcode, forceVariableUsage bool) {
+func (v *Vars) AddReference(dis arch.Disasm, addressReference,
+	usageAddress uint16, opcode arch.Opcode, forceVariableUsage bool) {
 
 	var reads, writes bool
 	if opcode.ReadWritesMemory() {
@@ -45,19 +70,21 @@ func (dis *Disasm) AddVariableReference(addressReference, usageAddress uint16,
 		return
 	}
 
-	varInfo := dis.variables[addressReference]
+	varInfo := v.variables[addressReference]
 	if varInfo == nil {
 		varInfo = &variable{
 			address: addressReference,
 		}
-		dis.variables[addressReference] = varInfo
+		v.variables[addressReference] = varInfo
 	}
 
+	mapper := dis.Mapper()
 	bankRef := arch.BankReference{
-		Mapped:  dis.mapper.getMappedBank(usageAddress),
+		Mapped:  mapper.GetMappedBank(usageAddress),
 		Address: usageAddress,
-		Index:   dis.mapper.getMappedBankIndex(usageAddress),
+		Index:   mapper.GetMappedBankIndex(usageAddress),
 	}
+	bankRef.ID = bankRef.Mapped.ID()
 	varInfo.usageAt = append(varInfo.usageAt, bankRef)
 
 	if reads {
@@ -67,16 +94,16 @@ func (dis *Disasm) AddVariableReference(addressReference, usageAddress uint16,
 		varInfo.writes = true
 	}
 
-	if dis.arch.IsAddressingIndexed(opcode) {
+	if v.arch.IsAddressingIndexed(opcode) {
 		varInfo.indexedUsage = true
 	}
 }
 
-// processVariables processes all variables and updates the instructions that use them
+// Process processes all variables and updates the instructions that use them
 // with a generated alias name.
-func (dis *Disasm) processVariables() error {
-	variables := make([]*variable, 0, len(dis.variables))
-	for _, varInfo := range dis.variables {
+func (v *Vars) Process(dis arch.Disasm) error {
+	variables := make([]*variable, 0, len(v.variables))
+	for _, varInfo := range v.variables {
 		variables = append(variables, varInfo)
 	}
 	sort.Slice(variables, func(i, j int) bool {
@@ -92,26 +119,26 @@ func (dis *Disasm) processVariables() error {
 
 		var dataOffsetInfo *arch.Offset
 		var addressAdjustment uint16
-		if varInfo.address >= dis.codeBaseAddress {
+		codeBaseAddress := dis.CodeBaseAddress()
+		if varInfo.address >= codeBaseAddress {
 			// if the referenced address is inside the code, a label will be created for it
-			dataOffsetInfo, varInfo.address, addressAdjustment = dis.getOpcodeStart(varInfo.address)
+			dataOffsetInfo, varInfo.address, addressAdjustment = v.getOpcodeStart(dis, varInfo.address)
 		} else {
-			// if the address is outside of the code bank a variable will be created
-			dis.usedVariables[varInfo.address] = struct{}{}
+			// if the address is outside the code bank, a variable will be created
+			v.usedVariables[varInfo.address] = struct{}{}
 
 			for _, bankRef := range varInfo.usageAt {
-				bank := bankRef.Mapped.Bank()
-				bank.AddVariableUsage(varInfo)
+				v.AddUsage(bankRef.ID, varInfo)
 			}
 		}
 
 		var reference string
-		varInfo.name, reference = dis.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
+		varInfo.name, reference = v.dataName(dataOffsetInfo, varInfo.indexedUsage, varInfo.address, addressAdjustment)
 
 		for _, bankRef := range varInfo.usageAt {
 			offsetInfo := bankRef.Mapped.OffsetInfo(bankRef.Index)
 
-			if err := dis.arch.ProcessVarUsage(offsetInfo, reference); err != nil {
+			if err := v.arch.ProcessVarUsage(offsetInfo, reference); err != nil {
 				return fmt.Errorf("processing variable usage: %w", err)
 			}
 		}
@@ -119,14 +146,29 @@ func (dis *Disasm) processVariables() error {
 	return nil
 }
 
+// AddBank adds a new bank to the variables manager.
+func (v *Vars) AddBank() {
+	v.banks = append(v.banks, &bank{
+		variables:     make(map[uint16]*variable),
+		usedVariables: make(map[uint16]struct{}),
+	})
+}
+
+// AddUsage adds a usage info of a variable to a bank.
+func (v *Vars) AddUsage(bankIndex int, varInfo *variable) {
+	bank := v.banks[bankIndex]
+	bank.variables[varInfo.address] = varInfo
+	bank.usedVariables[varInfo.address] = struct{}{}
+}
+
 // getOpcodeStart returns a reference to the opcode start of the given address.
 // In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
 // converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.
-func (dis *Disasm) getOpcodeStart(address uint16) (*arch.Offset, uint16, uint16) {
+func (v *Vars) getOpcodeStart(dis arch.Disasm, address uint16) (*arch.Offset, uint16, uint16) {
 	var addressAdjustment uint16
 
 	for {
-		offsetInfo := dis.mapper.offsetInfo(address)
+		offsetInfo := dis.OffsetInfo(address)
 		if len(offsetInfo.Data) == 0 {
 			address--
 			addressAdjustment++
@@ -139,7 +181,7 @@ func (dis *Disasm) getOpcodeStart(address uint16) (*arch.Offset, uint16, uint16)
 // dataName calculates the name of a variable based on its address and optional address adjustment.
 // It returns the name of the variable and a string to reference it, it is possible that the reference
 // is using an adjuster like +1 or +2.
-func (dis *Disasm) dataName(offsetInfo *arch.Offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
+func (v *Vars) dataName(offsetInfo *arch.Offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
 	var name string
 
 	if offsetInfo != nil && offsetInfo.Label != "" {
@@ -174,4 +216,21 @@ func (dis *Disasm) dataName(offsetInfo *arch.Offset, indexedUsage bool, address,
 		offsetInfo.Label = name
 	}
 	return name, reference
+}
+
+// SetBankVariables sets the used constants in the bank for outputting.
+func (v *Vars) SetBankVariables(bankID int, prgBank *program.PRGBank) {
+	bank := v.banks[bankID]
+	for address := range bank.usedVariables {
+		varInfo := bank.variables[address]
+		prgBank.Variables[varInfo.name] = address
+	}
+}
+
+// SetProgramVariables sets the used constants in the program for outputting.
+func (v *Vars) SetProgramVariables(app *program.Program) {
+	for address := range v.usedVariables {
+		varInfo := v.variables[address]
+		app.Variables[varInfo.name] = address
+	}
 }

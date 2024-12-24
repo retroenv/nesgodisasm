@@ -11,9 +11,6 @@ import (
 type Disasm interface {
 	// AddAddressToParse adds an address to the list to be processed if the address has not been processed yet.
 	AddAddressToParse(address, context, from uint16, currentInstruction Instruction, isABranchDestination bool)
-	// AddVariableReference adds a variable reference if the opcode is accessing
-	// the given address directly by reading or writing.
-	AddVariableReference(addressReference, usageAddress uint16, opcode Opcode, forceVariableUsage bool)
 	// Cart returns the loaded cartridge.
 	Cart() *cartridge.Cartridge
 	// ChangeAddressRangeToCodeAsData sets a range of code address to code as
@@ -29,6 +26,8 @@ type Disasm interface {
 	JumpEngine() JumpEngine
 	// Logger returns the logger.
 	Logger() *log.Logger
+	// Mapper returns the mapper.
+	Mapper() Mapper
 	// OffsetInfo returns the offset information for the given address.
 	OffsetInfo(address uint16) *Offset
 	// Options returns the disassembler options.
@@ -45,10 +44,20 @@ type Disasm interface {
 	SetHandlers(handlers program.Handlers)
 	// SetVectorsStartAddress sets the start address of the vectors.
 	SetVectorsStartAddress(address uint16)
+	// Variables returns the variable manager.
+	Variables() VariableManager
 }
 
+// ConstantManager manages constants in the disassembled program.
 type ConstantManager interface {
 	// ReplaceParameter replaces the parameter of an instruction by a constant name
 	// if the address of the instruction is found in the constants map.
 	ReplaceParameter(address uint16, opcode Opcode, paramAsString string) (string, bool)
+}
+
+// VariableManager manages variables in the disassembled program.
+type VariableManager interface {
+	// AddReference adds a variable reference if the opcode is accessing
+	// the given address directly by reading or writing.
+	AddReference(dis Disasm, addressReference, usageAddress uint16, opcode Opcode, forceVariableUsage bool)
 }
