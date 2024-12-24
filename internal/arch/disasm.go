@@ -45,23 +45,3 @@ type Disasm interface {
 	// Variables returns the variable manager.
 	Variables() VariableManager
 }
-
-// ConstantManager manages constants in the disassembled program.
-type ConstantManager interface {
-	AddBank()
-	// ReplaceParameter replaces the parameter of an instruction by a constant name
-	// if the address of the instruction is found in the constants map.
-	ReplaceParameter(address uint16, opcode Opcode, paramAsString string) (string, bool)
-	// SetBankConstants sets the used constants in the bank for outputting.
-	SetBankConstants(bankID int, prgBank *program.PRGBank)
-}
-
-// VariableManager manages variables in the disassembled program.
-type VariableManager interface {
-	AddBank()
-	// AddReference adds a variable reference if the opcode is accessing
-	// the given address directly by reading or writing.
-	AddReference(dis Disasm, addressReference, usageAddress uint16, opcode Opcode, forceVariableUsage bool)
-	// SetBankVariables sets the used constants in the bank for outputting.
-	SetBankVariables(bankID int, prgBank *program.PRGBank)
-}

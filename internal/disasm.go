@@ -40,9 +40,9 @@ type Disasm struct {
 	codeBaseAddress     uint16 // codebase address of the cartridge, it is not always 0x8000
 	vectorsStartAddress uint16
 
-	constants  *consts.Consts
-	jumpEngine *jumpengine.JumpEngine
-	vars       *vars.Vars
+	constants  arch.ConstantManager
+	jumpEngine arch.JumpEngine
+	vars       arch.VariableManager
 
 	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
 
@@ -108,7 +108,7 @@ func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBank
 	if err := dis.vars.Process(dis); err != nil {
 		return nil, fmt.Errorf("processing variables: %w", err)
 	}
-	dis.constants.ProcessConstants()
+	dis.constants.Process()
 	dis.processJumpDestinations()
 
 	app, err := dis.convertToProgram()
@@ -190,8 +190,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 		return nil, fmt.Errorf("setting program banks: %w", err)
 	}
 
-	dis.constants.SetProgramConstants(app)
-	dis.vars.SetProgramVariables(app)
+	dis.constants.SetToProgram(app)
+	dis.vars.SetToProgram(app)
 
 	crc32q := crc32.MakeTable(crc32.IEEE)
 	app.Checksums.PRG = crc32.Checksum(dis.cart.PRG, crc32q)

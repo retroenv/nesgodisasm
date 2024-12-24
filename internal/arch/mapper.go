@@ -13,9 +13,10 @@ type MappedBank interface {
 	OffsetInfo(address uint16) *Offset
 }
 
+// BankReference represents a reference to an address in a bank.
 type BankReference struct {
-	Mapped  MappedBank
-	Address uint16
-	ID      int
-	Index   uint16 // index in the bank
+	Mapped  MappedBank // bank reference
+	Address uint16     // address in the bank
+	ID      int        // bank ID
+	Index   uint16     // index in the bank
 }

@@ -75,10 +75,10 @@ func (c *Consts) ReplaceParameter(address uint16, opcode arch.Opcode, paramAsStr
 	return paramAsString, true
 }
 
-// ProcessConstants processes all constants and updates all banks with the used ones. There is currently no tracking
+// Process processes all constants and updates all banks with the used ones. There is currently no tracking
 // for in which bank a constant is used, it will be added to all banks for now.
 // TODO fix constants to only output in used banks
-func (c *Consts) ProcessConstants() {
+func (c *Consts) Process() {
 	constants := make([]arch.Constant, 0, len(c.constants))
 	for _, translation := range c.constants {
 		constants = append(constants, translation)
@@ -100,8 +100,8 @@ func (c *Consts) ProcessConstants() {
 	}
 }
 
-// SetProgramConstants sets the used constants in the program for outputting.
-func (c *Consts) SetProgramConstants(app *program.Program) {
+// SetToProgram sets the used constants in the program for outputting.
+func (c *Consts) SetToProgram(app *program.Program) {
 	for address := range c.usedConstants {
 		constantInfo := c.constants[address]
 		if constantInfo.Read != "" {

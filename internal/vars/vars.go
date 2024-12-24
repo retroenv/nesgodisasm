@@ -138,7 +138,7 @@ func (v *Vars) Process(dis arch.Disasm) error {
 		for _, bankRef := range varInfo.usageAt {
 			offsetInfo := bankRef.Mapped.OffsetInfo(bankRef.Index)
 
-			if err := v.arch.ProcessVarUsage(offsetInfo, reference); err != nil {
+			if err := v.arch.ProcessVariableUsage(offsetInfo, reference); err != nil {
 				return fmt.Errorf("processing variable usage: %w", err)
 			}
 		}
@@ -218,7 +218,7 @@ func (v *Vars) dataName(offsetInfo *arch.Offset, indexedUsage bool, address, add
 	return name, reference
 }
 
-// SetBankVariables sets the used constants in the bank for outputting.
+// SetBankVariables sets the used variables in the bank for outputting.
 func (v *Vars) SetBankVariables(bankID int, prgBank *program.PRGBank) {
 	bank := v.banks[bankID]
 	for address := range bank.usedVariables {
@@ -227,8 +227,8 @@ func (v *Vars) SetBankVariables(bankID int, prgBank *program.PRGBank) {
 	}
 }
 
-// SetProgramVariables sets the used constants in the program for outputting.
-func (v *Vars) SetProgramVariables(app *program.Program) {
+// SetToProgram sets the used variables in the program for outputting.
+func (v *Vars) SetToProgram(app *program.Program) {
 	for address := range v.usedVariables {
 		varInfo := v.variables[address]
 		app.Variables[varInfo.name] = address

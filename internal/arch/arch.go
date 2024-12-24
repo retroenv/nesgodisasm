@@ -22,8 +22,8 @@ type Architecture interface {
 	LastCodeAddress() uint16
 	// ProcessOffset processes an offset and returns if the offset was processed and an error if any.
 	ProcessOffset(dis Disasm, address uint16, offsetInfo *Offset) (bool, error)
-	// ProcessVarUsage processes the variable usage of an offset.
-	ProcessVarUsage(offsetInfo *Offset, reference string) error
+	// ProcessVariableUsage processes the variable usage of an offset.
+	ProcessVariableUsage(offsetInfo *Offset, reference string) error
 	// ReadOpParam reads the parameter of an opcode.
 	ReadOpParam(dis Disasm, addressing int, address uint16) (any, []byte, error)
 }
