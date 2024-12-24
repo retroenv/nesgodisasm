@@ -1,4 +1,4 @@
-package disasm
+package mapper
 
 import (
 	"fmt"
@@ -12,10 +12,18 @@ const (
 	multiBankNameTemplate = "PRG_BANK_%d"
 )
 
+var _ arch.MappedBank = mappedBank{}
+
 type bank struct {
 	prg []byte
 
 	offsets []*arch.Offset
+}
+
+type mappedBank struct {
+	bank      *bank
+	id        int
+	dataStart int
 }
 
 func newBank(prg []byte) *bank {
@@ -29,7 +37,7 @@ func newBank(prg []byte) *bank {
 	return b
 }
 
-func (dis *Disasm) initializeBanks(prg []byte) {
+func (m *Mapper) initializeBanks(dis arch.Disasm, prg []byte) {
 	for i := 0; i < len(prg); {
 		size := len(prg) - i
 		if size > 0x8000 {
@@ -38,12 +46,22 @@ func (dis *Disasm) initializeBanks(prg []byte) {
 
 		b := prg[i : i+size]
 		bnk := newBank(b)
-		dis.banks = append(dis.banks, bnk)
+		m.banks = append(m.banks, bnk)
 		i += size
 
-		dis.constants.AddBank()
-		dis.vars.AddBank()
+		dis.Constants().AddBank()
+		dis.Variables().AddBank()
 	}
+}
+
+func (m mappedBank) OffsetInfo(index uint16) *arch.Offset {
+	offset := int(index) + m.dataStart
+	offsetInfo := m.bank.offsets[offset]
+	return offsetInfo
+}
+
+func (m mappedBank) ID() int {
+	return m.id
 }
 
 func setBankVectors(bnk *bank, prgBank *program.PRGBank) {

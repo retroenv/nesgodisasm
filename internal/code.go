@@ -23,7 +23,7 @@ func (dis *Disasm) processJumpDestinations() {
 	slices.Sort(branchDestinations)
 
 	for _, address := range branchDestinations {
-		offsetInfo := dis.mapper.offsetInfo(address)
+		offsetInfo := dis.mapper.OffsetInfo(address)
 
 		name := offsetInfo.Label
 		if name == "" {
@@ -64,12 +64,12 @@ func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 	// look backwards for instruction start
 	address--
 
-	for offsetInfo := dis.mapper.offsetInfo(address); len(offsetInfo.Data) == 0; {
+	for offsetInfo := dis.mapper.OffsetInfo(address); len(offsetInfo.Data) == 0; {
 		address--
-		offsetInfo = dis.mapper.offsetInfo(address)
+		offsetInfo = dis.mapper.OffsetInfo(address)
 	}
 
-	offsetInfo := dis.mapper.offsetInfo(address)
+	offsetInfo := dis.mapper.OffsetInfo(address)
 	if offsetInfo.Code == "" { // disambiguous instruction
 		offsetInfo.Comment = "branch into instruction detected: " + offsetInfo.Comment
 	} else {
@@ -85,7 +85,7 @@ func (dis *Disasm) handleJumpIntoInstruction(address uint16) {
 func (dis *Disasm) changeAddressRangeToCode(address uint16, data []byte) {
 	lastCodeAddress := dis.arch.LastCodeAddress()
 	for i := 0; i < len(data) && int(address)+i < int(lastCodeAddress); i++ {
-		offsetInfo := dis.mapper.offsetInfo(address + uint16(i))
+		offsetInfo := dis.mapper.OffsetInfo(address + uint16(i))
 		offsetInfo.SetType(program.CodeOffset)
 	}
 }

@@ -1,8 +1,11 @@
 package arch
 
+// Mapper provides a mapper manager.
 type Mapper interface {
 	GetMappedBank(address uint16) MappedBank
 	GetMappedBankIndex(address uint16) uint16
+	// OffsetInfo returns the offset information for the given address.
+	OffsetInfo(address uint16) *Offset
 }
 
 type MappedBank interface {

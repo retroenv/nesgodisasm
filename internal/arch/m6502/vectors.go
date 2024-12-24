@@ -28,6 +28,7 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 		Reset: "Reset",
 		IRQ:   "0",
 	}
+	mapper := dis.Mapper()
 
 	nmi, err := dis.ReadMemoryWord(m6502.NMIAddress)
 	if err != nil {
@@ -35,7 +36,7 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 	}
 	if nmi != 0 {
 		logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
-		offsetInfo := dis.OffsetInfo(nmi)
+		offsetInfo := mapper.OffsetInfo(nmi)
 		if offsetInfo != nil {
 			offsetInfo.Label = "NMI"
 			offsetInfo.SetType(program.CallDestination)
@@ -54,7 +55,7 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 	}
 
 	logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
-	offsetInfo := dis.OffsetInfo(reset)
+	offsetInfo := mapper.OffsetInfo(reset)
 	if offsetInfo != nil {
 		if offsetInfo.Label != "" {
 			handlers.NMI = "Reset"
@@ -69,7 +70,7 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 	}
 	if irq != 0 {
 		logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
-		offsetInfo = dis.OffsetInfo(irq)
+		offsetInfo = mapper.OffsetInfo(irq)
 		if offsetInfo != nil {
 			if offsetInfo.Label == "" {
 				offsetInfo.Label = "IRQ"

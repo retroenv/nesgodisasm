@@ -25,7 +25,7 @@ func (dis *Disasm) followExecutionFlow() error {
 		dis.offsetsParsed[address] = struct{}{}
 
 		dis.pc = address
-		offsetInfo := dis.mapper.offsetInfo(dis.pc)
+		offsetInfo := dis.mapper.OffsetInfo(dis.pc)
 
 		inspectCode, err := dis.arch.ProcessOffset(dis, address, offsetInfo)
 		if err != nil {
@@ -50,7 +50,7 @@ func (dis *Disasm) followExecutionFlow() error {
 // cut the current one short.
 func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *arch.Offset) {
 	for i := 1; i < len(offsetInfo.Data) && int(address)+i < int(dis.arch.LastCodeAddress()); i++ {
-		offsetInfoFollowing := dis.mapper.offsetInfo(address + uint16(i))
+		offsetInfoFollowing := dis.mapper.OffsetInfo(address + uint16(i))
 		if !offsetInfoFollowing.IsType(program.CodeOffset) {
 			continue
 		}
@@ -110,7 +110,7 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 		return
 	}
 
-	offsetInfo := dis.mapper.offsetInfo(address)
+	offsetInfo := dis.mapper.OffsetInfo(address)
 	if isABranchDestination && currentInstruction != nil && currentInstruction.IsCall() {
 		offsetInfo.SetType(program.CallDestination)
 		if offsetInfo.Context == 0 {

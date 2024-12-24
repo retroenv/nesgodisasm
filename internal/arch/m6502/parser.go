@@ -89,7 +89,7 @@ func (ar *Arch6502) handleInstructionIRQOverlap(dis arch.Disasm, address uint16,
 	offsetInfo.Data = offsetInfo.Data[:keepLength]
 
 	for i := range keepLength {
-		offsetInfo = dis.OffsetInfo(address + uint16(i))
+		offsetInfo = dis.Mapper().OffsetInfo(address + uint16(i))
 		offsetInfo.ClearType(program.CodeOffset)
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 	}

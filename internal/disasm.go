@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"strings"
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/consts"
 	"github.com/retroenv/nesgodisasm/internal/jumpengine"
+	"github.com/retroenv/nesgodisasm/internal/mapper"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/vars"
@@ -54,8 +54,7 @@ type Disasm struct {
 	functionReturnsToParse      []uint16
 	functionReturnsToParseAdded map[uint16]struct{}
 
-	banks  []*bank
-	mapper *mapper
+	mapper *mapper.Mapper
 }
 
 // New creates a new NES disassembler that creates output compatible with the chosen assembler.
@@ -82,8 +81,7 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 		return nil, fmt.Errorf("creating constants: %w", err)
 	}
 
-	dis.initializeBanks(cart.PRG)
-	dis.mapper, err = newMapper(dis.banks, len(cart.PRG))
+	dis.mapper, err = mapper.New(dis, cart.PRG)
 	if err != nil {
 		return nil, fmt.Errorf("creating mapper: %w", err)
 	}
@@ -106,7 +104,7 @@ func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBank
 		return nil, err
 	}
 
-	dis.processData()
+	dis.mapper.ProcessData()
 	if err := dis.vars.Process(dis); err != nil {
 		return nil, fmt.Errorf("processing variables: %w", err)
 	}
@@ -135,10 +133,6 @@ func (dis *Disasm) ProgramCounter() uint16 {
 
 func (dis *Disasm) Logger() *log.Logger {
 	return dis.logger
-}
-
-func (dis *Disasm) OffsetInfo(address uint16) *arch.Offset {
-	return dis.mapper.offsetInfo(address)
 }
 
 func (dis *Disasm) SetHandlers(handlers program.Handlers) {
@@ -192,26 +186,8 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app.VectorsStartAddress = dis.vectorsStartAddress
 	app.Handlers = dis.handlers
 
-	for bnkIndex, bnk := range dis.banks {
-		prgBank := program.NewPRGBank(len(bnk.offsets))
-
-		for i := range len(bnk.offsets) {
-			offsetInfo := bnk.offsets[i]
-			programOffsetInfo, err := dis.getProgramOffset(dis.codeBaseAddress+uint16(i), offsetInfo)
-			if err != nil {
-				return nil, err
-			}
-
-			prgBank.Offsets[i] = programOffsetInfo
-		}
-
-		dis.constants.SetBankConstants(bnkIndex, prgBank)
-		dis.vars.SetBankVariables(bnkIndex, prgBank)
-
-		setBankName(prgBank, bnkIndex, len(dis.banks))
-		setBankVectors(bnk, prgBank)
-
-		app.PRG = append(app.PRG, prgBank)
+	if err := dis.mapper.SetProgramBanks(dis, app); err != nil {
+		return nil, fmt.Errorf("setting program banks: %w", err)
 	}
 
 	dis.constants.SetProgramConstants(app)
@@ -231,83 +207,6 @@ func (dis *Disasm) loadCodeDataLog() error {
 		return fmt.Errorf("loading code/data log file: %w", err)
 	}
 
-	// TODO handle banks
-	bank0 := dis.banks[0]
-	for index, flags := range prgFlags {
-		if index > len(bank0.offsets) {
-			return nil
-		}
-
-		if flags&codedatalog.Code != 0 {
-			dis.AddAddressToParse(dis.codeBaseAddress+uint16(index), 0, 0, nil, false)
-		}
-		if flags&codedatalog.SubEntryPoint != 0 {
-			bank0.offsets[index].SetType(program.CallDestination)
-		}
-	}
-
+	dis.mapper.ApplyCodeDataLog(dis, prgFlags)
 	return nil
-}
-
-func (dis *Disasm) getProgramOffset(address uint16, offsetInfo *arch.Offset) (program.Offset, error) {
-	programOffset := offsetInfo.Offset
-	programOffset.Address = address
-
-	if offsetInfo.BranchingTo != "" {
-		programOffset.Code = fmt.Sprintf("%s %s", offsetInfo.Code, offsetInfo.BranchingTo)
-	}
-
-	if offsetInfo.IsType(program.CodeOffset | program.CodeAsData | program.FunctionReference) {
-		if len(programOffset.Data) == 0 && programOffset.Label == "" {
-			return programOffset, nil
-		}
-
-		if offsetInfo.IsType(program.FunctionReference) {
-			programOffset.Code = ".word " + offsetInfo.BranchingTo
-		}
-
-		if err := dis.setComment(address, &programOffset); err != nil {
-			return program.Offset{}, err
-		}
-	} else {
-		programOffset.SetType(program.DataOffset)
-	}
-
-	return programOffset, nil
-}
-
-func (dis *Disasm) setComment(address uint16, programOffset *program.Offset) error {
-	var comments []string
-
-	if dis.options.OffsetComments {
-		programOffset.HasAddressComment = true
-		comments = []string{fmt.Sprintf("$%04X", address)}
-	}
-
-	if dis.options.HexComments {
-		hexCodeComment, err := hexCodeComment(programOffset)
-		if err != nil {
-			return err
-		}
-		comments = append(comments, hexCodeComment)
-	}
-
-	if programOffset.Comment != "" {
-		comments = append(comments, programOffset.Comment)
-	}
-	programOffset.Comment = strings.Join(comments, "  ")
-	return nil
-}
-
-func hexCodeComment(offset *program.Offset) (string, error) {
-	buf := &strings.Builder{}
-
-	for _, b := range offset.Data {
-		if _, err := fmt.Fprintf(buf, "%02X ", b); err != nil {
-			return "", fmt.Errorf("writing hex comment: %w", err)
-		}
-	}
-
-	comment := strings.TrimRight(buf.String(), " ")
-	return comment, nil
 }

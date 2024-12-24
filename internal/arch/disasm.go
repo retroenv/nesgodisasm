@@ -28,8 +28,6 @@ type Disasm interface {
 	Logger() *log.Logger
 	// Mapper returns the mapper.
 	Mapper() Mapper
-	// OffsetInfo returns the offset information for the given address.
-	OffsetInfo(address uint16) *Offset
 	// Options returns the disassembler options.
 	Options() options.Disassembler
 	// ProgramCounter returns the current program counter of the execution tracer.
@@ -50,14 +48,20 @@ type Disasm interface {
 
 // ConstantManager manages constants in the disassembled program.
 type ConstantManager interface {
+	AddBank()
 	// ReplaceParameter replaces the parameter of an instruction by a constant name
 	// if the address of the instruction is found in the constants map.
 	ReplaceParameter(address uint16, opcode Opcode, paramAsString string) (string, bool)
+	// SetBankConstants sets the used constants in the bank for outputting.
+	SetBankConstants(bankID int, prgBank *program.PRGBank)
 }
 
 // VariableManager manages variables in the disassembled program.
 type VariableManager interface {
+	AddBank()
 	// AddReference adds a variable reference if the opcode is accessing
 	// the given address directly by reading or writing.
 	AddReference(dis Disasm, addressReference, usageAddress uint16, opcode Opcode, forceVariableUsage bool)
+	// SetBankVariables sets the used constants in the bank for outputting.
+	SetBankVariables(bankID int, prgBank *program.PRGBank)
 }

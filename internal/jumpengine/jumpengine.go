@@ -113,7 +113,7 @@ func (j *JumpEngine) JumpContextInfo(dis arch.Disasm, jumpAddress uint16, offset
 	var addresses []uint16
 
 	for address := offsetInfo.Context; address != 0 && address < jumpAddress; {
-		offsetInfoInstruction := dis.OffsetInfo(address)
+		offsetInfoInstruction := dis.Mapper().OffsetInfo(address)
 
 		// skip offsets that have not been processed yet
 		if len(offsetInfoInstruction.Data) == 0 {
@@ -147,7 +147,7 @@ func (j *JumpEngine) HandleJumpEngineDestination(dis arch.Disasm, caller, destin
 
 // HandleJumpEngineCallers processes all callers of a newly detected jump engine function.
 func (j *JumpEngine) HandleJumpEngineCallers(dis arch.Disasm, context uint16) error {
-	offsetInfo := dis.OffsetInfo(context)
+	offsetInfo := dis.Mapper().OffsetInfo(context)
 	offsetInfo.LabelComment = "jump engine detected"
 	offsetInfo.SetType(program.JumpEngine)
 
@@ -170,7 +170,7 @@ func (j *JumpEngine) handleJumpEngineCaller(dis arch.Disasm, caller uint16) erro
 	}
 
 	// get the address of the function pointers after the jump engine call
-	offsetInfo := dis.OffsetInfo(caller)
+	offsetInfo := dis.Mapper().OffsetInfo(caller)
 	address := caller + uint16(len(offsetInfo.Data))
 
 	// remove from code that should be parsed
@@ -199,8 +199,9 @@ func (j *JumpEngine) processJumpEngineEntry(dis arch.Disasm, address uint16, jum
 		return false, nil
 	}
 
-	offsetInfo1 := dis.OffsetInfo(address)
-	offsetInfo2 := dis.OffsetInfo(address + 1)
+	mapper := dis.Mapper()
+	offsetInfo1 := mapper.OffsetInfo(address)
+	offsetInfo2 := mapper.OffsetInfo(address + 1)
 
 	// if the potential jump table entry is already marked as code, the table end is reached
 	if offsetInfo1.Type == program.CodeOffset || offsetInfo2.Type == program.CodeOffset {
