@@ -32,6 +32,7 @@ func (c Chip8) HandleDisambiguousInstructions(dis arch.Disasm, address uint16, o
 }
 
 func (c Chip8) Initialize(dis arch.Disasm) error {
+	dis.AddAddressToParse(0, 0, 0, nil, false)
 	return nil
 }
 
