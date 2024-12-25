@@ -56,14 +56,16 @@ func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Map
 	}
 
 	// TODO set mapper specific
-	bnk := m.banksMapped[0]
-	m.setMappedBank(0x8000, bnk)
-	bnk = m.banksMapped[1]
-	m.setMappedBank(0xa000, bnk)
-	bnk = m.banksMapped[len(m.banksMapped)-2]
-	m.setMappedBank(0xc000, bnk)
-	bnk = m.banksMapped[len(m.banksMapped)-1]
-	m.setMappedBank(0xe000, bnk)
+	if m.bankWindowSize == 0x2000 {
+		bnk := m.banksMapped[0]
+		m.setMappedBank(0x8000, bnk)
+		bnk = m.banksMapped[1]
+		m.setMappedBank(0xa000, bnk)
+		bnk = m.banksMapped[len(m.banksMapped)-2]
+		m.setMappedBank(0xc000, bnk)
+		bnk = m.banksMapped[len(m.banksMapped)-1]
+		m.setMappedBank(0xe000, bnk)
+	}
 
 	return m, nil
 }

@@ -3,6 +3,7 @@ package chip8
 
 import (
 	"github.com/retroenv/nesgodisasm/internal/arch"
+	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
 )
 
@@ -19,39 +20,44 @@ type Chip8 struct {
 	converter parameter.Converter
 }
 
-func (c Chip8) Constants() (map[uint16]arch.Constant, error) {
+func (c *Chip8) Constants() (map[uint16]arch.Constant, error) {
 	return map[uint16]arch.Constant{}, nil
 }
 
-func (c Chip8) GetAddressingParam(param any) (uint16, bool) {
+func (c *Chip8) GetAddressingParam(param any) (uint16, bool) {
 	panic("implement me")
 }
 
-func (c Chip8) HandleDisambiguousInstructions(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) bool {
+func (c *Chip8) HandleDisambiguousInstructions(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) bool {
 	panic("implement me")
 }
 
-func (c Chip8) Initialize(dis arch.Disasm) error {
+func (c *Chip8) Initialize(dis arch.Disasm) error {
 	dis.AddAddressToParse(0, 0, 0, nil, false)
 	return nil
 }
 
-func (c Chip8) IsAddressingIndexed(opcode arch.Opcode) bool {
+func (c *Chip8) IsAddressingIndexed(opcode arch.Opcode) bool {
 	panic("implement me")
 }
 
-func (c Chip8) LastCodeAddress() uint16 {
+func (c *Chip8) LastCodeAddress() uint16 {
 	panic("implement me")
 }
 
-func (c Chip8) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (bool, error) {
+func (c *Chip8) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (bool, error) {
 	panic("implement me")
 }
 
-func (c Chip8) ProcessVariableUsage(offsetInfo *arch.Offset, reference string) error {
+func (c *Chip8) ProcessVariableUsage(offsetInfo *arch.Offset, reference string) error {
 	panic("implement me")
 }
 
-func (c Chip8) ReadOpParam(dis arch.Disasm, addressing int, address uint16) (any, []byte, error) {
+func (c *Chip8) ReadOpParam(dis arch.Disasm, addressing int, address uint16) (any, []byte, error) {
 	panic("implement me")
+}
+
+// BankWindowSize returns the bank window size.
+func (c *Chip8) BankWindowSize(cart *cartridge.Cartridge) int {
+	return len(cart.PRG)
 }
