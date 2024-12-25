@@ -16,9 +16,8 @@ type Mapper struct {
 	addressShifts  int
 	bankWindowSize int
 
-	emptyMappedBank mappedBank
-	banksMapped     []mappedBank
-	mapped          []mappedBank
+	banksMapped []mappedBank
+	mapped      []mappedBank
 }
 
 const bankWindowSize = 0x2000 // TODO use as parameter
@@ -33,9 +32,8 @@ func New(dis arch.Disasm, prg []byte) (*Mapper, error) {
 		addressShifts:  16 - log2(mappedWindows),
 		bankWindowSize: bankWindowSize,
 
-		emptyMappedBank: mappedBank{},
-		banksMapped:     make([]mappedBank, mappedBanks),
-		mapped:          make([]mappedBank, mappedWindows),
+		banksMapped: make([]mappedBank, mappedBanks),
+		mapped:      make([]mappedBank, mappedWindows),
 	}
 
 	m.initializeBanks(dis, prg)
@@ -98,7 +96,7 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
 	bankWindow := address >> m.addressShifts
 	bnk := m.mapped[bankWindow]
-	if bnk == m.emptyMappedBank {
+	if bnk.bank == nil {
 		return nil
 	}
 
