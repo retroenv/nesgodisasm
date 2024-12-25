@@ -81,7 +81,7 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 		return nil, fmt.Errorf("creating constants: %w", err)
 	}
 
-	dis.mapper, err = mapper.New(dis, cart.PRG)
+	dis.mapper, err = mapper.New(ar, dis, cart)
 	if err != nil {
 		return nil, fmt.Errorf("creating mapper: %w", err)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
+	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
 )
 
@@ -72,4 +73,9 @@ func (ar *Arch6502) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *a
 	}
 
 	return true, nil
+}
+
+// BankWindowSize returns the bank window size.
+func (ar *Arch6502) BankWindowSize(_ *cartridge.Cartridge) int {
+	return 0x2000 // TODO calculate dynamically
 }

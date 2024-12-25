@@ -7,6 +7,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
 )
 
@@ -20,11 +21,10 @@ type Mapper struct {
 	mapped      []mappedBank
 }
 
-const bankWindowSize = 0x2000 // TODO use as parameter
-
 // New creates a new mapper manager.
-func New(dis arch.Disasm, prg []byte) (*Mapper, error) {
-	prgSize := len(prg)
+func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Mapper, error) {
+	bankWindowSize := ar.BankWindowSize(cart)
+	prgSize := len(cart.PRG)
 	mappedBanks := prgSize / bankWindowSize
 	mappedWindows := 0x10000 / bankWindowSize
 
@@ -36,7 +36,7 @@ func New(dis arch.Disasm, prg []byte) (*Mapper, error) {
 		mapped:      make([]mappedBank, mappedWindows),
 	}
 
-	m.initializeBanks(dis, prg)
+	m.initializeBanks(dis, cart.PRG)
 
 	bankNumber := 0
 	for bankIndex, bnk := range m.banks {
@@ -80,14 +80,14 @@ func (m *Mapper) GetMappedBank(address uint16) arch.MappedBank {
 }
 
 func (m *Mapper) GetMappedBankIndex(address uint16) uint16 {
-	index := int(address) % bankWindowSize
+	index := int(address) % m.bankWindowSize
 	return uint16(index)
 }
 
 func (m *Mapper) ReadMemory(address uint16) byte {
 	bankWindow := address >> m.addressShifts
 	bnk := m.mapped[bankWindow]
-	index := int(address) % bankWindowSize
+	index := int(address) % m.bankWindowSize
 	pointer := bnk.dataStart + index
 	b := bnk.bank.prg[pointer]
 	return b
@@ -100,7 +100,7 @@ func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
 		return nil
 	}
 
-	index := int(address) % bankWindowSize
+	index := int(address) % m.bankWindowSize
 	pointer := bnk.dataStart + index
 	offsetInfo := bnk.bank.offsets[pointer]
 	return offsetInfo
