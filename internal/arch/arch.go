@@ -2,8 +2,12 @@
 // It acts as a bridge between the disassembler and the architecture specific code.
 package arch
 
+import "github.com/retroenv/retrogolib/arch/nes/cartridge"
+
 // Architecture contains architecture specific information.
 type Architecture interface {
+	// BankWindowSize returns the bank window size.
+	BankWindowSize(cart *cartridge.Cartridge) int
 	// Constants returns the constants translation map.
 	Constants() (map[uint16]Constant, error)
 	// GetAddressingParam returns the address of the param if it references an address.

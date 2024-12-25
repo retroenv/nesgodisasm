@@ -7,6 +7,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
 )
 
@@ -16,16 +17,14 @@ type Mapper struct {
 	addressShifts  int
 	bankWindowSize int
 
-	emptyMappedBank mappedBank
-	banksMapped     []mappedBank
-	mapped          []mappedBank
+	banksMapped []mappedBank
+	mapped      []mappedBank
 }
 
-const bankWindowSize = 0x2000 // TODO use as parameter
-
 // New creates a new mapper manager.
-func New(dis arch.Disasm, prg []byte) (*Mapper, error) {
-	prgSize := len(prg)
+func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Mapper, error) {
+	bankWindowSize := ar.BankWindowSize(cart)
+	prgSize := len(cart.PRG)
 	mappedBanks := prgSize / bankWindowSize
 	mappedWindows := 0x10000 / bankWindowSize
 
@@ -33,12 +32,11 @@ func New(dis arch.Disasm, prg []byte) (*Mapper, error) {
 		addressShifts:  16 - log2(mappedWindows),
 		bankWindowSize: bankWindowSize,
 
-		emptyMappedBank: mappedBank{},
-		banksMapped:     make([]mappedBank, mappedBanks),
-		mapped:          make([]mappedBank, mappedWindows),
+		banksMapped: make([]mappedBank, mappedBanks),
+		mapped:      make([]mappedBank, mappedWindows),
 	}
 
-	m.initializeBanks(dis, prg)
+	m.initializeBanks(dis, cart.PRG)
 
 	bankNumber := 0
 	for bankIndex, bnk := range m.banks {
@@ -82,14 +80,14 @@ func (m *Mapper) GetMappedBank(address uint16) arch.MappedBank {
 }
 
 func (m *Mapper) GetMappedBankIndex(address uint16) uint16 {
-	index := int(address) % bankWindowSize
+	index := int(address) % m.bankWindowSize
 	return uint16(index)
 }
 
 func (m *Mapper) ReadMemory(address uint16) byte {
 	bankWindow := address >> m.addressShifts
 	bnk := m.mapped[bankWindow]
-	index := int(address) % bankWindowSize
+	index := int(address) % m.bankWindowSize
 	pointer := bnk.dataStart + index
 	b := bnk.bank.prg[pointer]
 	return b
@@ -98,11 +96,11 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
 	bankWindow := address >> m.addressShifts
 	bnk := m.mapped[bankWindow]
-	if bnk == m.emptyMappedBank {
+	if bnk.bank == nil {
 		return nil
 	}
 
-	index := int(address) % bankWindowSize
+	index := int(address) % m.bankWindowSize
 	pointer := bnk.dataStart + index
 	offsetInfo := bnk.bank.offsets[pointer]
 	return offsetInfo
