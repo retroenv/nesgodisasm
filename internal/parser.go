@@ -11,13 +11,14 @@ import (
 // nolint: funlen
 func (dis *Disasm) followExecutionFlow() error {
 	for {
-		address, err := dis.addressToDisassemble()
+		addr, err := dis.addressToDisassemble()
 		if err != nil {
 			return err
 		}
-		if address == 0 {
+		if addr == -1 {
 			break
 		}
+		address := uint16(addr)
 
 		if _, ok := dis.offsetsParsed[address]; ok {
 			continue
@@ -66,14 +67,14 @@ func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *arch.Offs
 }
 
 // addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
-// 0 will be returned. Return address from function addresses have the lowest priority, to be able to
+// -1 will be returned. Return address from function addresses have the lowest priority, to be able to
 // handle jump table functions correctly.
-func (dis *Disasm) addressToDisassemble() (uint16, error) {
+func (dis *Disasm) addressToDisassemble() (int, error) {
 	for {
 		if len(dis.offsetsToParse) > 0 {
 			address := dis.offsetsToParse[0]
 			dis.offsetsToParse = dis.offsetsToParse[1:]
-			return address, nil
+			return int(address), nil
 		}
 
 		for len(dis.functionReturnsToParse) > 0 {
@@ -87,7 +88,7 @@ func (dis *Disasm) addressToDisassemble() (uint16, error) {
 				continue
 			}
 			delete(dis.functionReturnsToParseAdded, address)
-			return address, nil
+			return int(address), nil
 		}
 
 		isEntry, err := dis.jumpEngine.ScanForNewJumpEngineEntry(dis)
@@ -95,7 +96,7 @@ func (dis *Disasm) addressToDisassemble() (uint16, error) {
 			return 0, fmt.Errorf("scanning for new jump engine entry: %w", err)
 		}
 		if !isEntry {
-			return 0, nil
+			return -1, nil
 		}
 	}
 }

@@ -24,6 +24,20 @@ type Mapper struct {
 // New creates a new mapper manager.
 func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Mapper, error) {
 	bankWindowSize := ar.BankWindowSize(cart)
+
+	if bankWindowSize == 0 {
+		return &Mapper{
+			banks: []*bank{
+				newBank(cart.PRG),
+			},
+			mapped: []mappedBank{
+				{
+					bank: newBank(cart.PRG),
+				},
+			},
+		}, nil
+	}
+
 	prgSize := len(cart.PRG)
 	mappedBanks := prgSize / bankWindowSize
 	mappedWindows := 0x10000 / bankWindowSize
@@ -102,7 +116,12 @@ func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
 		return nil
 	}
 
-	index := int(address) % m.bankWindowSize
+	var index int
+	if m.bankWindowSize > 0 {
+		index = int(address) % m.bankWindowSize
+	} else {
+		index = int(address)
+	}
 	pointer := bnk.dataStart + index
 	offsetInfo := bnk.bank.offsets[pointer]
 	return offsetInfo

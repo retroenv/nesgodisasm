@@ -58,6 +58,6 @@ func (c *Chip8) ReadOpParam(dis arch.Disasm, addressing int, address uint16) (an
 }
 
 // BankWindowSize returns the bank window size.
-func (c *Chip8) BankWindowSize(cart *cartridge.Cartridge) int {
-	return len(cart.PRG)
+func (c *Chip8) BankWindowSize(_ *cartridge.Cartridge) int {
+	return 0
 }
