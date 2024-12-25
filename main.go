@@ -1,4 +1,4 @@
-// Package main implements a NES ROM disassembler
+// Package main implements the main entry point for a multi retro system disassembler
 package main
 
 import (
@@ -11,9 +11,8 @@ import (
 	"strings"
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
+	"github.com/retroenv/nesgodisasm/internal/app"
 	"github.com/retroenv/nesgodisasm/internal/arch"
-	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
-	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
@@ -39,7 +38,7 @@ func main() {
 		printBanner(logger, opts)
 	}
 
-	files, err := getFiles(&opts)
+	files, err := app.GetFiles(&opts)
 	if err != nil {
 		logger.Fatal(err.Error())
 	}
@@ -168,26 +167,6 @@ func printBanner(logger *log.Logger, options options.Program) {
 	}
 }
 
-// getFiles returns the list of files to process, either a single file or the matched files for
-// batch processing.
-func getFiles(options *options.Program) ([]string, error) {
-	if options.Batch == "" {
-		return []string{options.Input}, nil
-	}
-
-	files, err := filepath.Glob(options.Batch)
-	if err != nil {
-		return nil, fmt.Errorf("finding batch files failed: %w", err)
-	}
-
-	if len(files) == 0 {
-		return nil, errors.New("no input files matched")
-	}
-
-	options.Output = ""
-	return files, nil
-}
-
 func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler) error {
 	file, err := os.Open(opts.Input)
 	if err != nil {
@@ -208,7 +187,7 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 		return fmt.Errorf("initializing assembler compatible mode: %w", err)
 	}
 
-	ar, binaryLoad, err := systemArchitecture(paramConverter, opts.System)
+	ar, binaryLoad, err := app.SystemArchitecture(paramConverter, opts.System)
 	if err != nil {
 		return fmt.Errorf("initializing system architecture: %w", err)
 	}
@@ -225,7 +204,7 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 	}
 	_ = file.Close()
 
-	printInfo(logger, opts, cart)
+	app.PrintInfo(logger, opts, cart)
 
 	dis, err := disasm.New(ar, logger, cart, disasmOptions, fileWriterConstructor)
 	if err != nil {
@@ -368,37 +347,4 @@ func initializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterC
 	}
 
 	return fileWriterConstructor, parameter.New(paramCfg), nil
-}
-
-func systemArchitecture(paramConverter parameter.Converter, system string) (arch.Architecture, bool, error) {
-	switch system {
-	case arch.SystemNES:
-		return m6502.New(paramConverter), false, nil
-	case arch.SystemChip8:
-		return chip8.New(paramConverter), true, nil
-	default:
-		return nil, false, errors.New("unsupported system or missing parameter")
-	}
-}
-
-func printInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartridge) {
-	if opts.Quiet {
-		return
-	}
-
-	switch opts.System {
-	case arch.SystemNES:
-		logger.Info("Processing NES ROM",
-			log.String("file", opts.Input),
-			log.Uint8("mapper", cart.Mapper),
-			log.String("assembler", opts.Assembler),
-		)
-		if cart.Mapper != 0 && cart.Mapper != 3 {
-			logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
-		}
-	case arch.SystemChip8:
-		logger.Info("Processing Chip-8 ROM",
-			log.String("file", opts.Input),
-		)
-	}
 }

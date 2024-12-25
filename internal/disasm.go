@@ -1,4 +1,4 @@
-// Package disasm provides an NES program disassembler.
+// Package disasm implements a multi retro system disassembler
 package disasm
 
 import (
@@ -57,7 +57,8 @@ type Disasm struct {
 	mapper *mapper.Mapper
 }
 
-// New creates a new NES disassembler that creates output compatible with the chosen assembler.
+// New creates a new disassembler that uses the passed architecture to implement system
+// specific disassembly logic.
 func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 	options options.Disassembler, fileWriterConstructor FileWriterConstructor) (*Disasm, error) {
 
