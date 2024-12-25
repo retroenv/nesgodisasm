@@ -14,14 +14,11 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/app"
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
-	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
-	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/verification"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
-	"github.com/retroenv/retrogolib/arch/nes/parameter"
 	"github.com/retroenv/retrogolib/buildinfo"
 	"github.com/retroenv/retrogolib/log"
 )
@@ -182,7 +179,7 @@ func disasmFile(logger *log.Logger, opts options.Program, disasmOptions options.
 	disasmOptions.HexComments = !opts.NoHexComments
 	disasmOptions.OffsetComments = !opts.NoOffsets
 
-	fileWriterConstructor, paramConverter, err := initializeAssemblerCompatibleMode(opts.Assembler)
+	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(opts.Assembler)
 	if err != nil {
 		return fmt.Errorf("initializing assembler compatible mode: %w", err)
 	}
@@ -321,30 +318,4 @@ func newBankWriterFile(outputFile string) assembler.NewBankWriter {
 
 func newBankWriterStdOut(_ string) (io.WriteCloser, error) {
 	return os.Stdout, nil
-}
-
-// initializeAssemblerCompatibleMode sets the chosen assembler specific instances
-// to be used to output compatible code.
-func initializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterConstructor, parameter.Converter, error) {
-	var fileWriterConstructor disasm.FileWriterConstructor
-	var paramCfg parameter.Config
-
-	switch strings.ToLower(assemblerName) {
-	case assembler.Asm6:
-		fileWriterConstructor = asm6.New
-		paramCfg = asm6.ParamConfig
-
-	case assembler.Ca65:
-		fileWriterConstructor = ca65.New
-		paramCfg = ca65.ParamConfig
-
-	case assembler.Nesasm:
-		fileWriterConstructor = nesasm.New
-		paramCfg = nesasm.ParamConfig
-
-	default:
-		return nil, parameter.Converter{}, fmt.Errorf("unsupported assembler '%s'", assemblerName)
-	}
-
-	return fileWriterConstructor, parameter.New(paramCfg), nil
 }

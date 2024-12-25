@@ -5,10 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 
+	disasm "github.com/retroenv/nesgodisasm/internal"
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
 	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
+	"github.com/retroenv/nesgodisasm/internal/assembler"
+	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
+	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/retrogolib/arch/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/nes/parameter"
@@ -68,4 +74,30 @@ func SystemArchitecture(paramConverter parameter.Converter, system string) (arch
 	default:
 		return nil, false, errors.New("unsupported system or missing parameter")
 	}
+}
+
+// InitializeAssemblerCompatibleMode sets the chosen assembler specific instances
+// to be used to output compatible code.
+func InitializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterConstructor, parameter.Converter, error) {
+	var fileWriterConstructor disasm.FileWriterConstructor
+	var paramCfg parameter.Config
+
+	switch strings.ToLower(assemblerName) {
+	case assembler.Asm6:
+		fileWriterConstructor = asm6.New
+		paramCfg = asm6.ParamConfig
+
+	case assembler.Ca65:
+		fileWriterConstructor = ca65.New
+		paramCfg = ca65.ParamConfig
+
+	case assembler.Nesasm:
+		fileWriterConstructor = nesasm.New
+		paramCfg = nesasm.ParamConfig
+
+	default:
+		return nil, parameter.Converter{}, fmt.Errorf("unsupported assembler '%s'", assemblerName)
+	}
+
+	return fileWriterConstructor, parameter.New(paramCfg), nil
 }
