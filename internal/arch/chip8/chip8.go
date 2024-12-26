@@ -46,6 +46,14 @@ func (c *Chip8) LastCodeAddress() uint16 {
 }
 
 func (c *Chip8) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (bool, error) {
+	inspectCode, err := initializeOffsetInfo(dis, offsetInfo)
+	if err != nil {
+		return false, err
+	}
+	if !inspectCode {
+		return false, nil
+	}
+
 	panic("implement me")
 }
 
