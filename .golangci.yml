@@ -49,7 +49,6 @@ linters:
     - revive # drop-in replacement of golint
     - staticcheck # drop-in replacement of go vet
     - stylecheck # Stylecheck is a replacement for golint
-    - tenv # detects using os.Setenv instead of t.Setenv
     - thelper # checks the consistency of test helpers
     - tparallel # detects inappropriate usage of t.Parallel()
     - typecheck # parses and type-checks Go code
@@ -57,6 +56,7 @@ linters:
     - unparam # Reports unused function parameters
     - unused # Checks Go code for unused constants, variables, functions and types
     - usestdlibvars # detect the possibility to use variables/constants from the Go standard library
+    - usetesting # Reports uses of functions with replacement inside the testing package
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
     - wrapcheck # Checks that errors returned from external packages are wrapped
