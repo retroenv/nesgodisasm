@@ -39,10 +39,7 @@ func newBank(prg []byte) *bank {
 
 func (m *Mapper) initializeBanks(dis arch.Disasm, prg []byte) {
 	for i := 0; i < len(prg); {
-		size := len(prg) - i
-		if size > 0x8000 {
-			size = 0x8000
-		}
+		size := min(len(prg)-i, 0x8000)
 
 		b := prg[i : i+size]
 		bnk := newBank(b)

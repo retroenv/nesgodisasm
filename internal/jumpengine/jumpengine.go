@@ -3,6 +3,7 @@ package jumpengine
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
@@ -244,11 +245,11 @@ func (j *JumpEngine) ScanForNewJumpEngineEntry(dis arch.Disasm) (bool, error) {
 
 		// find the jump engine table with the smallest number of processed entries,
 		// this conservative approach avoids interpreting code in the table area as function references
-		for i := 0; i < len(j.jumpEngineCallers); i++ {
+		for i := range j.jumpEngineCallers {
 			engineCaller := j.jumpEngineCallers[i]
 			if engineCaller.terminated {
 				// jump engine table is processed, remove it from list to process
-				j.jumpEngineCallers = append(j.jumpEngineCallers[:i], j.jumpEngineCallers[i+1:]...)
+				j.jumpEngineCallers = slices.Delete(j.jumpEngineCallers, i, i+1)
 			}
 
 			if i := engineCaller.entries; !engineCaller.terminated && (i < minEntries || minEntries == -1) {
@@ -280,7 +281,7 @@ func (j *JumpEngine) ScanForNewJumpEngineEntry(dis arch.Disasm) (bool, error) {
 			)
 
 			// jump engine table is processed, remove it from list to process
-			j.jumpEngineCallers = append(j.jumpEngineCallers[:i], j.jumpEngineCallers[i+1:]...)
+			j.jumpEngineCallers = slices.Delete(j.jumpEngineCallers, i, i+1)
 			i--
 		}
 	}

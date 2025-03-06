@@ -59,10 +59,7 @@ func chrBanks(nextBank int, chr program.CHR) []program.CHR {
 	remaining := len(chr)
 
 	for index := 0; remaining > 0; nextBank++ {
-		toWrite := remaining
-		if toWrite > bankSize {
-			toWrite = bankSize
-		}
+		toWrite := min(remaining, bankSize)
 
 		bank := chr[index : index+toWrite]
 		//WriteCallback: writeBankSelector(nextBank, -1),
