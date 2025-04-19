@@ -115,5 +115,4 @@ usage: nesgodisasm [options] <file to disassemble>
 
 ## Notes
 
-\* asm6f needs to be compiled manually from latest source to support all instructions,
-the release from 2018 does not support all instructions.
+\* `asm6f v1.6 (modifications v03)` or later is required

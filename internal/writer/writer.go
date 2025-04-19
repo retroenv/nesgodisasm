@@ -81,10 +81,7 @@ func (w Writer) ProcessPRG(bank *program.PRGBank, endIndex int) error {
 func (w Writer) BundleDataWrites(data []byte, lineWriter lineWriterFunc) error {
 	remaining := len(data)
 	for i := 0; remaining > 0; {
-		toWrite := remaining
-		if toWrite > dataBytesPerLine {
-			toWrite = dataBytesPerLine
-		}
+		toWrite := min(remaining, dataBytesPerLine)
 
 		buf := &strings.Builder{}
 		if _, err := fmt.Fprintf(buf, "%s.byte ", w.options.DirectivePrefix); err != nil {
