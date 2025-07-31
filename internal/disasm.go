@@ -15,8 +15,8 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/vars"
 	"github.com/retroenv/nesgodisasm/internal/writer"
-	"github.com/retroenv/retrogolib/arch/nes/cartridge"
-	"github.com/retroenv/retrogolib/arch/nes/codedatalog"
+	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/system/nes/codedatalog"
 	"github.com/retroenv/retrogolib/log"
 )
 

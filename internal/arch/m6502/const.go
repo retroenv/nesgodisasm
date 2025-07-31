@@ -5,7 +5,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
-	"github.com/retroenv/retrogolib/arch/nes/register"
+	"github.com/retroenv/retrogolib/arch/system/nes/register"
 )
 
 // Constants builds the map of all known NES constants from all
