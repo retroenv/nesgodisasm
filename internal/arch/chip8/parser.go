@@ -2,7 +2,7 @@ package chip8
 
 import (
 	"fmt"
-	
+
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/cpu/chip8"

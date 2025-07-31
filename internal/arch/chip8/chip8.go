@@ -3,8 +3,8 @@ package chip8
 
 import (
 	"github.com/retroenv/nesgodisasm/internal/arch"
-	"github.com/retroenv/retrogolib/arch/nes/cartridge"
-	"github.com/retroenv/retrogolib/arch/nes/parameter"
+	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 )
 
 var _ arch.Architecture = &Chip8{}

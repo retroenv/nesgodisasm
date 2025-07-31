@@ -16,8 +16,8 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
-	"github.com/retroenv/retrogolib/arch/nes/cartridge"
-	"github.com/retroenv/retrogolib/arch/nes/parameter"
+	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
 )
 
