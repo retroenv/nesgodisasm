@@ -3,7 +3,7 @@ package disasm
 import (
 	"fmt"
 
-	"github.com/retroenv/retrogolib/arch/nes"
+	"github.com/retroenv/retrogolib/arch/system/nes"
 )
 
 func (dis *Disasm) ReadMemory(address uint16) (byte, error) {

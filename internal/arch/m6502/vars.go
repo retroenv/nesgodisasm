@@ -5,7 +5,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
-	"github.com/retroenv/retrogolib/arch/nes/parameter"
+	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 )
 
 func (ar *Arch6502) ProcessVariableUsage(offsetInfo *arch.Offset, reference string) error {

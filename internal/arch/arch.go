@@ -2,7 +2,7 @@
 // It acts as a bridge between the disassembler and the architecture specific code.
 package arch
 
-import "github.com/retroenv/retrogolib/arch/nes/cartridge"
+import "github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 
 // Architecture contains architecture specific information.
 type Architecture interface {

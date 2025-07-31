@@ -4,7 +4,7 @@ package program
 import (
 	"io"
 
-	"github.com/retroenv/retrogolib/arch/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 )
 
 // WriteCallbackFunc is a custom callback function that gets called before the offset is written.
