@@ -3,11 +3,9 @@ package config
 
 import (
 	disasm "github.com/retroenv/nesgodisasm/internal"
-	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
-	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
 )
 
@@ -34,12 +32,6 @@ func CreateFileWriterConstructor(assemblerType string) (disasm.FileWriterConstru
 	default:
 		return nil, &UnsupportedAssemblerError{Assembler: assemblerType}
 	}
-}
-
-// CreateArchitecture creates the CPU architecture implementation
-func CreateArchitecture() *m6502.Arch6502 {
-	converter := parameter.New(parameter.Config{})
-	return m6502.New(converter)
 }
 
 // UnsupportedAssemblerError represents an error for unsupported assembler types
