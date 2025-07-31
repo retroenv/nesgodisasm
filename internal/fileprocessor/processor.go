@@ -9,16 +9,28 @@ import (
 	"strings"
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
+	"github.com/retroenv/nesgodisasm/internal/app"
 	"github.com/retroenv/nesgodisasm/internal/config"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/verification"
+	archsys "github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/log"
 )
 
 // ProcessFile handles the complete file processing workflow
 func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler) error {
-	cart, err := loadCartridge(opts)
+	// Determine system type first
+	system, _ := archsys.SystemFromString(opts.System)
+	if system == "" {
+		system = detectSystemFromFile(opts.Input)
+		logger.Debug("Auto-detected system",
+			log.Stringer("system", system),
+			log.String("file", opts.Input))
+	}
+
+	// Load cartridge based on system type
+	cart, err := loadCartridge(opts, system)
 	if err != nil {
 		return fmt.Errorf("loading cartridge: %w", err)
 	}
@@ -40,8 +52,10 @@ func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options
 
 	dis, err := setupDisassembler(logger, cart, disasmOptions, fileWriterConstructor)
 	if err != nil {
+		logger.Debug("Disassembler setup failed", log.Err(err))
 		return fmt.Errorf("setting up disassembler: %w", err)
 	}
+	app.PrintInfo(logger, opts, cart)
 
 	// Create a simple new bank writer for single-file output
 	newBankWriter := func(bankName string) (io.WriteCloser, error) {
@@ -81,7 +95,7 @@ func GenerateOutputFilename(inputFile string) string {
 	return inputFile[:len(inputFile)-len(ext)] + ".asm"
 }
 
-func loadCartridge(opts options.Program) (*cartridge.Cartridge, error) {
+func loadCartridge(opts options.Program, system archsys.System) (*cartridge.Cartridge, error) {
 	file, err := os.Open(opts.Input)
 	if err != nil {
 		return nil, fmt.Errorf("opening file %s: %w", opts.Input, err)
@@ -89,9 +103,12 @@ func loadCartridge(opts options.Program) (*cartridge.Cartridge, error) {
 	defer func() { _ = file.Close() }()
 
 	var cart *cartridge.Cartridge
-	if opts.Binary {
+
+	// Handle CHIP-8 files as binary data
+	switch {
+	case opts.Binary, system == archsys.CHIP8System:
 		cart, err = cartridge.LoadBuffer(file)
-	} else {
+	default:
 		cart, err = cartridge.LoadFile(file)
 	}
 	if err != nil {
@@ -125,14 +142,32 @@ func createWriter(opts options.Program) (io.Writer, error) {
 func setupDisassembler(logger *log.Logger, cart *cartridge.Cartridge,
 	disasmOptions options.Disassembler, fileWriterConstructor disasm.FileWriterConstructor) (*disasm.Disasm, error) {
 
-	arch := config.CreateArchitecture()
+	// Get architecture implementation
+	architecture, err := app.SystemArchitecture(disasmOptions.System)
+	if err != nil {
+		return nil, fmt.Errorf("creating architecture: %w", err)
+	}
 
-	dis, err := disasm.New(arch, logger, cart, disasmOptions, fileWriterConstructor)
+	dis, err := disasm.New(architecture, logger, cart, disasmOptions, fileWriterConstructor)
 	if err != nil {
 		return nil, fmt.Errorf("creating disassembler: %w", err)
 	}
-
 	return dis, nil
+}
+
+// detectSystemFromFile determines the system type based on file extension
+func detectSystemFromFile(filename string) archsys.System {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".rom":
+		// ROM files could be CHIP-8, default to CHIP-8 for .rom extension
+		return archsys.CHIP8System
+	case ".nes":
+		return archsys.NES
+	default:
+		// Default to M6502 for unknown extensions
+		return archsys.NES
+	}
 }
 
 // PrintBanner prints application version information

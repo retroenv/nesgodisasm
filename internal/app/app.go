@@ -16,6 +16,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
+	archsys "github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
@@ -47,8 +48,8 @@ func PrintInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartrid
 		return
 	}
 
-	switch opts.System {
-	case arch.SystemNES:
+	switch archsys.System(opts.System) {
+	case archsys.NES:
 		logger.Info("Processing NES ROM",
 			log.String("file", opts.Input),
 			log.Uint8("mapper", cart.Mapper),
@@ -57,7 +58,8 @@ func PrintInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartrid
 		if cart.Mapper != 0 && cart.Mapper != 3 {
 			logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
 		}
-	case arch.SystemChip8:
+
+	case archsys.CHIP8System:
 		logger.Info("Processing Chip-8 ROM",
 			log.String("file", opts.Input),
 		)
@@ -65,14 +67,16 @@ func PrintInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartrid
 }
 
 // SystemArchitecture returns the architecture specific implementation for the given system.
-func SystemArchitecture(paramConverter parameter.Converter, system string) (arch.Architecture, bool, error) {
+func SystemArchitecture(system archsys.System) (arch.Architecture, error) {
+	paramConverter := parameter.New(parameter.Config{})
+
 	switch system {
-	case arch.SystemNES:
-		return m6502.New(paramConverter), false, nil
-	case arch.SystemChip8:
-		return chip8.New(paramConverter), true, nil
+	case archsys.NES:
+		return m6502.New(paramConverter), nil
+	case archsys.CHIP8System:
+		return chip8.New(paramConverter), nil
 	default:
-		return nil, false, errors.New("unsupported system or missing parameter")
+		return nil, fmt.Errorf("unsupported system '%s' or missing parameter", system)
 	}
 }
 

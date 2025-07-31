@@ -11,6 +11,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/options"
+	"github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/assert"
@@ -336,7 +337,7 @@ func trimStringList(s string) string {
 func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *cartridge.Cartridge), input []byte, expected string) {
 	t.Helper()
 
-	opts := options.NewDisassembler(assembler.Ca65)
+	opts := options.NewDisassembler(assembler.Ca65, arch.NES.String())
 	opts.CodeOnly = true
 
 	cart := cartridge.New()
