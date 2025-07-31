@@ -10,11 +10,14 @@ import (
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
 	"github.com/retroenv/nesgodisasm/internal/app"
-	"github.com/retroenv/nesgodisasm/internal/config"
+	"github.com/retroenv/nesgodisasm/internal/arch"
+	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
+	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	"github.com/retroenv/nesgodisasm/internal/verification"
 	archsys "github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
+	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
 )
 
@@ -45,16 +48,21 @@ func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options
 		}
 	}()
 
-	fileWriterConstructor, err := config.CreateFileWriterConstructor(opts.Assembler)
+	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(opts.Assembler)
 	if err != nil {
-		return fmt.Errorf("creating file writer constructor: %w", err)
+		return fmt.Errorf("initializing assembler compatible mode: %w", err)
 	}
 
-	dis, err := setupDisassembler(logger, cart, disasmOptions, fileWriterConstructor)
+	architecture, err := systemArchitectureWithConverter(disasmOptions.System, paramConverter)
 	if err != nil {
-		logger.Debug("Disassembler setup failed", log.Err(err))
-		return fmt.Errorf("setting up disassembler: %w", err)
+		return fmt.Errorf("creating architecture: %w", err)
 	}
+
+	dis, err := disasm.New(architecture, logger, cart, disasmOptions, fileWriterConstructor)
+	if err != nil {
+		return fmt.Errorf("creating disassembler: %w", err)
+	}
+	
 	app.PrintInfo(logger, opts, cart)
 
 	// Create a simple new bank writer for single-file output
@@ -139,22 +147,6 @@ func createWriter(opts options.Program) (io.Writer, error) {
 	return file, nil
 }
 
-func setupDisassembler(logger *log.Logger, cart *cartridge.Cartridge,
-	disasmOptions options.Disassembler, fileWriterConstructor disasm.FileWriterConstructor) (*disasm.Disasm, error) {
-
-	// Get architecture implementation
-	architecture, err := app.SystemArchitecture(disasmOptions.System)
-	if err != nil {
-		return nil, fmt.Errorf("creating architecture: %w", err)
-	}
-
-	dis, err := disasm.New(architecture, logger, cart, disasmOptions, fileWriterConstructor)
-	if err != nil {
-		return nil, fmt.Errorf("creating disassembler: %w", err)
-	}
-	return dis, nil
-}
-
 // detectSystemFromFile determines the system type based on file extension
 func detectSystemFromFile(filename string) archsys.System {
 	ext := strings.ToLower(filepath.Ext(filename))
@@ -198,4 +190,16 @@ type nopCloser struct {
 
 func (nc *nopCloser) Close() error {
 	return nil
+}
+
+// systemArchitectureWithConverter creates architecture with assembler-specific parameter converter
+func systemArchitectureWithConverter(system archsys.System, paramConverter parameter.Converter) (arch.Architecture, error) {
+	switch system {
+	case archsys.NES:
+		return m6502.New(paramConverter), nil
+	case archsys.CHIP8System:
+		return chip8.New(paramConverter), nil
+	default:
+		return nil, fmt.Errorf("unsupported system '%s' or missing parameter", system)
+	}
 }
