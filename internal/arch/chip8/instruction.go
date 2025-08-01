@@ -1,3 +1,4 @@
+// Package chip8 provides CHIP-8 instruction wrapper implementation.
 package chip8
 
 import (
@@ -5,14 +6,17 @@ import (
 	"github.com/retroenv/retrogolib/arch/cpu/chip8"
 )
 
-var _ arch.Instruction = &Instruction{}
+// Compile-time check to ensure Instruction implements arch.Instruction.
+var _ arch.Instruction = (*Instruction)(nil)
 
-// Instruction represents a CHIP-8 instruction.
+// Instruction represents a CHIP-8 instruction wrapper that implements arch.Instruction.
+// It provides a bridge between the retrogolib CHIP-8 instruction definitions
+// and the disassembler's architecture interface.
 type Instruction struct {
 	ins *chip8.Instruction
 }
 
-// IsCall returns true if the instruction is a call.
+// IsCall returns true if the instruction is a call instruction.
 func (i Instruction) IsCall() bool {
 	return i.ins == chip8.Call
 }
@@ -31,6 +35,7 @@ func (i Instruction) Name() string {
 }
 
 // Unofficial returns true if the instruction is not official.
+// CHIP-8 has a well-defined instruction set with no unofficial opcodes.
 func (i Instruction) Unofficial() bool {
-	return false // CHIP-8 instructions are all "official"
+	return false
 }

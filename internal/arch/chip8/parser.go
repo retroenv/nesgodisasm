@@ -1,3 +1,4 @@
+// Package chip8 provides CHIP-8 instruction parsing and validation.
 package chip8
 
 import (
@@ -10,6 +11,7 @@ import (
 
 // initializeOffsetInfo initializes the offset info and returns
 // whether the offset should process inspection for code parameters.
+// It reads the CHIP-8 instruction bytes and identifies the opcode.
 func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error) {
 	if offsetInfo.IsType(program.CodeOffset) {
 		return false, nil // was set by CDL
@@ -44,14 +46,14 @@ func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error
 		}
 	}
 	if opcode.Instruction == nil {
-		// consider an unknown instruction as start of data
+		// Consider an unknown instruction as start of data
 		offsetInfo.SetType(program.DataOffset)
 		return false, nil
 	}
 
-	op := &Opcode{
+	opWrapper := &Opcode{
 		op: opcode,
 	}
-	offsetInfo.Opcode = op
+	offsetInfo.Opcode = opWrapper
 	return true, nil
 }
