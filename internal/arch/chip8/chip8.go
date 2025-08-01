@@ -290,7 +290,13 @@ func (c *Chip8) extractJumpTarget(data []byte) uint16 {
 
 	// For JP and CALL instructions, target is in lower 12 bits
 	if (opcode&0xF000) == 0x1000 || (opcode&0xF000) == 0x2000 {
-		return opcode & 0x0FFF
+		target := opcode & 0x0FFF
+		// Convert from CHIP-8 memory space to ROM offset
+		// CHIP-8 programs start at 0x200 in memory but at 0x0 in ROM
+		if target >= 0x200 {
+			return target - 0x200
+		}
+		return target
 	}
 
 	return 0
@@ -305,7 +311,13 @@ func (c *Chip8) extractDataReference(data []byte) uint16 {
 
 	// For ld I, address instruction (0xAXXX), address is in lower 12 bits
 	if (opcode & 0xF000) == 0xA000 {
-		return opcode & 0x0FFF
+		target := opcode & 0x0FFF
+		// Convert from CHIP-8 memory space to ROM offset
+		// CHIP-8 programs start at 0x200 in memory but at 0x0 in ROM
+		if target >= 0x200 {
+			return target - 0x200
+		}
+		return target
 	}
 
 	return 0
