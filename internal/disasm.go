@@ -1,4 +1,4 @@
-// Package disasm provides an NES program disassembler.
+// Package disasm implements a multi retro system disassembler
 package disasm
 
 import (
@@ -57,7 +57,8 @@ type Disasm struct {
 	mapper *mapper.Mapper
 }
 
-// New creates a new NES disassembler that creates output compatible with the chosen assembler.
+// New creates a new disassembler that uses the passed architecture to implement system
+// specific disassembly logic.
 func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 	options options.Disassembler, fileWriterConstructor FileWriterConstructor) (*Disasm, error) {
 
@@ -176,6 +177,32 @@ func (dis *Disasm) JumpEngine() arch.JumpEngine {
 // Mapper returns the mapper.
 func (dis *Disasm) Mapper() arch.Mapper {
 	return dis.mapper
+}
+
+// ReadMemory delegates to the architecture-specific implementation.
+func (dis *Disasm) ReadMemory(address uint16) (byte, error) {
+	value, err := dis.arch.ReadMemory(dis, address)
+	if err != nil {
+		return 0, fmt.Errorf("reading memory at address %04x: %w", address, err)
+	}
+	return value, nil
+}
+
+// ReadMemoryWord reads a word from memory using the architecture-specific ReadMemory method.
+func (dis *Disasm) ReadMemoryWord(address uint16) (uint16, error) {
+	b, err := dis.ReadMemory(address)
+	if err != nil {
+		return 0, err
+	}
+	low := uint16(b)
+
+	b, err = dis.ReadMemory(address + 1)
+	if err != nil {
+		return 0, err
+	}
+
+	high := uint16(b)
+	return (high << 8) | low, nil
 }
 
 // converts the internal disassembly representation to a program type that will be used by

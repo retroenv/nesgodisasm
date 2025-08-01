@@ -1,4 +1,4 @@
-// Package main implements a NES ROM disassembler
+// Package main implements the main entry point for a multi retro system disassembler
 package main
 
 import (

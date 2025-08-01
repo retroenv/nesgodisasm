@@ -1,4 +1,4 @@
-// Package program represents an NES program.
+// Package program represents a program.
 package program
 
 import (
@@ -30,7 +30,7 @@ type Offset struct {
 	LabelComment string
 }
 
-// Handlers defines the handlers that the NES can jump to.
+// Handlers defines the handlers that the system can jump to.
 type Handlers struct {
 	NMI   string
 	Reset string
@@ -44,7 +44,7 @@ type Checksums struct {
 	Overall uint32
 }
 
-// Program defines an NES program that contains code or data.
+// Program defines a program that contains code or data.
 type Program struct {
 	PRG     []*PRGBank // PRG-ROM banks
 	CHR     CHR        // CHR-ROM data
