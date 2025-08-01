@@ -5,6 +5,7 @@ import (
 
 	"github.com/retroenv/nesgodisasm/internal/arch"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
+	"github.com/retroenv/retrogolib/arch/system/nes"
 )
 
 type paramReaderFunc func(dis arch.Disasm, address uint16) (any, []byte, error)
@@ -160,4 +161,21 @@ func paramReadWord(dis arch.Disasm, address uint16) (uint16, []byte, error) {
 	w := uint16(b2)<<uint16(8) | uint16(b1)
 	opcodes := []byte{b1, b2}
 	return w, opcodes, nil
+}
+
+// ReadMemory reads a byte from memory using NES-specific memory mapping.
+func (ar *Arch6502) ReadMemory(dis arch.Disasm, address uint16) (byte, error) {
+	var value byte
+
+	switch {
+	case address < 0x2000:
+		value = dis.Cart().CHR[address]
+
+	case address >= nes.CodeBaseAddress:
+		value = dis.Mapper().ReadMemory(address)
+
+	default:
+		return 0, fmt.Errorf("invalid read from address #%04x", address)
+	}
+	return value, nil
 }

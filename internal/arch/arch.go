@@ -30,6 +30,8 @@ type Architecture interface {
 	ProcessVariableUsage(offsetInfo *Offset, reference string) error
 	// ReadOpParam reads the parameter of an opcode.
 	ReadOpParam(dis Disasm, addressing int, address uint16) (any, []byte, error)
+	// ReadMemory reads a byte from memory at the given address using architecture-specific logic.
+	ReadMemory(dis Disasm, address uint16) (byte, error)
 }
 
 // Constant represents a constant translation from a read and write operation to a name.

@@ -14,6 +14,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
+	"github.com/retroenv/nesgodisasm/internal/assembler/chip8asm"
 	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	archsys "github.com/retroenv/retrogolib/arch"
@@ -98,6 +99,10 @@ func InitializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterC
 	case assembler.Nesasm:
 		fileWriterConstructor = nesasm.New
 		paramCfg = nesasm.ParamConfig
+		
+	case "chip8":
+		fileWriterConstructor = chip8asm.New
+		paramCfg = parameter.Config{} // CHIP-8 doesn't need special parameter configuration
 
 	default:
 		return nil, parameter.Converter{}, fmt.Errorf("unsupported assembler '%s'", assemblerName)

@@ -6,6 +6,8 @@ type Mapper interface {
 	GetMappedBankIndex(address uint16) uint16
 	// OffsetInfo returns the offset information for the given address.
 	OffsetInfo(address uint16) *Offset
+	// ReadMemory reads a byte from memory at the given address.
+	ReadMemory(address uint16) byte
 }
 
 type MappedBank interface {

@@ -46,8 +46,10 @@ func (c *Chip8) HandleDisambiguousInstructions(dis arch.Disasm, address uint16, 
 }
 
 func (c *Chip8) Initialize(dis arch.Disasm) error {
-	// CHIP-8 programs start at 0x200
-	dis.AddAddressToParse(0x200, 0, 0, nil, false)
+	// CHIP-8 programs are loaded starting at address 0 in the ROM file
+	// but execute starting at 0x200 in CHIP-8 memory space
+	// For disassembly purposes, we start at 0 which maps to the ROM data
+	dis.AddAddressToParse(0, 0, 0, nil, false)
 	return nil
 }
 
@@ -130,6 +132,7 @@ func (c *Chip8) ReadOpParam(dis arch.Disasm, addressing int, address uint16) (an
 }
 
 // BankWindowSize returns the bank window size.
+// CHIP-8 doesn't use banking, return 0 for single bank mapping.
 func (c *Chip8) BankWindowSize(_ *cartridge.Cartridge) int {
 	return 0
 }
@@ -273,4 +276,12 @@ func (c *Chip8) extractJumpTarget(data []byte) uint16 {
 	}
 
 	return 0
+}
+
+// ReadMemory reads a byte from memory using CHIP-8-specific memory mapping.
+func (c *Chip8) ReadMemory(dis arch.Disasm, address uint16) (byte, error) {
+	// For CHIP-8, all memory reads go through the mapper
+	// since CHIP-8 programs use the full address space starting at 0
+	value := dis.Mapper().ReadMemory(address)
+	return value, nil
 }

@@ -48,12 +48,18 @@ func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options
 		}
 	}()
 
-	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(opts.Assembler)
+	// Override assembler for CHIP-8 systems
+	assemblerChoice := opts.Assembler
+	if system == archsys.CHIP8System {
+		assemblerChoice = "chip8"
+	}
+	
+	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(assemblerChoice)
 	if err != nil {
 		return fmt.Errorf("initializing assembler compatible mode: %w", err)
 	}
 
-	architecture, err := systemArchitectureWithConverter(disasmOptions.System, paramConverter)
+	architecture, err := systemArchitectureWithConverter(system, paramConverter)
 	if err != nil {
 		return fmt.Errorf("creating architecture: %w", err)
 	}

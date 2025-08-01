@@ -26,13 +26,18 @@ func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Map
 	bankWindowSize := ar.BankWindowSize(cart)
 
 	if bankWindowSize == 0 {
+		// Single bank mapping (used by CHIP-8)
+		bnk := newBank(cart.PRG)
+		dis.Constants().AddBank()
+		dis.Variables().AddBank()
+		
 		return &Mapper{
 			banks: []*bank{
-				newBank(cart.PRG),
+				bnk,
 			},
 			mapped: []mappedBank{
 				{
-					bank: newBank(cart.PRG),
+					bank: bnk,
 				},
 			},
 		}, nil
@@ -85,32 +90,71 @@ func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Map
 }
 
 func (m *Mapper) setMappedBank(address uint16, bank mappedBank) {
-	bankWindow := address >> m.addressShifts
+	var bankWindow uint16
+	if m.bankWindowSize == 0 {
+		// Single bank system (e.g., CHIP-8)
+		bankWindow = 0
+	} else {
+		// Multi-bank system
+		bankWindow = address >> m.addressShifts
+	}
 	m.mapped[bankWindow] = bank
 }
 
 func (m *Mapper) GetMappedBank(address uint16) arch.MappedBank {
-	bankWindow := address >> m.addressShifts
+	var bankWindow uint16
+	if m.bankWindowSize == 0 {
+		// Single bank system (e.g., CHIP-8)
+		bankWindow = 0
+	} else {
+		// Multi-bank system
+		bankWindow = address >> m.addressShifts
+	}
 	mapped := m.mapped[bankWindow]
 	return mapped
 }
 
 func (m *Mapper) GetMappedBankIndex(address uint16) uint16 {
-	index := int(address) % m.bankWindowSize
+	var index int
+	if m.bankWindowSize == 0 {
+		// Single bank system (e.g., CHIP-8) - direct address mapping
+		index = int(address)
+	} else {
+		// Multi-bank system - use modulo for bank window
+		index = int(address) % m.bankWindowSize
+	}
 	return uint16(index)
 }
 
 func (m *Mapper) ReadMemory(address uint16) byte {
-	bankWindow := address >> m.addressShifts
+	var bankWindow uint16
+	var index int
+	
+	if m.bankWindowSize == 0 {
+		// Single bank system (e.g., CHIP-8) - only one bank at index 0
+		bankWindow = 0
+		index = int(address)
+	} else {
+		// Multi-bank system - calculate bank window and index
+		bankWindow = address >> m.addressShifts
+		index = int(address) % m.bankWindowSize
+	}
+	
 	bnk := m.mapped[bankWindow]
-	index := int(address) % m.bankWindowSize
 	pointer := bnk.dataStart + index
 	b := bnk.bank.prg[pointer]
 	return b
 }
 
 func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
-	bankWindow := address >> m.addressShifts
+	var bankWindow uint16
+	if m.bankWindowSize == 0 {
+		// Single bank system (e.g., CHIP-8)
+		bankWindow = 0
+	} else {
+		// Multi-bank system
+		bankWindow = address >> m.addressShifts
+	}
 	bnk := m.mapped[bankWindow]
 	if bnk.bank == nil {
 		return nil

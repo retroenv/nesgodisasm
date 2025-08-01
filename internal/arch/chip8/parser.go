@@ -34,7 +34,8 @@ func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error
 	offsetInfo.Data = append(offsetInfo.Data, b2)
 
 	w := uint16(b1)<<8 | uint16(b2)
-	opcodes := chip8.Opcodes[int(b1)]
+	firstNibble := (w & 0xF000) >> 12
+	opcodes := chip8.Opcodes[int(firstNibble)]
 	var opcode chip8.Opcode
 	for _, op := range opcodes {
 		if op.Info.Mask&w == op.Info.Value {

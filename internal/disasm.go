@@ -179,6 +179,28 @@ func (dis *Disasm) Mapper() arch.Mapper {
 	return dis.mapper
 }
 
+// ReadMemory delegates to the architecture-specific implementation.
+func (dis *Disasm) ReadMemory(address uint16) (byte, error) {
+	return dis.arch.ReadMemory(dis, address)
+}
+
+// ReadMemoryWord reads a word from memory using the architecture-specific ReadMemory method.
+func (dis *Disasm) ReadMemoryWord(address uint16) (uint16, error) {
+	b, err := dis.ReadMemory(address)
+	if err != nil {
+		return 0, err
+	}
+	low := uint16(b)
+
+	b, err = dis.ReadMemory(address + 1)
+	if err != nil {
+		return 0, err
+	}
+
+	high := uint16(b)
+	return (high << 8) | low, nil
+}
+
 // converts the internal disassembly representation to a program type that will be used by
 // the chosen assembler output instance to generate the asm file.
 func (dis *Disasm) convertToProgram() (*program.Program, error) {
