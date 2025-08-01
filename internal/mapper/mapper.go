@@ -26,23 +26,28 @@ func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Map
 	bankWindowSize := ar.BankWindowSize(cart)
 
 	if bankWindowSize == 0 {
-		// Single bank mapping (used by CHIP-8)
-		bnk := newBank(cart.PRG)
-		dis.Constants().AddBank()
-		dis.Variables().AddBank()
-		
-		return &Mapper{
-			banks: []*bank{
-				bnk,
-			},
-			mapped: []mappedBank{
-				{
-					bank: bnk,
-				},
-			},
-		}, nil
+		return createSingleBankMapper(cart, dis)
 	}
 
+	return createMultiBankMapper(cart, dis, bankWindowSize)
+}
+
+// createSingleBankMapper creates a mapper for single bank systems (e.g., CHIP-8)
+func createSingleBankMapper(cart *cartridge.Cartridge, dis arch.Disasm) (*Mapper, error) {
+	bnk := newBank(cart.PRG)
+	dis.Constants().AddBank()
+	dis.Variables().AddBank()
+
+	return &Mapper{
+		banks: []*bank{bnk},
+		mapped: []mappedBank{
+			{bank: bnk},
+		},
+	}, nil
+}
+
+// createMultiBankMapper creates a mapper for multi-bank systems (e.g., NES)
+func createMultiBankMapper(cart *cartridge.Cartridge, dis arch.Disasm, bankWindowSize int) (*Mapper, error) {
 	prgSize := len(cart.PRG)
 	mappedBanks := prgSize / bankWindowSize
 	mappedWindows := 0x10000 / bankWindowSize
@@ -50,17 +55,27 @@ func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Map
 	m := &Mapper{
 		addressShifts:  16 - log2(mappedWindows),
 		bankWindowSize: bankWindowSize,
-
-		banksMapped: make([]mappedBank, mappedBanks),
-		mapped:      make([]mappedBank, mappedWindows),
+		banksMapped:    make([]mappedBank, mappedBanks),
+		mapped:         make([]mappedBank, mappedWindows),
 	}
 
 	m.initializeBanks(dis, cart.PRG)
 
+	if err := m.populateBankMappings(bankWindowSize); err != nil {
+		return nil, err
+	}
+
+	m.configureDefaultBankMapping()
+
+	return m, nil
+}
+
+// populateBankMappings creates the bank mappings for multi-bank systems
+func (m *Mapper) populateBankMappings(bankWindowSize int) error {
 	bankNumber := 0
 	for bankIndex, bnk := range m.banks {
 		if len(bnk.prg)%bankWindowSize != 0 {
-			return nil, fmt.Errorf("invalid bank alignment for bank size %d", len(bnk.prg))
+			return fmt.Errorf("invalid bank alignment for bank size %d", len(bnk.prg))
 		}
 
 		for pointer := 0; pointer < len(bnk.prg); pointer += bankWindowSize {
@@ -73,20 +88,17 @@ func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Map
 			bankNumber++
 		}
 	}
+	return nil
+}
 
-	// TODO set mapper specific
+// configureDefaultBankMapping sets up default bank mappings for NES systems
+func (m *Mapper) configureDefaultBankMapping() {
 	if m.bankWindowSize == 0x2000 {
-		bnk := m.banksMapped[0]
-		m.setMappedBank(0x8000, bnk)
-		bnk = m.banksMapped[1]
-		m.setMappedBank(0xa000, bnk)
-		bnk = m.banksMapped[len(m.banksMapped)-2]
-		m.setMappedBank(0xc000, bnk)
-		bnk = m.banksMapped[len(m.banksMapped)-1]
-		m.setMappedBank(0xe000, bnk)
+		m.setMappedBank(0x8000, m.banksMapped[0])
+		m.setMappedBank(0xa000, m.banksMapped[1])
+		m.setMappedBank(0xc000, m.banksMapped[len(m.banksMapped)-2])
+		m.setMappedBank(0xe000, m.banksMapped[len(m.banksMapped)-1])
 	}
-
-	return m, nil
 }
 
 func (m *Mapper) setMappedBank(address uint16, bank mappedBank) {
@@ -129,7 +141,7 @@ func (m *Mapper) GetMappedBankIndex(address uint16) uint16 {
 func (m *Mapper) ReadMemory(address uint16) byte {
 	var bankWindow uint16
 	var index int
-	
+
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8) - only one bank at index 0
 		bankWindow = 0
@@ -139,7 +151,7 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 		bankWindow = address >> m.addressShifts
 		index = int(address) % m.bankWindowSize
 	}
-	
+
 	bnk := m.mapped[bankWindow]
 	pointer := bnk.dataStart + index
 	b := bnk.bank.prg[pointer]

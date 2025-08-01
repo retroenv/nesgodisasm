@@ -99,14 +99,22 @@ func (c *Chip8) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *arch.
 	case c.isJumpInstruction(name):
 		// Extract jump target from instruction
 		if target := c.extractJumpTarget(offsetInfo.Data); target != 0 {
-			dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, false)
+			dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
 		}
 	case c.isCallInstruction(name):
 		// Extract call target from instruction
 		if target := c.extractJumpTarget(offsetInfo.Data); target != 0 {
-			dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, false)
+			dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
 		}
 		// Continue execution after call
+		nextAddr := pc + uint16(len(offsetInfo.Data))
+		dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
+	case c.isDataReferenceInstruction(name, offsetInfo.Data):
+		// Extract data reference from instruction (ld I, address)
+		if target := c.extractDataReference(offsetInfo.Data); target != 0 {
+			dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
+		}
+		// Continue to next instruction
 		nextAddr := pc + uint16(len(offsetInfo.Data))
 		dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
 	case !c.isReturnInstruction(name):
@@ -263,6 +271,16 @@ func (c *Chip8) isReturnInstruction(name string) bool {
 	return name == chip8.Ret.Name
 }
 
+// isDataReferenceInstruction returns true if the instruction references data (ld I, address)
+func (c *Chip8) isDataReferenceInstruction(name string, data []byte) bool {
+	if name != chip8.Ld.Name || len(data) < 2 {
+		return false
+	}
+	opcode := uint16(data[0])<<8 | uint16(data[1])
+	// Only ld I, address instructions (0xAXXX)
+	return (opcode & 0xF000) == 0xA000
+}
+
 // extractJumpTarget extracts the jump target address from instruction bytes
 func (c *Chip8) extractJumpTarget(data []byte) uint16 {
 	if len(data) < 2 {
@@ -272,6 +290,21 @@ func (c *Chip8) extractJumpTarget(data []byte) uint16 {
 
 	// For JP and CALL instructions, target is in lower 12 bits
 	if (opcode&0xF000) == 0x1000 || (opcode&0xF000) == 0x2000 {
+		return opcode & 0x0FFF
+	}
+
+	return 0
+}
+
+// extractDataReference extracts the data reference address from ld I, address instruction
+func (c *Chip8) extractDataReference(data []byte) uint16 {
+	if len(data) < 2 {
+		return 0
+	}
+	opcode := uint16(data[0])<<8 | uint16(data[1])
+
+	// For ld I, address instruction (0xAXXX), address is in lower 12 bits
+	if (opcode & 0xF000) == 0xA000 {
 		return opcode & 0x0FFF
 	}
 

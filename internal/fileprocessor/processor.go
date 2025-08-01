@@ -14,6 +14,7 @@ import (
 	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
 	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/options"
+	"github.com/retroenv/nesgodisasm/internal/program"
 	"github.com/retroenv/nesgodisasm/internal/verification"
 	archsys "github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
@@ -23,16 +24,8 @@ import (
 
 // ProcessFile handles the complete file processing workflow
 func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler) error {
-	// Determine system type first
-	system, _ := archsys.SystemFromString(opts.System)
-	if system == "" {
-		system = detectSystemFromFile(opts.Input)
-		logger.Debug("Auto-detected system",
-			log.Stringer("system", system),
-			log.String("file", opts.Input))
-	}
+	system := determineSystem(logger, opts)
 
-	// Load cartridge based on system type
 	cart, err := loadCartridge(opts, system)
 	if err != nil {
 		return fmt.Errorf("loading cartridge: %w", err)
@@ -42,53 +35,84 @@ func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options
 	if err != nil {
 		return fmt.Errorf("creating writer: %w", err)
 	}
-	defer func() {
-		if closer, ok := writer.(io.Closer); ok {
-			_ = closer.Close()
-		}
-	}()
+	defer closeWriter(writer)
 
-	// Override assembler for CHIP-8 systems
-	assemblerChoice := opts.Assembler
-	if system == archsys.CHIP8System {
-		assemblerChoice = "chip8"
-	}
-	
-	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(assemblerChoice)
-	if err != nil {
-		return fmt.Errorf("initializing assembler compatible mode: %w", err)
-	}
-
-	architecture, err := systemArchitectureWithConverter(system, paramConverter)
-	if err != nil {
-		return fmt.Errorf("creating architecture: %w", err)
-	}
-
-	dis, err := disasm.New(architecture, logger, cart, disasmOptions, fileWriterConstructor)
+	dis, err := createDisassembler(logger, opts, disasmOptions, cart, system)
 	if err != nil {
 		return fmt.Errorf("creating disassembler: %w", err)
 	}
-	
+
 	app.PrintInfo(logger, opts, cart)
 
-	// Create a simple new bank writer for single-file output
-	newBankWriter := func(bankName string) (io.WriteCloser, error) {
-		return &nopCloser{writer}, nil
-	}
-
-	app, err := dis.Process(writer, newBankWriter)
+	result, err := runDisassembly(dis, writer)
 	if err != nil {
 		return fmt.Errorf("disassembling: %w", err)
 	}
 
 	if opts.AssembleTest {
-		if err := verification.VerifyOutput(logger, opts, cart, app); err != nil {
+		if err := verification.VerifyOutput(logger, opts, cart, result); err != nil {
 			return fmt.Errorf("verification failed: %w", err)
 		}
 		logger.Info("Verification successful")
 	}
 
 	return nil
+}
+
+// determineSystem determines the system type from options or file detection
+func determineSystem(logger *log.Logger, opts options.Program) archsys.System {
+	system, _ := archsys.SystemFromString(opts.System)
+	if system == "" {
+		system = detectSystemFromFile(opts.Input)
+		logger.Debug("Auto-detected system",
+			log.Stringer("system", system),
+			log.String("file", opts.Input))
+	}
+	return system
+}
+
+// createDisassembler creates and configures the disassembler
+func createDisassembler(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler, cart *cartridge.Cartridge, system archsys.System) (*disasm.Disasm, error) {
+	assemblerChoice := opts.Assembler
+	if system == archsys.CHIP8System {
+		assemblerChoice = "chip8"
+	}
+
+	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(assemblerChoice)
+	if err != nil {
+		return nil, fmt.Errorf("initializing assembler compatible mode: %w", err)
+	}
+
+	architecture, err := systemArchitectureWithConverter(system, paramConverter)
+	if err != nil {
+		return nil, fmt.Errorf("creating architecture: %w", err)
+	}
+
+	dis, err := disasm.New(architecture, logger, cart, disasmOptions, fileWriterConstructor)
+	if err != nil {
+		return nil, fmt.Errorf("creating disasm instance: %w", err)
+	}
+	return dis, nil
+}
+
+// runDisassembly executes the disassembly process
+func runDisassembly(dis *disasm.Disasm, writer io.Writer) (*program.Program, error) {
+	newBankWriter := func(bankName string) (io.WriteCloser, error) {
+		return &nopCloser{writer}, nil
+	}
+
+	result, err := dis.Process(writer, newBankWriter)
+	if err != nil {
+		return nil, fmt.Errorf("processing disassembly: %w", err)
+	}
+	return result, nil
+}
+
+// closeWriter safely closes the writer if it implements io.Closer
+func closeWriter(writer io.Writer) {
+	if closer, ok := writer.(io.Closer); ok {
+		_ = closer.Close()
+	}
 }
 
 // GetFilesToProcess returns list of files to process based on options

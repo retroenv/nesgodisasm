@@ -36,108 +36,119 @@ func New(app *program.Program, options options.Disassembler, mainWriter io.Write
 
 // Write writes the CHIP-8 assembly file.
 func (w *FileWriter) Write() error {
-	// Write CHIP-8 header
-	_, err := fmt.Fprintf(w.mainWriter, "; CHIP-8 ROM Disassembly\n")
-	if err != nil {
-		return err
+	if _, err := fmt.Fprintf(w.mainWriter, "; CHIP-8 ROM Disassembly\n"); err != nil {
+		return fmt.Errorf("writing header comment: %w", err)
 	}
-	
-	_, err = fmt.Fprintf(w.mainWriter, "; Code base address: $%04X\n", w.app.CodeBaseAddress)
-	if err != nil {
-		return err
+
+	if _, err := fmt.Fprintf(w.mainWriter, "; Code base address: $%04X\n", w.app.CodeBaseAddress); err != nil {
+		return fmt.Errorf("writing code base address: %w", err)
 	}
-	
-	_, err = fmt.Fprintf(w.mainWriter, "; Program starts at $200 in CHIP-8 memory space\n\n")
-	if err != nil {
-		return err
+
+	if _, err := fmt.Fprintf(w.mainWriter, "; Program starts at $200 in CHIP-8 memory space\n\n"); err != nil {
+		return fmt.Errorf("writing memory space comment: %w", err)
 	}
-	
-	_, err = fmt.Fprintf(w.mainWriter, ".org $200\n\n")
-	if err != nil {
-		return err
+
+	if _, err := fmt.Fprintf(w.mainWriter, ".org $200\n\n"); err != nil {
+		return fmt.Errorf("writing org directive: %w", err)
 	}
-	
+
 	// Write all PRG banks (usually just one for CHIP-8)
 	for _, bank := range w.app.PRG {
-		err = w.writeBank(bank)
-		if err != nil {
-			return err
+		if err := w.writeBank(bank); err != nil {
+			return fmt.Errorf("writing bank: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
 // writeBank writes a CHIP-8 program bank.
 func (w *FileWriter) writeBank(bank *program.PRGBank) error {
-	// For CHIP-8, find the last non-zero byte without NES vector logic
 	endIndex := w.getChip8EndIndex(bank)
-	
-	for i := 0; i < endIndex; i++ {
+
+	for i := range endIndex {
 		offset := bank.Offsets[i]
-		
-		// Skip empty offsets
+
 		if len(offset.Data) == 0 && offset.Code == "" {
 			continue
 		}
-		
-		// Write label if present
-		if offset.Label != "" {
-			_, err := fmt.Fprintf(w.mainWriter, "%s:\n", offset.Label)
-			if err != nil {
-				return err
-			}
+
+		if err := w.writeLabel(offset); err != nil {
+			return fmt.Errorf("writing label: %w", err)
 		}
-		
-		// Write the instruction or data
-		if offset.Code != "" {
-			// CHIP-8 instruction
-			_, err := fmt.Fprintf(w.mainWriter, "    %s", offset.Code)
-			if err != nil {
-				return err
-			}
-			
-			// Add hex comment if enabled
-			if w.options.OffsetComments && len(offset.Data) >= 2 {
-				_, err = fmt.Fprintf(w.mainWriter, " ; $%04X", 
-					uint16(offset.Data[0])<<8|uint16(offset.Data[1]))
-				if err != nil {
-					return err
-				}
-			}
-			
-			_, err = fmt.Fprintf(w.mainWriter, "\n")
-			if err != nil {
-				return err
-			}
-		} else if len(offset.Data) > 0 {
-			// Raw data
-			_, err := fmt.Fprintf(w.mainWriter, "    .byte $%02X", offset.Data[0])
-			if err != nil {
-				return err
-			}
-			for j := 1; j < len(offset.Data); j++ {
-				_, err = fmt.Fprintf(w.mainWriter, ", $%02X", offset.Data[j])
-				if err != nil {
-					return err
-				}
-			}
-			
-			// Add offset comment if enabled
-			if w.options.OffsetComments {
-				_, err = fmt.Fprintf(w.mainWriter, " ; $%04X", w.app.CodeBaseAddress+uint16(i))
-				if err != nil {
-					return err
-				}
-			}
-			
-			_, err = fmt.Fprintf(w.mainWriter, "\n")
-			if err != nil {
-				return err
-			}
+
+		if err := w.writeOffset(offset, i); err != nil {
+			return fmt.Errorf("writing offset: %w", err)
 		}
 	}
-	
+
+	return nil
+}
+
+// writeLabel writes a label if present in the offset.
+func (w *FileWriter) writeLabel(offset program.Offset) error {
+	if offset.Label != "" {
+		if _, err := fmt.Fprintf(w.mainWriter, "%s:\n", offset.Label); err != nil {
+			return fmt.Errorf("writing label %s: %w", offset.Label, err)
+		}
+	}
+	return nil
+}
+
+// writeOffset writes either code or data for an offset.
+func (w *FileWriter) writeOffset(offset program.Offset, index int) error {
+	if offset.Code != "" {
+		return w.writeCode(offset)
+	}
+	if len(offset.Data) > 0 {
+		return w.writeData(offset, index)
+	}
+	return nil
+}
+
+// writeCode writes a CHIP-8 instruction.
+func (w *FileWriter) writeCode(offset program.Offset) error {
+	if _, err := fmt.Fprintf(w.mainWriter, "    %s", offset.Code); err != nil {
+		return fmt.Errorf("writing code: %w", err)
+	}
+
+	if w.options.OffsetComments && len(offset.Data) >= 2 {
+		hexValue := uint16(offset.Data[0])<<8 | uint16(offset.Data[1])
+		if _, err := fmt.Fprintf(w.mainWriter, " ; $%04X", hexValue); err != nil {
+			return fmt.Errorf("writing hex comment: %w", err)
+		}
+	}
+
+	if _, err := fmt.Fprintf(w.mainWriter, "\n"); err != nil {
+		return fmt.Errorf("writing newline: %w", err)
+	}
+
+	return nil
+}
+
+// writeData writes raw data bytes.
+func (w *FileWriter) writeData(offset program.Offset, index int) error {
+	if _, err := fmt.Fprintf(w.mainWriter, "    .byte $%02X", offset.Data[0]); err != nil {
+		return fmt.Errorf("writing first data byte: %w", err)
+	}
+
+	for j := 1; j < len(offset.Data); j++ {
+		if _, err := fmt.Fprintf(w.mainWriter, ", $%02X", offset.Data[j]); err != nil {
+			return fmt.Errorf("writing data byte %d: %w", j, err)
+		}
+	}
+
+	if w.options.OffsetComments {
+		address := w.app.CodeBaseAddress + uint16(index)
+		if _, err := fmt.Fprintf(w.mainWriter, " ; $%04X", address); err != nil {
+			return fmt.Errorf("writing address comment: %w", err)
+		}
+	}
+
+	if _, err := fmt.Fprintf(w.mainWriter, "\n"); err != nil {
+		return fmt.Errorf("writing newline: %w", err)
+	}
+
 	return nil
 }
 
@@ -148,7 +159,7 @@ func (w *FileWriter) getChip8EndIndex(bank *program.PRGBank) int {
 	if w.options.ZeroBytes {
 		return len(bank.Offsets)
 	}
-	
+
 	// Search backwards from the end to find the last non-zero byte
 	for i := len(bank.Offsets) - 1; i >= 0; i-- {
 		offset := bank.Offsets[i]
@@ -165,6 +176,6 @@ func (w *FileWriter) getChip8EndIndex(bank *program.PRGBank) int {
 			return i + 1
 		}
 	}
-	
+
 	return 0
 }

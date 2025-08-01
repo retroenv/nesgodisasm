@@ -99,7 +99,7 @@ func InitializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterC
 	case assembler.Nesasm:
 		fileWriterConstructor = nesasm.New
 		paramCfg = nesasm.ParamConfig
-		
+
 	case "chip8":
 		fileWriterConstructor = chip8asm.New
 		paramCfg = parameter.Config{} // CHIP-8 doesn't need special parameter configuration

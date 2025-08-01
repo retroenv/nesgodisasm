@@ -181,7 +181,11 @@ func (dis *Disasm) Mapper() arch.Mapper {
 
 // ReadMemory delegates to the architecture-specific implementation.
 func (dis *Disasm) ReadMemory(address uint16) (byte, error) {
-	return dis.arch.ReadMemory(dis, address)
+	value, err := dis.arch.ReadMemory(dis, address)
+	if err != nil {
+		return 0, fmt.Errorf("reading memory at address %04x: %w", address, err)
+	}
+	return value, nil
 }
 
 // ReadMemoryWord reads a word from memory using the architecture-specific ReadMemory method.
