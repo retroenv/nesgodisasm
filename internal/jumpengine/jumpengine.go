@@ -241,18 +241,16 @@ func (j *JumpEngine) ScanForNewJumpEngineEntry(dis arch.Disasm) (bool, error) {
 	logger := dis.Logger()
 
 	for len(j.jumpEngineCallers) != 0 {
+		// Remove all terminated entries
+		j.jumpEngineCallers = slices.DeleteFunc(j.jumpEngineCallers, func(ec *jumpEngineCaller) bool {
+			return ec.terminated
+		})
+
+		// Find the jump engine table with the smallest number of processed entries.
+		// This conservative approach avoids interpreting code in the table area as function references.
 		minEntries := -1
-
-		// find the jump engine table with the smallest number of processed entries,
-		// this conservative approach avoids interpreting code in the table area as function references
-		for i := range j.jumpEngineCallers {
-			engineCaller := j.jumpEngineCallers[i]
-			if engineCaller.terminated {
-				// jump engine table is processed, remove it from list to process
-				j.jumpEngineCallers = slices.Delete(j.jumpEngineCallers, i, i+1)
-			}
-
-			if i := engineCaller.entries; !engineCaller.terminated && (i < minEntries || minEntries == -1) {
+		for _, engineCaller := range j.jumpEngineCallers {
+			if i := engineCaller.entries; i < minEntries || minEntries == -1 {
 				minEntries = i
 			}
 		}
