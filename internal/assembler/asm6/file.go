@@ -66,6 +66,7 @@ func (f FileWriter) Write() error {
 
 	if !f.options.CodeOnly {
 		writes = []any{
+			lineWrite{line: "", comment: "NES ROM Disassembly"},
 			customWrite(f.writer.WriteCommentHeader),
 			lineWrite{line: ".db \"NES\", $1a", comment: "Magic string that always begins an iNES header"},
 			headerByteWrite{value: byte(f.app.PrgSize() / 16384), comment: "Number of 16KB PRG-ROM banks"},

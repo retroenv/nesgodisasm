@@ -53,6 +53,7 @@ func (f FileWriter) Write() error {
 
 	if !f.options.CodeOnly {
 		writes = []any{
+			lineWrite("; NES ROM Disassembly"),
 			customWrite(f.writer.WriteCommentHeader),
 			customWrite(f.writeROMHeader),
 		}
