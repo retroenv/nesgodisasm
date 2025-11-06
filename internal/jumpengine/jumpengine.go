@@ -140,7 +140,7 @@ func (j *JumpEngine) JumpContextInfo(dis arch.Disasm, jumpAddress uint16, offset
 func (j *JumpEngine) HandleJumpEngineDestination(dis arch.Disasm, caller, destination uint16) error {
 	for addr := range j.jumpEngines {
 		if addr == destination {
-			return j.HandleJumpEngineCallers(dis, caller)
+			return j.handleJumpEngineCaller(dis, caller)
 		}
 	}
 	return nil
