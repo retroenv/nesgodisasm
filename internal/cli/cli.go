@@ -90,7 +90,7 @@ func normalizeOptions(opts *options.Program) error {
 
 // createDisasmOptions creates disassembler options based on program options
 func createDisasmOptions(opts options.Program) options.Disassembler {
-	disasmOptions := options.NewDisassembler(opts.Assembler)
+	disasmOptions := options.NewDisassembler(opts.Assembler, opts.System)
 
 	// nesasm doesn't support unofficial instructions
 	if opts.Assembler == assembler.Nesasm {
@@ -107,6 +107,7 @@ func readOptionFlags(flags *flag.FlagSet, opts *options.Program) {
 	flags.StringVar(&opts.Config, "c", "", "Config file name to write output to for ca65 assembler")
 	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
+	flags.StringVar(&opts.System, "s", "", "system to disassemble for (nes) - auto-detected from file extension if not specified")
 	flags.BoolVar(&opts.Binary, "binary", false, "read input file as raw binary file without any header")
 	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
 	flags.BoolVar(&opts.Quiet, "q", false, "perform operations quietly")

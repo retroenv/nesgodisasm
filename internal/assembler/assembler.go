@@ -2,7 +2,10 @@
 package assembler
 
 import (
+	"fmt"
 	"io"
+
+	"github.com/retroenv/retrogolib/arch"
 )
 
 const (
@@ -10,6 +13,28 @@ const (
 	Ca65   = "ca65"
 	Nesasm = "nesasm"
 )
+
+// SystemAssemblers maps each system to its supported assemblers.
+var SystemAssemblers = map[arch.System][]string{
+	arch.NES: {Asm6, Ca65, Nesasm},
+}
+
+// ValidateSystemAssembler checks if the assembler is supported for the given system.
+func ValidateSystemAssembler(system arch.System, assembler string) error {
+	supported, ok := SystemAssemblers[system]
+	if !ok {
+		return fmt.Errorf("unknown system: %s", system)
+	}
+
+	for _, valid := range supported {
+		if assembler == valid {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("assembler '%s' is not supported for system '%s'. Valid options: %v",
+		assembler, system, supported)
+}
 
 // NewBankWriter is a callback that creates a new file for a bank of ROMs
 // that have multiple PRG banks.

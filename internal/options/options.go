@@ -4,6 +4,8 @@ package options
 import (
 	"io"
 	"strings"
+
+	"github.com/retroenv/retrogolib/arch"
 )
 
 // Program options of the disassembler.
@@ -14,6 +16,7 @@ type Program struct {
 	Config      string
 	Input       string
 	Output      string
+	System      string
 
 	AssembleTest bool
 	Binary       bool
@@ -28,6 +31,7 @@ type Program struct {
 type Disassembler struct {
 	Assembler   string        // what assembler to use
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
+	System      arch.System   // system type (e.g., nes)
 
 	Binary                   bool
 	CodeOnly                 bool
@@ -38,9 +42,11 @@ type Disassembler struct {
 }
 
 // NewDisassembler returns a new options instance with default options.
-func NewDisassembler(assemblerName string) Disassembler {
+func NewDisassembler(assemblerName, system string) Disassembler {
 	return Disassembler{
-		Assembler:      strings.ToLower(assemblerName),
+		Assembler: strings.ToLower(assemblerName),
+		System:    arch.System(system),
+
 		HexComments:    true,
 		OffsetComments: true,
 	}
