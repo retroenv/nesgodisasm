@@ -243,10 +243,13 @@ func (j *JumpEngine) ScanForNewJumpEngineEntry(dis arch.Disasm) (bool, error) {
 	for len(j.jumpEngineCallers) != 0 {
 		minEntries := -1
 
+		// Create a copy to avoid mutating a slice we're iterating over
+		originalJumpEngineCallers := make([]*jumpEngineCaller, len(j.jumpEngineCallers))
+		copy(originalJumpEngineCallers, j.jumpEngineCallers)
+
 		// find the jump engine table with the smallest number of processed entries,
 		// this conservative approach avoids interpreting code in the table area as function references
-		for i := range j.jumpEngineCallers {
-			engineCaller := j.jumpEngineCallers[i]
+		for i, engineCaller := range originalJumpEngineCallers {
 			if engineCaller.terminated {
 				// jump engine table is processed, remove it from list to process
 				j.jumpEngineCallers = slices.Delete(j.jumpEngineCallers, i, i+1)
