@@ -1,6 +1,6 @@
 package arch
 
-import "github.com/retroenv/nesgodisasm/internal/program"
+import "github.com/retroenv/retrodisasm/internal/program"
 
 // Offset defines the content of an offset in a program that can represent data or code.
 type Offset struct {

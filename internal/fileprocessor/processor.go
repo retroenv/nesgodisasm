@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	disasm "github.com/retroenv/nesgodisasm/internal"
-	"github.com/retroenv/nesgodisasm/internal/app"
-	"github.com/retroenv/nesgodisasm/internal/arch"
-	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
-	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
-	"github.com/retroenv/nesgodisasm/internal/assembler"
-	"github.com/retroenv/nesgodisasm/internal/options"
-	"github.com/retroenv/nesgodisasm/internal/program"
-	"github.com/retroenv/nesgodisasm/internal/verification"
+	disasm "github.com/retroenv/retrodisasm/internal"
+	"github.com/retroenv/retrodisasm/internal/app"
+	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/arch/chip8"
+	"github.com/retroenv/retrodisasm/internal/arch/m6502"
+	"github.com/retroenv/retrodisasm/internal/assembler"
+	"github.com/retroenv/retrodisasm/internal/options"
+	"github.com/retroenv/retrodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/verification"
 	archsys "github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
@@ -210,7 +210,7 @@ func PrintBanner(logger *log.Logger, opts options.Program, version, commit, date
 		versionString += fmt.Sprintf(" (%s)", commit)
 	}
 
-	logger.Info("nesgodisasm", log.String("version", versionString))
+	logger.Info("retrodisasm", log.String("version", versionString))
 
 	if date != "" && !strings.Contains(date, "unknown") {
 		logger.Info("Build", log.String("date", date))

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/program"
 )
 
 // writeCHIP8 writes CHIP-8-format assembly.

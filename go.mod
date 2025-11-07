@@ -1,4 +1,4 @@
-module github.com/retroenv/nesgodisasm
+module github.com/retroenv/retrodisasm
 
 go 1.22
 

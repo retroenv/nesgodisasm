@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/program"
 )
 
 const dataBytesPerLine = 16

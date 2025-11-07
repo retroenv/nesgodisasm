@@ -1,7 +1,7 @@
 package program
 
 import (
-	"github.com/retroenv/nesgodisasm/internal/options"
+	"github.com/retroenv/retrodisasm/internal/options"
 )
 
 // NewPRGBank creates a new PRG bank.

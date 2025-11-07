@@ -8,12 +8,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/retroenv/nesgodisasm/internal/assembler"
-	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
-	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
-	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
-	"github.com/retroenv/nesgodisasm/internal/options"
-	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/assembler"
+	"github.com/retroenv/retrodisasm/internal/assembler/asm6"
+	"github.com/retroenv/retrodisasm/internal/assembler/ca65"
+	"github.com/retroenv/retrodisasm/internal/assembler/nesasm"
+	"github.com/retroenv/retrodisasm/internal/options"
+	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/log"
 )

@@ -3,8 +3,8 @@ package chip8
 import (
 	"testing"
 
-	archpkg "github.com/retroenv/nesgodisasm/internal/arch"
-	"github.com/retroenv/nesgodisasm/internal/arch/mocks"
+	archpkg "github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/arch/mocks"
 	chip8cpu "github.com/retroenv/retrogolib/arch/cpu/chip8"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/assert"

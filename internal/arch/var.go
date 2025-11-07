@@ -1,6 +1,6 @@
 package arch
 
-import "github.com/retroenv/nesgodisasm/internal/program"
+import "github.com/retroenv/retrodisasm/internal/program"
 
 // VariableManager manages variables in the disassembled program.
 type VariableManager interface {

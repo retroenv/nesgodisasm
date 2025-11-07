@@ -3,7 +3,7 @@ package retroasm
 import (
 	"fmt"
 
-	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 )
 

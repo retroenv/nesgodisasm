@@ -18,6 +18,7 @@
 *.nes
 coverage.txt
 nesgodisasm
+retrodisasm
 internal/testroms/
 dist/
 

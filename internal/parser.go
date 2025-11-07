@@ -3,8 +3,8 @@ package disasm
 import (
 	"fmt"
 
-	"github.com/retroenv/nesgodisasm/internal/arch"
-	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/program"
 )
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.

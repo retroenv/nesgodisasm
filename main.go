@@ -5,9 +5,9 @@ import (
 	"errors"
 	"os"
 
-	"github.com/retroenv/nesgodisasm/internal/cli"
-	"github.com/retroenv/nesgodisasm/internal/config"
-	"github.com/retroenv/nesgodisasm/internal/fileprocessor"
+	"github.com/retroenv/retrodisasm/internal/cli"
+	"github.com/retroenv/retrodisasm/internal/config"
+	"github.com/retroenv/retrodisasm/internal/fileprocessor"
 	"github.com/retroenv/retrogolib/log"
 )
 

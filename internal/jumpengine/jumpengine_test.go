@@ -3,9 +3,9 @@ package jumpengine
 import (
 	"testing"
 
-	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
-	"github.com/retroenv/nesgodisasm/internal/arch/mocks"
-	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
+	"github.com/retroenv/retrodisasm/internal/arch/m6502"
+	"github.com/retroenv/retrodisasm/internal/arch/mocks"
+	"github.com/retroenv/retrodisasm/internal/assembler/ca65"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/assert"
 	"github.com/retroenv/retrogolib/log"
