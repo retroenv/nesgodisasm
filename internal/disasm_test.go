@@ -89,6 +89,37 @@ func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
 	runDisasm(t, nil, input, expected)
 }
 
+// TestDisasmBranchToUnofficialInstruction ensures that when an unofficial instruction
+// (converted to CodeAsData) is a branch destination, it doesn't get consumed by a preceding
+// instruction that could overlap with it.
+func TestDisasmBranchToUnofficialInstruction(t *testing.T) {
+	input := []byte{
+		0x10, 0x01, // $8000: bpl $8003 (branch to unofficial instruction)
+		0x10,       // $8002: byte that looks like BPL opcode
+		0x83, 0x00, // $8003: sax ($00,X) - unofficial instruction, branch destination
+		0x40, // $8005: rti
+	}
+
+	expected := `
+        _var_0000_indexed = $0000
+
+        Reset:
+        bpl _label_8003
+        .byte $10                        ; bpl $7F87
+
+        _label_8003:
+        .byte $83, $00                   ; branch into instruction detected
+        rti
+`
+
+	setup := func(opts *options.Disassembler, _ *cartridge.Cartridge) {
+		opts.NoUnofficialInstructions = true
+		opts.OffsetComments = false
+		opts.HexComments = false
+	}
+	runDisasm(t, setup, input, expected)
+}
+
 func TestDisasmJumpEngineTableFromCaller(t *testing.T) {
 	input := []byte{
 		0x20, 0x05, 0x80, // jsr $8005
