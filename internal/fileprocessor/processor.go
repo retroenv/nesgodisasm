@@ -11,6 +11,7 @@ import (
 	disasm "github.com/retroenv/nesgodisasm/internal"
 	"github.com/retroenv/nesgodisasm/internal/app"
 	"github.com/retroenv/nesgodisasm/internal/arch"
+	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
 	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/options"
@@ -79,19 +80,6 @@ func determineSystem(logger *log.Logger, opts options.Program) archsys.System {
 	return system
 }
 
-// detectSystemFromFile determines the system type based on file extension
-// nolint: unparam
-func detectSystemFromFile(filename string) archsys.System {
-	ext := strings.ToLower(filepath.Ext(filename))
-	switch ext {
-	case ".nes":
-		return archsys.NES
-	default:
-		// Default to NES for unknown extensions
-		return archsys.NES
-	}
-}
-
 // createDisassembler creates and configures the disassembler
 func createDisassembler(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler, cart *cartridge.Cartridge, system archsys.System) (*disasm.Disasm, error) {
 	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(opts.Assembler)
@@ -149,7 +137,7 @@ func GenerateOutputFilename(inputFile string) string {
 	return inputFile[:len(inputFile)-len(ext)] + ".asm"
 }
 
-func loadCartridge(opts options.Program, _ archsys.System) (*cartridge.Cartridge, error) {
+func loadCartridge(opts options.Program, system archsys.System) (*cartridge.Cartridge, error) {
 	file, err := os.Open(opts.Input)
 	if err != nil {
 		return nil, fmt.Errorf("opening file %s: %w", opts.Input, err)
@@ -158,10 +146,11 @@ func loadCartridge(opts options.Program, _ archsys.System) (*cartridge.Cartridge
 
 	var cart *cartridge.Cartridge
 
-	// Handle binary loading for NES
-	if opts.Binary {
+	// Handle CHIP-8 files as binary data
+	switch {
+	case opts.Binary, system == archsys.CHIP8System:
 		cart, err = cartridge.LoadBuffer(file)
-	} else {
+	default:
 		cart, err = cartridge.LoadFile(file)
 	}
 	if err != nil {
@@ -192,13 +181,18 @@ func createWriter(opts options.Program) (io.Writer, error) {
 	return file, nil
 }
 
-// systemArchitectureWithConverter creates architecture with assembler-specific parameter converter
-func systemArchitectureWithConverter(system archsys.System, paramConverter parameter.Converter) (arch.Architecture, error) {
-	switch system {
-	case archsys.NES:
-		return m6502.New(paramConverter), nil
+// detectSystemFromFile determines the system type based on file extension
+func detectSystemFromFile(filename string) archsys.System {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".ch8", ".rom":
+		// ROM files could be CHIP-8, default to CHIP-8 for .rom extension
+		return archsys.CHIP8System
+	case ".nes":
+		return archsys.NES
 	default:
-		return nil, fmt.Errorf("unsupported system '%s'", system)
+		// Default to M6502 for unknown extensions
+		return archsys.NES
 	}
 }
 
@@ -230,4 +224,16 @@ type nopCloser struct {
 
 func (nc *nopCloser) Close() error {
 	return nil
+}
+
+// systemArchitectureWithConverter creates architecture with assembler-specific parameter converter
+func systemArchitectureWithConverter(system archsys.System, paramConverter parameter.Converter) (arch.Architecture, error) {
+	switch system {
+	case archsys.NES:
+		return m6502.New(paramConverter), nil
+	case archsys.CHIP8System:
+		return chip8.New(paramConverter), nil
+	default:
+		return nil, fmt.Errorf("unsupported system '%s' or missing parameter", system)
+	}
 }

@@ -77,7 +77,7 @@ func normalizeOptions(opts *options.Program) error {
 	}
 
 	// Validate assembler type
-	validAssemblers := []string{"asm6", "ca65", "nesasm"}
+	validAssemblers := []string{"asm6", "ca65", "nesasm", "retroasm"}
 	for _, valid := range validAssemblers {
 		if opts.Assembler == valid {
 			return nil
@@ -103,11 +103,11 @@ func createDisasmOptions(opts options.Program) options.Disassembler {
 func readOptionFlags(flags *flag.FlagSet, opts *options.Program) {
 	flags.StringVar(&opts.Input, "i", "", "name of the input ROM file")
 	flags.StringVar(&opts.Output, "o", "", "name of the output .asm file, printed on console if no name given")
-	flags.StringVar(&opts.Assembler, "a", "ca65", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm)")
+	flags.StringVar(&opts.Assembler, "a", "ca65", "Assembler compatibility of the generated .asm file (asm6/ca65/nesasm/retroasm)")
 	flags.StringVar(&opts.Config, "c", "", "Config file name to write output to for ca65 assembler")
 	flags.StringVar(&opts.CodeDataLog, "cdl", "", "name of the .cdl Code/Data log file to load")
 	flags.StringVar(&opts.Batch, "batch", "", "process a batch of given path and file mask and automatically .asm file naming, for example *.nes")
-	flags.StringVar(&opts.System, "s", "", "system to disassemble for (nes) - auto-detected from file extension if not specified")
+	flags.StringVar(&opts.System, "s", "", "system to disassemble for (nes, chip8) - if not auto-detected from file extension")
 	flags.BoolVar(&opts.Binary, "binary", false, "read input file as raw binary file without any header")
 	flags.BoolVar(&opts.Debug, "debug", false, "enable debugging options for extended logging")
 	flags.BoolVar(&opts.Quiet, "q", false, "perform operations quietly")
