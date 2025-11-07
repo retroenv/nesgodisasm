@@ -2,7 +2,7 @@
 package chip8
 
 import (
-	"github.com/retroenv/nesgodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/arch"
 	"github.com/retroenv/retrogolib/arch/cpu/chip8"
 )
 

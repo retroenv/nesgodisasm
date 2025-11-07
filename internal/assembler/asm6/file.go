@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/retroenv/nesgodisasm/internal/assembler"
-	"github.com/retroenv/nesgodisasm/internal/options"
-	"github.com/retroenv/nesgodisasm/internal/program"
-	"github.com/retroenv/nesgodisasm/internal/writer"
+	"github.com/retroenv/retrodisasm/internal/assembler"
+	"github.com/retroenv/retrodisasm/internal/options"
+	"github.com/retroenv/retrodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/writer"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 )
 

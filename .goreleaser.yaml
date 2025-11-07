@@ -5,8 +5,8 @@ before:
     - go mod download
 
 builds:
-  - id: nesgodisasm
-    binary: nesgodisasm
+  - id: retrodisasm
+    binary: retrodisasm
     dir: .
     env:
       - CGO_ENABLED=0
@@ -21,8 +21,8 @@ universal_binaries:
   - replace: false
 
 archives:
-  - id: nesgodisasm
-    builds: ['nesgodisasm']
+  - id: retrodisasm
+    builds: ['retrodisasm']
     name_template: >-
       {{ .ProjectName }}_v{{ .Version }}_
       {{- if eq .Os "darwin" }}macos

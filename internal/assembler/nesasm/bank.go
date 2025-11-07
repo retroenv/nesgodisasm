@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/program"
 )
 
 const bankSize = 0x2000

@@ -1,12 +1,13 @@
-# nesgodisasm - a tracing disassembler for retro systems
+# retrodisasm - a tracing disassembler for retro systems
 
-[![Build status](https://github.com/retroenv/nesgodisasm/actions/workflows/go.yaml/badge.svg?branch=main)](https://github.com/retroenv/nesgodisasm/actions)
-[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/retroenv/nesgodisasm)
-[![Go Report Card](https://goreportcard.com/badge/github.com/retroenv/nesgodisasm)](https://goreportcard.com/report/github.com/retroenv/nesgodisasm)
-[![codecov](https://codecov.io/gh/retroenv/nesgodisasm/branch/main/graph/badge.svg?token=NS5UY28V3A)](https://codecov.io/gh/retroenv/nesgodisasm)
+[![Build status](https://github.com/retroenv/retrodisasm/actions/workflows/go.yaml/badge.svg?branch=main)](https://github.com/retroenv/retrodisasm/actions)
+[![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/retroenv/retrodisasm)
+[![Go Report Card](https://goreportcard.com/badge/github.com/retroenv/retrodisasm)](https://goreportcard.com/report/github.com/retroenv/retrodisasm)
+[![codecov](https://codecov.io/gh/retroenv/retrodisasm/branch/main/graph/badge.svg?token=NS5UY28V3A)](https://codecov.io/gh/retroenv/retrodisasm)
 
+> **Note:** This project was renamed from `nesgodisasm` to `retrodisasm` to reflect its expanded support for multiple retro systems beyond just NES.
 
-nesgodisasm is a tracing disassembler for retro console and computer systems.
+retrodisasm is a tracing disassembler for retro console and computer systems.
 
 ## Supported Systems
 
@@ -48,16 +49,16 @@ operating system to run:
 * Windows: 10+
 * macOS: 10.15 Catalina+
 
-There are 2 options to install nesgodisasm:
+There are 2 options to install retrodisasm:
 
-1. Download and unpack a binary release from [Releases](https://github.com/retroenv/nesgodisasm/releases)
+1. Download and unpack a binary release from [Releases](https://github.com/retroenv/retrodisasm/releases)
 
 or
 
-2. Compile the latest release from source: 
+2. Compile the latest release from source:
 
 ```
-go install github.com/retroenv/nesgodisasm@latest
+go install github.com/retroenv/retrodisasm@latest
 ```
 
 Compiling the tool from source code needs to have a recent version of [Golang](https://go.dev/) installed.
@@ -69,15 +70,15 @@ To use the `-verify` option, the chosen assembler needs to be installed.
 Basic usage (system auto-detected from file extension):
 
 ```bash
-nesgodisasm -o output.asm input.nes      # NES ROM
-nesgodisasm -o output.asm input.ch8      # CHIP-8 ROM
+retrodisasm -o output.asm input.nes      # NES ROM
+retrodisasm -o output.asm input.ch8      # CHIP-8 ROM
 ```
 
 Manual system specification:
 
 ```bash
-nesgodisasm -s nes -o game.asm game.bin
-nesgodisasm -s chip8 -o program.asm program.rom
+retrodisasm -s nes -o game.asm game.bin
+retrodisasm -s chip8 -o program.asm program.rom
 ```
 
 Example output (NES):
@@ -100,32 +101,29 @@ ca65 output.asm -o output.o && ld65 output.o -t nes -o output.nes
 ## Options
 
 ```
-usage: nesgodisasm [options] <file to disassemble>
+usage: retrodisasm [options] <file to disassemble>
 
   -a string
-        Assembler compatibility of the generated .asm file (asm6/ca65/nesasm/retroasm) (default "ca65")
+    	Assembler compatibility of the generated .asm file (asm6/ca65/nesasm/retroasm) (default "ca65")
   -batch string
-        process a batch of given path and file mask and automatically .asm file naming, for example *.nes
+    	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
   -binary
-        read input file as raw binary file without any header
+    	read input file as raw binary file without any header
   -c string
-        Config file name to write output to for ca65 assembler
+    	Config file name to write output to for ca65 assembler
   -cdl string
-        name of the .cdl Code/Data log file to load
+    	name of the .cdl Code/Data log file to load
   -debug
-        enable debugging options for extended logging
-  -nohexcomments
-        do not output opcode bytes as hex values in comments
-  -nooffsets
-        do not output offsets in comments
+    	enable debugging options for extended logging
+  -i string
+    	name of the input ROM file
   -o string
-        name of the output .asm file, printed on console if no name given
-  -q    perform operations quietly
+    	name of the output .asm file, printed on console if no name given
+  -q	perform operations quietly
   -s string
-        system to disassemble for (nes, chip8) - if not auto-detected from file extension
+    	system to disassemble for (nes, chip8) - if not auto-detected from file extension
   -verify
-        verify the generated output by assembling with ca65 and check if it matches the input
-  -z    output the trailing zero bytes of banks
+    	verify the generated output by assembling with ca65 and check if it matches the input
 ```
 
 ### System-Specific Options

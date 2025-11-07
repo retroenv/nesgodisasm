@@ -1,6 +1,6 @@
 package arch
 
-import "github.com/retroenv/nesgodisasm/internal/program"
+import "github.com/retroenv/retrodisasm/internal/program"
 
 // ConstantManager manages constants in the disassembled program.
 type ConstantManager interface {

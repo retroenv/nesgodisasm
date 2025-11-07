@@ -1,4 +1,4 @@
-# Changelog for nesgodisasm
+# Changelog for retrodisasm
 
 All notable changes to this project will be documented in this file.
 
@@ -90,4 +90,4 @@ Fixed:
 
 ## [v0.1.0] - 2022-06-26
 
-First version of nesgodisasm released.
+First version of retrodisasm (formerly nesgodisasm) released.

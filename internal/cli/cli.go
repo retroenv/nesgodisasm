@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/retroenv/nesgodisasm/internal/assembler"
-	"github.com/retroenv/nesgodisasm/internal/options"
+	"github.com/retroenv/retrodisasm/internal/assembler"
+	"github.com/retroenv/retrodisasm/internal/options"
 )
 
 // ParseFlags parses command line flags and returns program and disassembler options
@@ -52,7 +52,7 @@ func (e *UsageError) Error() string {
 }
 
 func (e *UsageError) ShowUsage() {
-	fmt.Printf("usage: nesgodisasm [options] <file to disassemble>\n\n")
+	fmt.Printf("usage: retrodisasm [options] <file to disassemble>\n\n")
 	e.flags.PrintDefaults()
 	fmt.Println()
 }

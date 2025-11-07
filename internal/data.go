@@ -1,7 +1,7 @@
 package disasm
 
 import (
-	"github.com/retroenv/nesgodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/program"
 )
 
 // ChangeAddressRangeToCodeAsData sets a range of code address to code as
