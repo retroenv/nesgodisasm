@@ -31,7 +31,7 @@ type Program struct {
 type Disassembler struct {
 	Assembler   string        // what assembler to use
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
-	System      arch.System   // system type (e.g., nes)
+	System      arch.System   // system type (e.g., nes, chip8)
 
 	Binary                   bool
 	CodeOnly                 bool

@@ -135,15 +135,15 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 	}
 
 	if isABranchDestination {
-		if from > 0 {
-			bankRef := arch.BankReference{
-				Mapped:  dis.mapper.GetMappedBank(from),
-				Address: from,
-				Index:   dis.mapper.GetMappedBankIndex(from),
-			}
-			bankRef.ID = bankRef.Mapped.ID()
-			offsetInfo.BranchFrom = append(offsetInfo.BranchFrom, bankRef)
+		// Always add BranchFrom references when isABranchDestination is true.
+		// Initialization calls pass isABranchDestination = false, so they're already filtered out.
+		bankRef := arch.BankReference{
+			Mapped:  dis.mapper.GetMappedBank(from),
+			Address: from,
+			Index:   dis.mapper.GetMappedBankIndex(from),
 		}
+		bankRef.ID = bankRef.Mapped.ID()
+		offsetInfo.BranchFrom = append(offsetInfo.BranchFrom, bankRef)
 		dis.branchDestinations[address] = struct{}{}
 	}
 

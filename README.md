@@ -1,4 +1,4 @@
-# nesgodisasm - a tracing disassembler for NES ROMs
+# nesgodisasm - a tracing disassembler for retro systems
 
 [![Build status](https://github.com/retroenv/nesgodisasm/actions/workflows/go.yaml/badge.svg?branch=main)](https://github.com/retroenv/nesgodisasm/actions)
 [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/retroenv/nesgodisasm)
@@ -6,21 +6,38 @@
 [![codecov](https://codecov.io/gh/retroenv/nesgodisasm/branch/main/graph/badge.svg?token=NS5UY28V3A)](https://codecov.io/gh/retroenv/nesgodisasm)
 
 
-nesgodisasm allows you to disassemble programs for the Nintendo Entertainment System (NES).
+nesgodisasm is a tracing disassembler for retro console and computer systems.
+
+## Supported Systems
+
+| System | Architecture | Assemblers |
+|--------|-------------|------------|
+| **NES** | 6502 | asm6, ca65, nesasm, retroasm |
+| **CHIP-8** | CHIP-8 VM | retroasm |
+
+The tool automatically detects the system from file extensions (`.nes`, `.ch8`, `.rom`) or you can specify it manually with `-s`.
 
 ## Features
 
-* Outputs [asm6](https://github.com/freem/asm6f)*/[ca65](https://github.com/cc65/cc65)/[nesasm](https://github.com/ClusterM/nesasm)
-compatible .asm files that can be used to reproduce the same original NES ROM
-* Translates known RAM addresses to aliases
-* Traces the program execution flow to differentiate between code and data
-* Supports undocumented 6502 CPU opcodes
-* Supports branching into opcode parts of an instruction
-* Does not output trailing zero bytes of banks by default
-* Batch processing mode to disassembling multiple ROMs at once
-* Flexible architecture that allows it to create output modules for other assemblers 
+### Core Features
+* **Bit-Perfect Reassembly** - Generated assembly reassembles to produce the exact same ROM binary
+* **Multi-Architecture Support** - Modular architecture supporting NES and CHIP-8 systems
+* **Execution Flow Tracing** - Differentiates between code and data through program flow analysis
+* **Multiple Assembler Outputs** - Generates assembly compatible with various assemblers
+* **Batch Processing** - Process multiple ROMs at once with automatic naming
+* **Smart Output** - Does not output trailing zero bytes by default
+* **Flexible & Extensible** - Easy to add support for new systems and assemblers
 
-Support for mappers that use banking is currently experimental.
+### NES-Specific Features
+* Outputs [asm6](https://github.com/freem/asm6f)*/[ca65](https://github.com/cc65/cc65)/[nesasm](https://github.com/ClusterM/nesasm)/[retroasm](https://github.com/retroenv/retroasm) compatible assembly files
+* Translates known RAM addresses to aliases
+* Supports undocumented 6502 CPU opcodes
+* Handles branching into opcode parts of instructions
+* Experimental support for mappers with banking
+
+### CHIP-8-Specific Features
+* Outputs [retroasm](https://github.com/retroenv/retroasm) compatible assembly files
+* Handles all standard CHIP-8 instructions (35 opcodes)
 
 ## Installation
 
@@ -49,39 +66,35 @@ To use the `-verify` option, the chosen assembler needs to be installed.
 
 ## Usage
 
-Disassemble a ROM:
+Basic usage (system auto-detected from file extension):
 
-```
-nesgodisasm -o example.asm example.nes
+```bash
+nesgodisasm -o output.asm input.nes      # NES ROM
+nesgodisasm -o output.asm input.ch8      # CHIP-8 ROM
 ```
 
-The generated assembly file content will look like:
+Manual system specification:
 
+```bash
+nesgodisasm -s nes -o game.asm game.bin
+nesgodisasm -s chip8 -o program.asm program.rom
 ```
-...
+
+Example output (NES):
+
+```asm
 Reset:
   sei                            ; $8000 78
   cld                            ; $8001 D8
   lda #$10                       ; $8002 A9 10
   sta PPU_CTRL                   ; $8004 8D 00 20
-  ldx #$FF                       ; $8007 A2 FF
-  txs                            ; $8009 9A
-
-_label_800a:
-  lda PPU_STATUS                 ; $800A AD 02 20
-  bpl _label_800a                ; $800D 10 FB
-
 ...
-.segment "VECTORS"
-
-.addr NMI, Reset, IRQ
 ```
 
-Assemble an .asm file back to a ROM:
+Reassemble:
 
-```
-ca65 example.asm -o example.o
-ld65 example.o -t nes -o example.nes 
+```bash
+ca65 output.asm -o output.o && ld65 output.o -t nes -o output.nes
 ```
 
 ## Options
@@ -90,7 +103,7 @@ ld65 example.o -t nes -o example.nes
 usage: nesgodisasm [options] <file to disassemble>
 
   -a string
-        Assembler compatibility of the generated .asm file (asm6/ca65/nesasm) (default "ca65")
+        Assembler compatibility of the generated .asm file (asm6/ca65/nesasm/retroasm) (default "ca65")
   -batch string
         process a batch of given path and file mask and automatically .asm file naming, for example *.nes
   -binary
@@ -108,10 +121,24 @@ usage: nesgodisasm [options] <file to disassemble>
   -o string
         name of the output .asm file, printed on console if no name given
   -q    perform operations quietly
+  -s string
+        system to disassemble for (nes, chip8) - if not auto-detected from file extension
   -verify
         verify the generated output by assembling with ca65 and check if it matches the input
   -z    output the trailing zero bytes of banks
 ```
+
+### System-Specific Options
+
+**NES:**
+- All assemblers supported: `-a asm6`, `-a ca65` (default), `-a nesasm`, `-a retroasm`
+- CDL (Code/Data Log) support: `-cdl <file.cdl>`
+- Verification: `-verify` (requires ca65 installed)
+
+**CHIP-8:**
+- Only retroasm supported: `-a retroasm`
+- Auto-detection from `.ch8` or `.rom` extensions
+- Manual specification: `-s chip8`
 
 ## Notes
 

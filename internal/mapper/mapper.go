@@ -19,6 +19,8 @@ type Mapper struct {
 
 	banksMapped []mappedBank
 	mapped      []mappedBank
+
+	dis arch.Disasm // Reference to disasm for single-bank systems
 }
 
 // New creates a new mapper manager.
@@ -32,7 +34,7 @@ func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Map
 	return createMultiBankMapper(cart, dis, bankWindowSize)
 }
 
-// createSingleBankMapper creates a mapper for single bank systems
+// createSingleBankMapper creates a mapper for single bank systems (e.g., CHIP-8)
 func createSingleBankMapper(cart *cartridge.Cartridge, dis arch.Disasm) (*Mapper, error) {
 	bnk := newBank(cart.PRG)
 	dis.Constants().AddBank()
@@ -43,6 +45,7 @@ func createSingleBankMapper(cart *cartridge.Cartridge, dis arch.Disasm) (*Mapper
 		mapped: []mappedBank{
 			{bank: bnk},
 		},
+		dis: dis,
 	}, nil
 }
 
@@ -104,7 +107,7 @@ func (m *Mapper) configureDefaultBankMapping() {
 func (m *Mapper) setMappedBank(address uint16, bank mappedBank) {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
-		// Single bank system
+		// Single bank system (e.g., CHIP-8)
 		bankWindow = 0
 	} else {
 		// Multi-bank system
@@ -116,7 +119,7 @@ func (m *Mapper) setMappedBank(address uint16, bank mappedBank) {
 func (m *Mapper) GetMappedBank(address uint16) arch.MappedBank {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
-		// Single bank system
+		// Single bank system (e.g., CHIP-8)
 		bankWindow = 0
 	} else {
 		// Multi-bank system
@@ -129,8 +132,8 @@ func (m *Mapper) GetMappedBank(address uint16) arch.MappedBank {
 func (m *Mapper) GetMappedBankIndex(address uint16) uint16 {
 	var index int
 	if m.bankWindowSize == 0 {
-		// Single bank system - direct address mapping
-		index = int(address)
+		// Single bank system (e.g., CHIP-8) - subtract code base address to get ROM offset
+		index = int(address) - int(m.dis.CodeBaseAddress())
 	} else {
 		// Multi-bank system - use modulo for bank window
 		index = int(address) % m.bankWindowSize
@@ -143,9 +146,9 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 	var index int
 
 	if m.bankWindowSize == 0 {
-		// Single bank system - only one bank at index 0
+		// Single bank system (e.g., CHIP-8) - subtract code base address
 		bankWindow = 0
-		index = int(address)
+		index = int(address) - int(m.dis.CodeBaseAddress())
 	} else {
 		// Multi-bank system - calculate bank window and index
 		bankWindow = address >> m.addressShifts
@@ -161,7 +164,7 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
-		// Single bank system
+		// Single bank system (e.g., CHIP-8)
 		bankWindow = 0
 	} else {
 		// Multi-bank system
@@ -174,9 +177,11 @@ func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
 
 	var index int
 	if m.bankWindowSize > 0 {
+		// Multi-bank: use modulo to convert memory address to bank offset
 		index = int(address) % m.bankWindowSize
 	} else {
-		index = int(address)
+		// Single-bank: subtract code base address to convert memory address to ROM offset
+		index = int(address) - int(m.dis.CodeBaseAddress())
 	}
 	pointer := bnk.dataStart + index
 	offsetInfo := bnk.bank.offsets[pointer]

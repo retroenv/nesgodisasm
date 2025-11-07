@@ -9,11 +9,13 @@ import (
 
 	disasm "github.com/retroenv/nesgodisasm/internal"
 	"github.com/retroenv/nesgodisasm/internal/arch"
+	"github.com/retroenv/nesgodisasm/internal/arch/chip8"
 	"github.com/retroenv/nesgodisasm/internal/arch/m6502"
 	"github.com/retroenv/nesgodisasm/internal/assembler"
 	"github.com/retroenv/nesgodisasm/internal/assembler/asm6"
 	"github.com/retroenv/nesgodisasm/internal/assembler/ca65"
 	"github.com/retroenv/nesgodisasm/internal/assembler/nesasm"
+	"github.com/retroenv/nesgodisasm/internal/assembler/retroasm"
 	"github.com/retroenv/nesgodisasm/internal/options"
 	archsys "github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
@@ -58,10 +60,9 @@ func PrintInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartrid
 			logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
 		}
 
-	default:
-		logger.Info("Processing ROM",
+	case archsys.CHIP8System:
+		logger.Info("Processing Chip-8 ROM",
 			log.String("file", opts.Input),
-			log.Stringer("system", system),
 			log.String("assembler", opts.Assembler),
 		)
 	}
@@ -74,6 +75,8 @@ func SystemArchitecture(system archsys.System) (arch.Architecture, error) {
 	switch system {
 	case archsys.NES:
 		return m6502.New(paramConverter), nil
+	case archsys.CHIP8System:
+		return chip8.New(paramConverter), nil
 	default:
 		return nil, fmt.Errorf("unsupported system '%s' or missing parameter", system)
 	}
@@ -97,6 +100,10 @@ func InitializeAssemblerCompatibleMode(assemblerName string) (disasm.FileWriterC
 	case assembler.Nesasm:
 		fileWriterConstructor = nesasm.New
 		paramCfg = nesasm.ParamConfig
+
+	case assembler.Retroasm:
+		fileWriterConstructor = retroasm.New
+		paramCfg = retroasm.ParamConfig
 
 	default:
 		return nil, parameter.Converter{}, fmt.Errorf("unsupported assembler '%s'", assemblerName)
