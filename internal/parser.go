@@ -51,8 +51,15 @@ func (dis *Disasm) followExecutionFlow() error {
 // cut the current one short.
 func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *arch.Offset) {
 	for i := 1; i < len(offsetInfo.Data) && int(address)+i < int(dis.arch.LastCodeAddress()); i++ {
-		offsetInfoFollowing := dis.mapper.OffsetInfo(address + uint16(i))
-		if !offsetInfoFollowing.IsType(program.CodeOffset) {
+		followingAddress := address + uint16(i)
+		offsetInfoFollowing := dis.mapper.OffsetInfo(followingAddress)
+
+		// Check for regular code overlap or CodeAsData that's a branch destination
+		// (CodeAsData that's NOT a branch destination can be consumed by this instruction)
+		isOverlap := offsetInfoFollowing.IsType(program.CodeOffset) ||
+			(offsetInfoFollowing.IsType(program.CodeAsData) && dis.isBranchDestination(followingAddress))
+
+		if !isOverlap {
 			continue
 		}
 
@@ -64,6 +71,12 @@ func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *arch.Offs
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 		return
 	}
+}
+
+// isBranchDestination checks if an address is a branch destination.
+func (dis *Disasm) isBranchDestination(address uint16) bool {
+	_, ok := dis.branchDestinations[address]
+	return ok
 }
 
 // addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
