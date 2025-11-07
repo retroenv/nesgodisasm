@@ -117,6 +117,10 @@ usage: retrodisasm [options] <file to disassemble>
     	enable debugging options for extended logging
   -i string
     	name of the input ROM file
+  -nohexcomments
+    	do not output opcode bytes as hex values in comments
+  -nooffsets
+    	do not output offsets in comments
   -o string
     	name of the output .asm file, printed on console if no name given
   -q	perform operations quietly
@@ -124,6 +128,7 @@ usage: retrodisasm [options] <file to disassemble>
     	system to disassemble for (nes, chip8) - if not auto-detected from file extension
   -verify
     	verify the generated output by assembling with ca65 and check if it matches the input
+  -z	output the trailing zero bytes of banks
 ```
 
 ### System-Specific Options

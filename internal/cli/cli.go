@@ -15,7 +15,10 @@ import (
 func ParseFlags() (options.Program, options.Disassembler, error) {
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	var opts options.Program
+	var disasmOptions options.Disassembler
+
 	readOptionFlags(flags, &opts)
+	readDisasmOptionFlags(flags)
 
 	err := flags.Parse(os.Args[1:])
 	args := flags.Args()
@@ -35,8 +38,9 @@ func ParseFlags() (options.Program, options.Disassembler, error) {
 		opts.Input = args[0]
 	}
 
-	disasmOptions := createDisasmOptions(opts)
-	readDisasmOptionFlags(flags, &disasmOptions)
+	// Update disasm options after parsing program options
+	disasmOptions = createDisasmOptions(opts)
+	applyDisasmOptionFlags(&disasmOptions)
 
 	return opts, disasmOptions, nil
 }
@@ -114,13 +118,24 @@ func readOptionFlags(flags *flag.FlagSet, opts *options.Program) {
 	flags.BoolVar(&opts.AssembleTest, "verify", false, "verify the generated output by assembling with ca65 and check if it matches the input")
 }
 
-func readDisasmOptionFlags(flags *flag.FlagSet, opts *options.Disassembler) {
-	var noHexComments, noOffsets bool
-	flags.BoolVar(&noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
-	flags.BoolVar(&noOffsets, "nooffsets", false, "do not output offsets in comments")
-	flags.BoolVar(&opts.ZeroBytes, "z", false, "output the trailing zero bytes of banks")
+// disasmFlagVars holds temporary flag variables
+type disasmFlagVars struct {
+	noHexComments bool
+	noOffsets     bool
+	zeroBytes     bool
+}
 
+var disasmFlags disasmFlagVars
+
+func readDisasmOptionFlags(flags *flag.FlagSet) {
+	flags.BoolVar(&disasmFlags.noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
+	flags.BoolVar(&disasmFlags.noOffsets, "nooffsets", false, "do not output offsets in comments")
+	flags.BoolVar(&disasmFlags.zeroBytes, "z", false, "output the trailing zero bytes of banks")
+}
+
+func applyDisasmOptionFlags(opts *options.Disassembler) {
 	// Apply inverse logic for hex comments and offsets
-	opts.HexComments = !noHexComments
-	opts.OffsetComments = !noOffsets
+	opts.HexComments = !disasmFlags.noHexComments
+	opts.OffsetComments = !disasmFlags.noOffsets
+	opts.ZeroBytes = disasmFlags.zeroBytes
 }
