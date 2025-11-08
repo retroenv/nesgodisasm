@@ -97,7 +97,7 @@ func createDisasmOptions(opts options.Program) options.Disassembler {
 
 	// nesasm doesn't support unofficial instructions
 	if opts.Assembler == assembler.Nesasm {
-		disasmOptions.NoUnofficialInstructions = true
+		disasmOptions.UnofficialInstructions = false
 	}
 
 	return disasmOptions

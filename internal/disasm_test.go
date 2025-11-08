@@ -114,7 +114,7 @@ func TestDisasmBranchToUnofficialInstruction(t *testing.T) {
 `
 
 	setup := func(opts *options.Disassembler, _ *cartridge.Cartridge) {
-		opts.NoUnofficialInstructions = true
+		opts.UnofficialInstructions = false
 		opts.OffsetComments = false
 		opts.HexComments = false
 	}

@@ -22,9 +22,6 @@ type Program struct {
 	Binary       bool
 	Debug        bool
 	Quiet        bool
-
-	NoHexComments bool
-	NoOffsets     bool
 }
 
 // Disassembler defines options to control the disassembler.
@@ -33,12 +30,12 @@ type Disassembler struct {
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
 	System      arch.System   // system type (e.g., nes, chip8)
 
-	Binary                   bool
-	CodeOnly                 bool
-	HexComments              bool
-	NoUnofficialInstructions bool
-	OffsetComments           bool
-	ZeroBytes                bool
+	Binary                 bool
+	CodeOnly               bool
+	HexComments            bool
+	OffsetComments         bool
+	UnofficialInstructions bool
+	ZeroBytes              bool
 }
 
 // NewDisassembler returns a new options instance with default options.
