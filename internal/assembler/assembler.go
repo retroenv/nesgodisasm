@@ -4,6 +4,7 @@ package assembler
 import (
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/retroenv/retrogolib/arch"
 )
@@ -28,14 +29,12 @@ func ValidateSystemAssembler(system arch.System, assembler string) error {
 		return fmt.Errorf("unknown system: %s", system)
 	}
 
-	for _, valid := range supported {
-		if assembler == valid {
-			return nil
-		}
+	if !slices.Contains(supported, assembler) {
+		return fmt.Errorf("assembler '%s' is not supported for system '%s'. Valid options: %v",
+			assembler, system, supported)
 	}
 
-	return fmt.Errorf("assembler '%s' is not supported for system '%s'. Valid options: %v",
-		assembler, system, supported)
+	return nil
 }
 
 // NewBankWriter is a callback that creates a new file for a bank of ROMs

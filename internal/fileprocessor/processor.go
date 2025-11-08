@@ -2,6 +2,7 @@
 package fileprocessor
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -24,7 +25,7 @@ import (
 )
 
 // ProcessFile handles the complete file processing workflow
-func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler) error {
+func ProcessFile(ctx context.Context, logger *log.Logger, opts options.Program, disasmOptions options.Disassembler) error {
 	system := determineSystem(logger, opts)
 
 	// Update disasm options with the determined system
@@ -59,7 +60,7 @@ func ProcessFile(logger *log.Logger, opts options.Program, disasmOptions options
 	}
 
 	if opts.AssembleTest {
-		if err := verification.VerifyOutput(logger, opts, cart, result); err != nil {
+		if err := verification.VerifyOutput(ctx, logger, opts, cart, result); err != nil {
 			return fmt.Errorf("verification failed: %w", err)
 		}
 		logger.Info("Verification successful")

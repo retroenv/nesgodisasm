@@ -3,6 +3,7 @@ package verification
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -19,7 +20,7 @@ import (
 )
 
 // VerifyOutput verifies that the output file recreates the exact input file.
-func VerifyOutput(logger *log.Logger, options options.Program,
+func VerifyOutput(ctx context.Context, logger *log.Logger, options options.Program,
 	cart *cartridge.Cartridge, app *program.Program) error {
 
 	if options.Output == "" {
@@ -50,7 +51,7 @@ func VerifyOutput(logger *log.Logger, options options.Program,
 		}()
 	}
 
-	if err := assembleFile(options, cart, app, filePart, outputFile.Name()); err != nil {
+	if err := assembleFile(ctx, options, cart, app, filePart, outputFile.Name()); err != nil {
 		return err
 	}
 
@@ -71,12 +72,12 @@ func VerifyOutput(logger *log.Logger, options options.Program,
 	return nil
 }
 
-func assembleFile(options options.Program, cart *cartridge.Cartridge, app *program.Program,
+func assembleFile(ctx context.Context, options options.Program, cart *cartridge.Cartridge, app *program.Program,
 	filePart, outputFile string) error {
 
 	switch options.Assembler {
 	case assembler.Asm6:
-		if err := asm6.AssembleUsingExternalApp(options.Output, outputFile); err != nil {
+		if err := asm6.AssembleUsingExternalApp(ctx, options.Output, outputFile); err != nil {
 			return fmt.Errorf("reassembling .nes file using asm6 failed: %w", err)
 		}
 
@@ -95,12 +96,12 @@ func assembleFile(options options.Program, cart *cartridge.Cartridge, app *progr
 			CHRSize: len(cart.CHR),
 		}
 
-		if err = ca65.AssembleUsingExternalApp(options.Output, objectFile.Name(), outputFile, ca65Config); err != nil {
+		if err = ca65.AssembleUsingExternalApp(ctx, options.Output, objectFile.Name(), outputFile, ca65Config); err != nil {
 			return fmt.Errorf("reassembling .nes file using ca65 failed: %w", err)
 		}
 
 	case assembler.Nesasm:
-		if err := nesasm.AssembleUsingExternalApp(options.Output, outputFile); err != nil {
+		if err := nesasm.AssembleUsingExternalApp(ctx, options.Output, outputFile); err != nil {
 			return fmt.Errorf("reassembling .nes file using nesasm failed: %w", err)
 		}
 

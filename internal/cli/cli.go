@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/retroenv/retrodisasm/internal/assembler"
@@ -82,14 +83,12 @@ func normalizeOptions(opts *options.Program) error {
 
 	// Validate assembler type
 	validAssemblers := []string{"asm6", "ca65", "nesasm", "retroasm"}
-	for _, valid := range validAssemblers {
-		if opts.Assembler == valid {
-			return nil
-		}
+	if !slices.Contains(validAssemblers, opts.Assembler) {
+		return fmt.Errorf("unsupported assembler: %s. Valid options: %s",
+			opts.Assembler, strings.Join(validAssemblers, ", "))
 	}
 
-	return fmt.Errorf("unsupported assembler: %s. Valid options: %s",
-		opts.Assembler, strings.Join(validAssemblers, ", "))
+	return nil
 }
 
 // createDisasmOptions creates disassembler options based on program options

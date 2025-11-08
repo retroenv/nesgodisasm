@@ -8,6 +8,7 @@ import (
 	"github.com/retroenv/retrodisasm/internal/cli"
 	"github.com/retroenv/retrodisasm/internal/config"
 	"github.com/retroenv/retrodisasm/internal/fileprocessor"
+	"github.com/retroenv/retrogolib/app"
 	"github.com/retroenv/retrogolib/log"
 )
 
@@ -18,6 +19,8 @@ var (
 )
 
 func main() {
+	ctx := app.Context()
+
 	opts, disasmOptions, err := cli.ParseFlags()
 	if err != nil {
 		logger := config.CreateLogger(opts.Debug, opts.Quiet)
@@ -45,7 +48,7 @@ func main() {
 			opts.Output = fileprocessor.GenerateOutputFilename(file)
 		}
 
-		if err := fileprocessor.ProcessFile(logger, opts, disasmOptions); err != nil {
+		if err := fileprocessor.ProcessFile(ctx, logger, opts, disasmOptions); err != nil {
 			logger.Error("Disassembling failed", log.Err(err))
 		}
 	}

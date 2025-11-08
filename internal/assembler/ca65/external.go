@@ -2,6 +2,7 @@
 package ca65
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -25,7 +26,7 @@ type Config struct {
 
 // AssembleUsingExternalApp calls the external assembler and linker to generate a .nes
 // ROM from the given asm file.
-func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Config) error {
+func AssembleUsingExternalApp(ctx context.Context, asmFile, objectFile, outputFile string, conf Config) error {
 	if _, err := exec.LookPath(assemblerName); err != nil {
 		return fmt.Errorf("%s is not installed", assemblerName)
 	}
@@ -33,7 +34,7 @@ func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Confi
 		return fmt.Errorf("%s is not installed", linkerName)
 	}
 
-	cmd := exec.Command(assemblerName, asmFile, "-o", objectFile)
+	cmd := exec.CommandContext(ctx, assemblerName, asmFile, "-o", objectFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("assembling file: %s: %w", strings.TrimSpace(string(out)), err)
 	}
@@ -55,7 +56,7 @@ func AssembleUsingExternalApp(asmFile, objectFile, outputFile string, conf Confi
 		return fmt.Errorf("writing linker config: %w", err)
 	}
 
-	cmd = exec.Command(linkerName, "-C", configFile.Name(), "-o", outputFile, objectFile)
+	cmd = exec.CommandContext(ctx, linkerName, "-C", configFile.Name(), "-o", outputFile, objectFile)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("linking file: %s: %w", string(out), err)
 	}
