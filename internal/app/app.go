@@ -2,15 +2,10 @@
 package app
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	disasm "github.com/retroenv/retrodisasm/internal"
-	"github.com/retroenv/retrodisasm/internal/arch"
-	"github.com/retroenv/retrodisasm/internal/arch/chip8"
-	"github.com/retroenv/retrodisasm/internal/arch/m6502"
 	"github.com/retroenv/retrodisasm/internal/assembler"
 	"github.com/retroenv/retrodisasm/internal/assembler/asm6"
 	"github.com/retroenv/retrodisasm/internal/assembler/ca65"
@@ -22,26 +17,6 @@ import (
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
 )
-
-// GetFiles returns the list of files to process, either a single file or the matched files for
-// batch processing.
-func GetFiles(options *options.Program) ([]string, error) {
-	if options.Batch == "" {
-		return []string{options.Input}, nil
-	}
-
-	files, err := filepath.Glob(options.Batch)
-	if err != nil {
-		return nil, fmt.Errorf("finding batch files failed: %w", err)
-	}
-
-	if len(files) == 0 {
-		return nil, errors.New("no input files matched")
-	}
-
-	options.Output = ""
-	return files, nil
-}
 
 // PrintInfo prints the information about the input file and the cartridge.
 func PrintInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartridge, system archsys.System) {
@@ -65,20 +40,6 @@ func PrintInfo(logger *log.Logger, opts options.Program, cart *cartridge.Cartrid
 			log.String("file", opts.Input),
 			log.String("assembler", opts.Assembler),
 		)
-	}
-}
-
-// SystemArchitecture returns the architecture specific implementation for the given system.
-func SystemArchitecture(system archsys.System) (arch.Architecture, error) {
-	paramConverter := parameter.New(parameter.Config{})
-
-	switch system {
-	case archsys.NES:
-		return m6502.New(paramConverter), nil
-	case archsys.CHIP8System:
-		return chip8.New(paramConverter), nil
-	default:
-		return nil, fmt.Errorf("unsupported system '%s' or missing parameter", system)
 	}
 }
 

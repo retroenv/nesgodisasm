@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/system/nes"
 )
@@ -18,9 +19,33 @@ const (
 	variableNamingIndexed = "_var_%04x_indexed"
 )
 
+// architecture defines the minimal interface needed from arch.Architecture
+type architecture interface {
+	// IsAddressingIndexed returns if the opcode is using indexed addressing.
+	IsAddressingIndexed(opcode instruction.Opcode) bool
+	// ProcessVariableUsage processes the variable usage of an offset.
+	ProcessVariableUsage(offsetInfo *offset.Offset, reference string) error
+}
+
+// mapper defines the minimal interface needed from the mapper
+type mapper interface {
+	// GetMappedBank returns the mapped bank for the given address.
+	GetMappedBank(address uint16) offset.MappedBank
+	// GetMappedBankIndex returns the mapped bank index for the given address.
+	GetMappedBankIndex(address uint16) uint16
+	// OffsetInfo returns the offset info for the given address.
+	OffsetInfo(address uint16) *offset.Offset
+}
+
+// Dependencies contains the dependencies needed by Vars.
+type Dependencies struct {
+	Mapper mapper
+}
+
 // Vars manages variables in the disassembled program.
 type Vars struct {
-	arch arch.Architecture
+	arch   architecture
+	mapper mapper
 
 	banks []*bank
 
@@ -39,12 +64,12 @@ type variable struct {
 
 	address      uint16
 	name         string
-	indexedUsage bool                 // access with X/Y registers indicates table
-	usageAt      []arch.BankReference // list of all indexes that use this offset
+	indexedUsage bool                   // access with X/Y registers indicates table
+	usageAt      []offset.BankReference // list of all indexes that use this offset
 }
 
 // New creates a new variables manager.
-func New(arch arch.Architecture) *Vars {
+func New(arch architecture) *Vars {
 	return &Vars{
 		arch:          arch,
 		variables:     make(map[uint16]*variable),
@@ -52,11 +77,16 @@ func New(arch arch.Architecture) *Vars {
 	}
 }
 
+// InjectDependencies sets the required dependencies for this vars manager.
+func (v *Vars) InjectDependencies(deps Dependencies) {
+	v.mapper = deps.Mapper
+}
+
 // AddReference adds a variable reference if the opcode is accessing
 // the given address directly by reading or writing. In a special case like
 // branching into a zeropage address the variable usage can be forced.
-func (v *Vars) AddReference(dis arch.Disasm, addressReference,
-	usageAddress uint16, opcode arch.Opcode, forceVariableUsage bool) {
+func (v *Vars) AddReference(addressReference,
+	usageAddress uint16, opcode instruction.Opcode, forceVariableUsage bool) {
 
 	var reads, writes bool
 	if opcode.ReadWritesMemory() {
@@ -78,11 +108,10 @@ func (v *Vars) AddReference(dis arch.Disasm, addressReference,
 		v.variables[addressReference] = varInfo
 	}
 
-	mapper := dis.Mapper()
-	bankRef := arch.BankReference{
-		Mapped:  mapper.GetMappedBank(usageAddress),
+	bankRef := offset.BankReference{
+		Mapped:  v.mapper.GetMappedBank(usageAddress),
 		Address: usageAddress,
-		Index:   mapper.GetMappedBankIndex(usageAddress),
+		Index:   v.mapper.GetMappedBankIndex(usageAddress),
 	}
 	bankRef.ID = bankRef.Mapped.ID()
 	varInfo.usageAt = append(varInfo.usageAt, bankRef)
@@ -101,7 +130,7 @@ func (v *Vars) AddReference(dis arch.Disasm, addressReference,
 
 // Process processes all variables and updates the instructions that use them
 // with a generated alias name.
-func (v *Vars) Process(dis arch.Disasm) error {
+func (v *Vars) Process(codeBaseAddress uint16) error {
 	variables := make([]*variable, 0, len(v.variables))
 	for _, varInfo := range v.variables {
 		variables = append(variables, varInfo)
@@ -117,12 +146,11 @@ func (v *Vars) Process(dis arch.Disasm) error {
 			}
 		}
 
-		var dataOffsetInfo *arch.Offset
+		var dataOffsetInfo *offset.Offset
 		var addressAdjustment uint16
-		codeBaseAddress := dis.CodeBaseAddress()
 		if varInfo.address >= codeBaseAddress {
 			// if the referenced address is inside the code, a label will be created for it
-			dataOffsetInfo, varInfo.address, addressAdjustment = v.getOpcodeStart(dis, varInfo.address)
+			dataOffsetInfo, varInfo.address, addressAdjustment = v.getOpcodeStart(varInfo.address)
 		} else {
 			// if the address is outside the code bank, a variable will be created
 			v.usedVariables[varInfo.address] = struct{}{}
@@ -164,11 +192,11 @@ func (v *Vars) AddUsage(bankIndex int, varInfo *variable) {
 // getOpcodeStart returns a reference to the opcode start of the given address.
 // In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
 // converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.
-func (v *Vars) getOpcodeStart(dis arch.Disasm, address uint16) (*arch.Offset, uint16, uint16) {
+func (v *Vars) getOpcodeStart(address uint16) (*offset.Offset, uint16, uint16) {
 	var addressAdjustment uint16
 
 	for {
-		offsetInfo := dis.Mapper().OffsetInfo(address)
+		offsetInfo := v.mapper.OffsetInfo(address)
 		if len(offsetInfo.Data) == 0 {
 			address--
 			addressAdjustment++
@@ -181,7 +209,7 @@ func (v *Vars) getOpcodeStart(dis arch.Disasm, address uint16) (*arch.Offset, ui
 // dataName calculates the name of a variable based on its address and optional address adjustment.
 // It returns the name of the variable and a string to reference it, it is possible that the reference
 // is using an adjuster like +1 or +2.
-func (v *Vars) dataName(offsetInfo *arch.Offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
+func (v *Vars) dataName(offsetInfo *offset.Offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
 	var name string
 
 	if offsetInfo != nil && offsetInfo.Label != "" {

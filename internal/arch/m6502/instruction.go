@@ -1,11 +1,11 @@
 package m6502
 
 import (
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 )
 
-var _ arch.Instruction = &Instruction{}
+var _ instruction.Instruction = &Instruction{}
 
 // Instruction represents a 6502 CPU instruction.
 type Instruction struct {

@@ -11,14 +11,13 @@ import (
 
 	disasm "github.com/retroenv/retrodisasm/internal"
 	"github.com/retroenv/retrodisasm/internal/app"
-	"github.com/retroenv/retrodisasm/internal/arch"
 	"github.com/retroenv/retrodisasm/internal/arch/chip8"
 	"github.com/retroenv/retrodisasm/internal/arch/m6502"
 	"github.com/retroenv/retrodisasm/internal/assembler"
 	"github.com/retroenv/retrodisasm/internal/options"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrodisasm/internal/verification"
-	archsys "github.com/retroenv/retrogolib/arch"
+	"github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
@@ -70,8 +69,8 @@ func ProcessFile(ctx context.Context, logger *log.Logger, opts options.Program, 
 }
 
 // determineSystem determines the system type from options or file detection
-func determineSystem(logger *log.Logger, opts options.Program) archsys.System {
-	system, _ := archsys.SystemFromString(opts.System)
+func determineSystem(logger *log.Logger, opts options.Program) arch.System {
+	system, _ := arch.SystemFromString(opts.System)
 	if system == "" {
 		system = detectSystemFromFile(opts.Input)
 		logger.Debug("Auto-detected system",
@@ -82,20 +81,15 @@ func determineSystem(logger *log.Logger, opts options.Program) archsys.System {
 }
 
 // createDisassembler creates and configures the disassembler
-func createDisassembler(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler, cart *cartridge.Cartridge, system archsys.System) (*disasm.Disasm, error) {
+func createDisassembler(logger *log.Logger, opts options.Program, disasmOptions options.Disassembler, cart *cartridge.Cartridge, system arch.System) (*disasm.Disasm, error) {
 	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(opts.Assembler)
 	if err != nil {
 		return nil, fmt.Errorf("initializing assembler compatible mode: %w", err)
 	}
 
-	architecture, err := systemArchitectureWithConverter(system, paramConverter)
+	dis, err := createDisassemblerForSystem(logger, system, paramConverter, cart, disasmOptions, fileWriterConstructor)
 	if err != nil {
-		return nil, fmt.Errorf("creating architecture: %w", err)
-	}
-
-	dis, err := disasm.New(architecture, logger, cart, disasmOptions, fileWriterConstructor)
-	if err != nil {
-		return nil, fmt.Errorf("creating disasm instance: %w", err)
+		return nil, fmt.Errorf("creating disassembler: %w", err)
 	}
 	return dis, nil
 }
@@ -138,7 +132,7 @@ func GenerateOutputFilename(inputFile string) string {
 	return inputFile[:len(inputFile)-len(ext)] + ".asm"
 }
 
-func loadCartridge(opts options.Program, system archsys.System) (*cartridge.Cartridge, error) {
+func loadCartridge(opts options.Program, system arch.System) (*cartridge.Cartridge, error) {
 	file, err := os.Open(opts.Input)
 	if err != nil {
 		return nil, fmt.Errorf("opening file %s: %w", opts.Input, err)
@@ -149,7 +143,7 @@ func loadCartridge(opts options.Program, system archsys.System) (*cartridge.Cart
 
 	// Handle CHIP-8 files as binary data
 	switch {
-	case opts.Binary, system == archsys.CHIP8System:
+	case opts.Binary, system == arch.CHIP8System:
 		cart, err = cartridge.LoadBuffer(file)
 	default:
 		cart, err = cartridge.LoadFile(file)
@@ -183,17 +177,17 @@ func createWriter(opts options.Program) (io.Writer, error) {
 }
 
 // detectSystemFromFile determines the system type based on file extension
-func detectSystemFromFile(filename string) archsys.System {
+func detectSystemFromFile(filename string) arch.System {
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
 	case ".ch8", ".rom":
 		// ROM files could be CHIP-8, default to CHIP-8 for .rom extension
-		return archsys.CHIP8System
+		return arch.CHIP8System
 	case ".nes":
-		return archsys.NES
+		return arch.NES
 	default:
 		// Default to M6502 for unknown extensions
-		return archsys.NES
+		return arch.NES
 	}
 }
 
@@ -227,14 +221,26 @@ func (nc *nopCloser) Close() error {
 	return nil
 }
 
-// systemArchitectureWithConverter creates architecture with assembler-specific parameter converter
-func systemArchitectureWithConverter(system archsys.System, paramConverter parameter.Converter) (arch.Architecture, error) {
+// createDisassemblerForSystem creates a disassembler for the specified system architecture.
+func createDisassemblerForSystem(logger *log.Logger, system arch.System, paramConverter parameter.Converter,
+	cart *cartridge.Cartridge, disasmOptions options.Disassembler, fileWriterConstructor disasm.FileWriterConstructor) (*disasm.Disasm, error) {
+
 	switch system {
-	case archsys.NES:
-		return m6502.New(paramConverter), nil
-	case archsys.CHIP8System:
-		return chip8.New(paramConverter), nil
+	case arch.NES:
+		arch := m6502.New(logger, paramConverter)
+		dis, err := disasm.New(logger, arch, cart, disasmOptions, fileWriterConstructor)
+		if err != nil {
+			return nil, fmt.Errorf("creating m6502 disassembler: %w", err)
+		}
+		return dis, nil
+	case arch.CHIP8System:
+		arch := chip8.New(paramConverter)
+		dis, err := disasm.New(logger, arch, cart, disasmOptions, fileWriterConstructor)
+		if err != nil {
+			return nil, fmt.Errorf("creating chip8 disassembler: %w", err)
+		}
+		return dis, nil
 	default:
-		return nil, fmt.Errorf("unsupported system '%s' or missing parameter", system)
+		return nil, fmt.Errorf("unsupported system '%s'", system)
 	}
 }

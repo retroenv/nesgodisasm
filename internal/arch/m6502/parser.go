@@ -4,7 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/system/nes"
@@ -15,13 +16,13 @@ var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ han
 
 // initializeOffsetInfo initializes the offset info and returns
 // whether the offset should process inspection for code parameters.
-func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error) {
+func (ar *Arch6502) initializeOffsetInfo(offsetInfo *offset.Offset) (bool, error) {
 	if offsetInfo.IsType(program.CodeOffset) {
 		return false, nil // was set by CDL
 	}
 
-	pc := dis.ProgramCounter()
-	b, err := dis.ReadMemory(pc)
+	pc := ar.dis.ProgramCounter()
+	b, err := ar.dis.ReadMemory(pc)
 	if err != nil {
 		return false, fmt.Errorf("reading memory at address %04x: %w", pc, err)
 	}
@@ -48,10 +49,10 @@ func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
-func (ar *Arch6502) processParamInstruction(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (string, error) {
+func (ar *Arch6502) processParamInstruction(address uint16, offsetInfo *offset.Offset) (string, error) {
 	opcode := offsetInfo.Opcode
-	pc := dis.ProgramCounter()
-	param, opcodes, err := ar.ReadOpParam(dis, opcode.Addressing(), pc)
+	pc := ar.dis.ProgramCounter()
+	param, opcodes, err := ar.ReadOpParam(opcode.Addressing(), pc)
 	if err != nil {
 		return "", fmt.Errorf("reading opcode parameters: %w", err)
 	}
@@ -66,12 +67,12 @@ func (ar *Arch6502) processParamInstruction(dis arch.Disasm, address uint16, off
 		return "", fmt.Errorf("getting parameter as string: %w", err)
 	}
 
-	paramAsString = ar.replaceParamByAlias(dis, address, opcode, param, paramAsString)
+	paramAsString = ar.replaceParamByAlias(address, opcode, param, paramAsString)
 
 	if _, ok := m6502.BranchingInstructions[opcode.Instruction().Name()]; ok {
 		addr, ok := param.(m6502.Absolute)
 		if ok {
-			dis.AddAddressToParse(uint16(addr), offsetInfo.Context, pc, opcode.Instruction(), true)
+			ar.dis.AddAddressToParse(uint16(addr), offsetInfo.Context, pc, opcode.Instruction(), true)
 		}
 	}
 
@@ -80,7 +81,7 @@ func (ar *Arch6502) processParamInstruction(dis arch.Disasm, address uint16, off
 
 // handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
 // The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
-func (ar *Arch6502) handleInstructionIRQOverlap(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) {
+func (ar *Arch6502) handleInstructionIRQOverlap(address uint16, offsetInfo *offset.Offset) {
 	if address > m6502.InterruptVectorStartAddress {
 		return
 	}
@@ -89,7 +90,7 @@ func (ar *Arch6502) handleInstructionIRQOverlap(dis arch.Disasm, address uint16,
 	offsetInfo.Data = offsetInfo.Data[:keepLength]
 
 	for i := range keepLength {
-		offsetInfo = dis.Mapper().OffsetInfo(address + uint16(i))
+		offsetInfo = ar.mapper.OffsetInfo(address + uint16(i))
 		offsetInfo.ClearType(program.CodeOffset)
 		offsetInfo.SetType(program.CodeAsData | program.DataOffset)
 	}
@@ -97,7 +98,7 @@ func (ar *Arch6502) handleInstructionIRQOverlap(dis arch.Disasm, address uint16,
 
 // replaceParamByAlias replaces the absolute address with an alias name if it can match it to
 // a constant, zero page variable or a code reference.
-func (ar *Arch6502) replaceParamByAlias(dis arch.Disasm, address uint16, opcode arch.Opcode, param any, paramAsString string) string {
+func (ar *Arch6502) replaceParamByAlias(address uint16, opcode instruction.Opcode, param any, paramAsString string) string {
 	forceVariableUsage := false
 	addressReference, addressValid := ar.GetAddressingParam(param)
 	if !addressValid || addressReference >= m6502.InterruptVectorStartAddress {
@@ -112,19 +113,18 @@ func (ar *Arch6502) replaceParamByAlias(dis arch.Disasm, address uint16, opcode 
 		}
 	}
 
-	consts := dis.Constants()
-	changedParamAsString, ok := consts.ReplaceParameter(addressReference, opcode, paramAsString)
+	changedParamAsString, ok := ar.consts.ReplaceParameter(addressReference, opcode, paramAsString)
 	if ok {
 		return changedParamAsString
 	}
 
-	dis.Variables().AddReference(dis, addressReference, address, opcode, forceVariableUsage)
+	ar.vars.AddReference(addressReference, address, opcode, forceVariableUsage)
 	return paramAsString
 }
 
 // checkBranchingParam checks whether the branching instruction should do a variable check for the parameter
 // and forces variable usage.
-func checkBranchingParam(address uint16, opcode arch.Opcode) (bool, bool) {
+func checkBranchingParam(address uint16, opcode instruction.Opcode) (bool, bool) {
 	name := opcode.Instruction().Name()
 	addressing := m6502.AddressingMode(opcode.Addressing())
 

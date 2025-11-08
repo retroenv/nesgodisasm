@@ -1,4 +1,4 @@
-package arch
+package instruction
 
 // Opcode represents an opcode.
 type Opcode interface {

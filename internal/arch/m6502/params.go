@@ -3,12 +3,11 @@ package m6502
 import (
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/system/nes"
 )
 
-type paramReaderFunc func(dis arch.Disasm, address uint16) (any, []byte, error)
+type paramReaderFunc func(dis disasm, address uint16) (any, []byte, error)
 
 var paramReader = map[m6502.AddressingMode]paramReaderFunc{
 	m6502.ImpliedAddressing:     paramReaderImplied,
@@ -28,19 +27,19 @@ var paramReader = map[m6502.AddressingMode]paramReaderFunc{
 
 // ReadOpParam reads the opcode parameters after the first opcode byte
 // and translates it into system specific types.
-func (ar *Arch6502) ReadOpParam(dis arch.Disasm, addressing int, address uint16) (any, []byte, error) {
+func (ar *Arch6502) ReadOpParam(addressing int, address uint16) (any, []byte, error) {
 	fun, ok := paramReader[m6502.AddressingMode(addressing)]
 	if !ok {
 		return nil, nil, fmt.Errorf("unsupported addressing mode %00x", addressing)
 	}
-	return fun(dis, address)
+	return fun(ar.dis, address)
 }
 
-func paramReaderImplied(arch.Disasm, uint16) (any, []byte, error) {
+func paramReaderImplied(disasm, uint16) (any, []byte, error) {
 	return nil, nil, nil
 }
 
-func paramReaderImmediate(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderImmediate(dis disasm, address uint16) (any, []byte, error) {
 	b, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -49,11 +48,11 @@ func paramReaderImmediate(dis arch.Disasm, address uint16) (any, []byte, error) 
 	return int(b), opcodes, nil
 }
 
-func paramReaderAccumulator(arch.Disasm, uint16) (any, []byte, error) {
+func paramReaderAccumulator(disasm, uint16) (any, []byte, error) {
 	return m6502.Accumulator(0), nil, nil
 }
 
-func paramReaderAbsolute(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderAbsolute(dis disasm, address uint16) (any, []byte, error) {
 	w, opcodes, err := paramReadWord(dis, address)
 	if err != nil {
 		return nil, nil, err
@@ -62,7 +61,7 @@ func paramReaderAbsolute(dis arch.Disasm, address uint16) (any, []byte, error) {
 	return m6502.Absolute(w), opcodes, nil
 }
 
-func paramReaderAbsoluteX(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderAbsoluteX(dis disasm, address uint16) (any, []byte, error) {
 	w, opcodes, err := paramReadWord(dis, address)
 	if err != nil {
 		return nil, nil, err
@@ -70,7 +69,7 @@ func paramReaderAbsoluteX(dis arch.Disasm, address uint16) (any, []byte, error) 
 	return m6502.AbsoluteX(w), opcodes, nil
 }
 
-func paramReaderAbsoluteY(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderAbsoluteY(dis disasm, address uint16) (any, []byte, error) {
 	w, opcodes, err := paramReadWord(dis, address)
 	if err != nil {
 		return nil, nil, err
@@ -78,7 +77,7 @@ func paramReaderAbsoluteY(dis arch.Disasm, address uint16) (any, []byte, error) 
 	return m6502.AbsoluteY(w), opcodes, nil
 }
 
-func paramReaderZeroPage(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderZeroPage(dis disasm, address uint16) (any, []byte, error) {
 	b, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -87,7 +86,7 @@ func paramReaderZeroPage(dis arch.Disasm, address uint16) (any, []byte, error) {
 	return m6502.ZeroPage(b), opcodes, nil
 }
 
-func paramReaderZeroPageX(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderZeroPageX(dis disasm, address uint16) (any, []byte, error) {
 	b, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -96,7 +95,7 @@ func paramReaderZeroPageX(dis arch.Disasm, address uint16) (any, []byte, error) 
 	return m6502.ZeroPageX(b), opcodes, nil
 }
 
-func paramReaderZeroPageY(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderZeroPageY(dis disasm, address uint16) (any, []byte, error) {
 	b, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -105,7 +104,7 @@ func paramReaderZeroPageY(dis arch.Disasm, address uint16) (any, []byte, error) 
 	return m6502.ZeroPageY(b), opcodes, nil
 }
 
-func paramReaderRelative(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderRelative(dis disasm, address uint16) (any, []byte, error) {
 	b, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -122,7 +121,7 @@ func paramReaderRelative(dis arch.Disasm, address uint16) (any, []byte, error) {
 	return m6502.Absolute(address), opcodes, nil
 }
 
-func paramReaderIndirect(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderIndirect(dis disasm, address uint16) (any, []byte, error) {
 	// do not read actual address in disassembler mode
 	w, opcodes, err := paramReadWord(dis, address)
 	if err != nil {
@@ -131,7 +130,7 @@ func paramReaderIndirect(dis arch.Disasm, address uint16) (any, []byte, error) {
 	return m6502.Indirect(w), opcodes, nil
 }
 
-func paramReaderIndirectX(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderIndirectX(dis disasm, address uint16) (any, []byte, error) {
 	b, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -140,7 +139,7 @@ func paramReaderIndirectX(dis arch.Disasm, address uint16) (any, []byte, error) 
 	return m6502.IndirectX(b), opcodes, nil
 }
 
-func paramReaderIndirectY(dis arch.Disasm, address uint16) (any, []byte, error) {
+func paramReaderIndirectY(dis disasm, address uint16) (any, []byte, error) {
 	b, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -149,7 +148,7 @@ func paramReaderIndirectY(dis arch.Disasm, address uint16) (any, []byte, error) 
 	return m6502.IndirectY(b), opcodes, nil
 }
 
-func paramReadWord(dis arch.Disasm, address uint16) (uint16, []byte, error) {
+func paramReadWord(dis disasm, address uint16) (uint16, []byte, error) {
 	b1, err := dis.ReadMemory(address + 1)
 	if err != nil {
 		return 0, nil, fmt.Errorf("reading memory at address %04x: %w", address+1, err)
@@ -164,15 +163,15 @@ func paramReadWord(dis arch.Disasm, address uint16) (uint16, []byte, error) {
 }
 
 // ReadMemory reads a byte from memory using NES-specific memory mapping.
-func (ar *Arch6502) ReadMemory(dis arch.Disasm, address uint16) (byte, error) {
+func (ar *Arch6502) ReadMemory(address uint16) (byte, error) {
 	var value byte
 
 	switch {
 	case address < 0x2000:
-		value = dis.Cart().CHR[address]
+		value = ar.dis.Cart().CHR[address]
 
 	case address >= nes.CodeBaseAddress:
-		value = dis.Mapper().ReadMemory(address)
+		value = ar.mapper.ReadMemory(address)
 
 	default:
 		return 0, fmt.Errorf("invalid read from address #%04x", address)

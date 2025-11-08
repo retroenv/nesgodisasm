@@ -1,4 +1,5 @@
-package arch
+// Package instruction contains fundamental types for CPU instructions and opcodes.
+package instruction
 
 // Instruction represents a CPU instruction.
 type Instruction interface {

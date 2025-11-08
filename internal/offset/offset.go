@@ -1,0 +1,42 @@
+// Package offset provides types for representing program offsets and memory banks.
+package offset
+
+import (
+	"github.com/retroenv/retrodisasm/internal/instruction"
+	"github.com/retroenv/retrodisasm/internal/program"
+)
+
+// Offset defines the content of an offset in a program that can represent data or code.
+type Offset struct {
+	program.Offset
+
+	Opcode instruction.Opcode // opcode this offset represents
+
+	BranchFrom  []BankReference // list of all addresses that branch to this offset
+	BranchingTo string          // label to jump to if instruction branches
+	Context     uint16          // function or interrupt context that the offset is part of
+}
+
+// MappedBank represents a mapped memory bank.
+type MappedBank interface {
+	ID() int
+	OffsetInfo(address uint16) *Offset
+}
+
+// BankReference represents a reference to an address in a bank.
+type BankReference struct {
+	Mapped  MappedBank // bank reference
+	Address uint16     // address in the bank
+	ID      int        // bank ID
+	Index   uint16     // index in the bank
+}
+
+// Mapper provides a mapper manager interface for architecture code.
+type Mapper interface {
+	GetMappedBank(address uint16) MappedBank
+	GetMappedBankIndex(address uint16) uint16
+	// OffsetInfo returns the offset information for the given address.
+	OffsetInfo(address uint16) *Offset
+	// ReadMemory reads a byte from memory at the given address.
+	ReadMemory(address uint16) byte
+}

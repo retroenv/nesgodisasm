@@ -3,15 +3,14 @@ package m6502
 import (
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/system/nes"
 	"github.com/retroenv/retrogolib/log"
 )
 
-func (ar *Arch6502) Initialize(dis arch.Disasm) error {
-	if err := ar.initializeIrqHandlers(dis); err != nil {
+func (ar *Arch6502) Initialize() error {
+	if err := ar.initializeIrqHandlers(); err != nil {
 		return fmt.Errorf("initializing IRQ handlers: %w", err)
 	}
 	return nil
@@ -20,23 +19,21 @@ func (ar *Arch6502) Initialize(dis arch.Disasm) error {
 // initializeIrqHandlers reads the 3 IRQ handler addresses and adds them to the addresses to be
 // followed for execution flow. Multiple handler can point to the same address.
 // nolint:funlen
-func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
-	logger := dis.Logger()
-	opts := dis.Options()
+func (ar *Arch6502) initializeIrqHandlers() error {
+	opts := ar.dis.Options()
 	handlers := program.Handlers{
 		NMI:   "0",
 		Reset: "Reset",
 		IRQ:   "0",
 	}
-	mapper := dis.Mapper()
 
-	nmi, err := dis.ReadMemoryWord(m6502.NMIAddress)
+	nmi, err := ar.dis.ReadMemoryWord(m6502.NMIAddress)
 	if err != nil {
 		return fmt.Errorf("reading NMI address: %w", err)
 	}
 	if nmi != 0 {
-		logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
-		offsetInfo := mapper.OffsetInfo(nmi)
+		ar.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
+		offsetInfo := ar.mapper.OffsetInfo(nmi)
 		if offsetInfo != nil {
 			offsetInfo.Label = "NMI"
 			offsetInfo.SetType(program.CallDestination)
@@ -48,14 +45,14 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 	if opts.Binary {
 		reset = uint16(nes.CodeBaseAddress)
 	} else {
-		reset, err = dis.ReadMemoryWord(m6502.ResetAddress)
+		reset, err = ar.dis.ReadMemoryWord(m6502.ResetAddress)
 		if err != nil {
 			return fmt.Errorf("reading reset address: %w", err)
 		}
 	}
 
-	logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
-	offsetInfo := mapper.OffsetInfo(reset)
+	ar.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
+	offsetInfo := ar.mapper.OffsetInfo(reset)
 	if offsetInfo != nil {
 		if offsetInfo.Label != "" {
 			handlers.NMI = "Reset"
@@ -64,13 +61,13 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 		offsetInfo.SetType(program.CallDestination)
 	}
 
-	irq, err := dis.ReadMemoryWord(m6502.IrqAddress)
+	irq, err := ar.dis.ReadMemoryWord(m6502.IrqAddress)
 	if err != nil {
 		return fmt.Errorf("reading IRQ address: %w", err)
 	}
 	if irq != 0 {
-		logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
-		offsetInfo = mapper.OffsetInfo(irq)
+		ar.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
+		offsetInfo = ar.mapper.OffsetInfo(irq)
 		if offsetInfo != nil {
 			if offsetInfo.Label == "" {
 				offsetInfo.Label = "IRQ"
@@ -89,14 +86,14 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 		handlers.IRQ = handlers.Reset
 	}
 
-	ar.calculateCodeBaseAddress(dis, reset)
+	ar.calculateCodeBaseAddress(reset)
 
 	// add IRQ handlers to be parsed after the code base address has been calculated
-	dis.AddAddressToParse(nmi, nmi, 0, nil, false)
-	dis.AddAddressToParse(reset, reset, 0, nil, false)
-	dis.AddAddressToParse(irq, irq, 0, nil, false)
+	ar.dis.AddAddressToParse(nmi, nmi, 0, nil, false)
+	ar.dis.AddAddressToParse(reset, reset, 0, nil, false)
+	ar.dis.AddAddressToParse(irq, irq, 0, nil, false)
 
-	dis.SetHandlers(handlers)
+	ar.dis.SetHandlers(handlers)
 	return nil
 }
 
@@ -105,8 +102,8 @@ func (ar *Arch6502) initializeIrqHandlers(dis arch.Disasm) error {
 // 0x8000. The handlers can be set to any of the 2 mirrors as base, based on this the code base
 // address is calculated. This ensures that jsr instructions will result in the same opcode, as it
 // is based on the code base address.
-func (ar *Arch6502) calculateCodeBaseAddress(dis arch.Disasm, resetHandler uint16) {
-	cart := dis.Cart()
+func (ar *Arch6502) calculateCodeBaseAddress(resetHandler uint16) {
+	cart := ar.dis.Cart()
 	halfPrg := len(cart.PRG) % 0x8000
 	codeBaseAddress := uint16(0x8000 + halfPrg)
 	vectorsStartAddress := uint16(m6502.InterruptVectorStartAddress)
@@ -118,6 +115,6 @@ func (ar *Arch6502) calculateCodeBaseAddress(dis arch.Disasm, resetHandler uint1
 		vectorsStartAddress -= uint16(halfPrg)
 	}
 
-	dis.SetCodeBaseAddress(codeBaseAddress)
-	dis.SetVectorsStartAddress(vectorsStartAddress)
+	ar.dis.SetCodeBaseAddress(codeBaseAddress)
+	ar.dis.SetVectorsStartAddress(vectorsStartAddress)
 }

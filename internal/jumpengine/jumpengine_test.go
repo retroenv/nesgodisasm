@@ -3,10 +3,6 @@ package jumpengine
 import (
 	"testing"
 
-	"github.com/retroenv/retrodisasm/internal/arch/m6502"
-	"github.com/retroenv/retrodisasm/internal/arch/mocks"
-	"github.com/retroenv/retrodisasm/internal/assembler/ca65"
-	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/assert"
 	"github.com/retroenv/retrogolib/log"
 )
@@ -15,10 +11,14 @@ import (
 // jump engine callers are correctly removed from the processing queue.
 func TestScanForNewJumpEngineEntry_MultipleTerminated(t *testing.T) {
 	logger := log.NewTestLogger(t)
-	ar := m6502.New(parameter.New(ca65.ParamConfig))
-	mapper := mocks.NewMapper()
-	dis := mocks.NewDisasm(logger, mapper, 0x8000, 0x10000)
-	je := New(ar)
+	ar := &mockArchitecture{}
+	mapper := newMockMapper()
+	dis := newMockDisasm(0x10000)
+	je := New(logger, ar)
+	je.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Create multiple terminated jump engine callers that should all be removed.
 	caller1 := &jumpEngineCaller{
@@ -38,7 +38,7 @@ func TestScanForNewJumpEngineEntry_MultipleTerminated(t *testing.T) {
 	}
 	je.jumpEngineCallers = []*jumpEngineCaller{caller1, caller2, caller3}
 
-	found, err := je.ScanForNewJumpEngineEntry(dis)
+	found, err := je.ScanForNewJumpEngineEntry(0x8000)
 
 	assert.NoError(t, err)
 	assert.False(t, found, "should not find any new entries when all are terminated")
@@ -49,15 +49,19 @@ func TestScanForNewJumpEngineEntry_MultipleTerminated(t *testing.T) {
 // some entries are terminated and others are not.
 func TestScanForNewJumpEngineEntry_MixedTerminated(t *testing.T) {
 	logger := log.NewTestLogger(t)
-	ar := m6502.New(parameter.New(ca65.ParamConfig))
-	mapper := mocks.NewMapper()
-	dis := mocks.NewDisasm(logger, mapper, 0x8000, 0x10000)
+	ar := &mockArchitecture{}
+	mapper := newMockMapper()
+	dis := newMockDisasm(0x10000)
 
 	// Set up memory with a valid function reference
 	dis.Memory[0x8030] = 0x00 // Low byte
 	dis.Memory[0x8031] = 0x80 // High byte (points to 0x8000, within code range)
 
-	je := New(ar)
+	je := New(logger, ar)
+	je.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Mix of terminated and active entries
 	caller1 := &jumpEngineCaller{
@@ -77,7 +81,7 @@ func TestScanForNewJumpEngineEntry_MixedTerminated(t *testing.T) {
 	}
 	je.jumpEngineCallers = []*jumpEngineCaller{caller1, caller2, caller3}
 
-	found, err := je.ScanForNewJumpEngineEntry(dis)
+	found, err := je.ScanForNewJumpEngineEntry(0x8000)
 
 	assert.NoError(t, err)
 	// The active entries should remain

@@ -6,11 +6,14 @@ import (
 	"hash/crc32"
 	"io"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/arch/chip8"
+	"github.com/retroenv/retrodisasm/internal/arch/m6502"
 	"github.com/retroenv/retrodisasm/internal/assembler"
 	"github.com/retroenv/retrodisasm/internal/consts"
+	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrodisasm/internal/jumpengine"
 	"github.com/retroenv/retrodisasm/internal/mapper"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/options"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrodisasm/internal/vars"
@@ -23,11 +26,35 @@ import (
 type FileWriterConstructor func(app *program.Program, options options.Disassembler,
 	mainWriter io.Writer, newBankWriter assembler.NewBankWriter) writer.AssemblerWriter
 
-var _ arch.Disasm = &Disasm{}
+// architecture defines the minimal interface needed from the architecture.
+type architecture interface {
+	// BankWindowSize returns the bank window size.
+	BankWindowSize(cart *cartridge.Cartridge) int
+	// Constants returns the constants translation map.
+	Constants() (map[uint16]consts.Constant, error)
+	// GetAddressingParam returns the address of the param if it references an address.
+	GetAddressingParam(param any) (uint16, bool)
+	// HandleDisambiguousInstructions translates disambiguous instructions into data bytes.
+	HandleDisambiguousInstructions(address uint16, offsetInfo *offset.Offset) bool
+	// Initialize the architecture.
+	Initialize() error
+	// IsAddressingIndexed returns if the opcode is using indexed addressing.
+	IsAddressingIndexed(opcode instruction.Opcode) bool
+	// LastCodeAddress returns the last possible address of code.
+	LastCodeAddress() uint16
+	// ProcessOffset processes an offset and returns if the offset was processed and an error if any.
+	ProcessOffset(address uint16, offsetInfo *offset.Offset) (bool, error)
+	// ProcessVariableUsage processes the variable usage of an offset.
+	ProcessVariableUsage(offsetInfo *offset.Offset, reference string) error
+	// ReadOpParam reads the parameter of an opcode.
+	ReadOpParam(addressing int, address uint16) (any, []byte, error)
+	// ReadMemory reads a byte from memory at the given address using architecture-specific logic.
+	ReadMemory(address uint16) (byte, error)
+}
 
 // Disasm implements a disassembler.
 type Disasm struct {
-	arch    arch.Architecture
+	arch    architecture
 	logger  *log.Logger
 	options options.Disassembler
 
@@ -40,9 +67,9 @@ type Disasm struct {
 	codeBaseAddress     uint16 // codebase address of the cartridge, it is not always 0x8000
 	vectorsStartAddress uint16
 
-	constants  arch.ConstantManager
-	jumpEngine arch.JumpEngine
-	vars       arch.VariableManager
+	constants  *consts.Consts
+	jumpEngine *jumpengine.JumpEngine
+	vars       *vars.Vars
 
 	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
 
@@ -59,7 +86,7 @@ type Disasm struct {
 
 // New creates a new disassembler that uses the passed architecture to implement system
 // specific disassembly logic.
-func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
+func New(logger *log.Logger, ar architecture, cart *cartridge.Cartridge,
 	options options.Disassembler, fileWriterConstructor FileWriterConstructor) (*Disasm, error) {
 
 	dis := &Disasm{
@@ -67,13 +94,11 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 		logger:                      logger,
 		options:                     options,
 		cart:                        cart,
-		vars:                        vars.New(ar),
 		fileWriterConstructor:       fileWriterConstructor,
 		branchDestinations:          map[uint16]struct{}{},
 		offsetsToParseAdded:         map[uint16]struct{}{},
 		offsetsParsed:               map[uint16]struct{}{},
 		functionReturnsToParseAdded: map[uint16]struct{}{},
-		jumpEngine:                  jumpengine.New(ar),
 	}
 
 	var err error
@@ -82,12 +107,8 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 		return nil, fmt.Errorf("creating constants: %w", err)
 	}
 
-	dis.mapper, err = mapper.New(ar, dis, cart)
-	if err != nil {
-		return nil, fmt.Errorf("creating mapper: %w", err)
-	}
-	if err := dis.arch.Initialize(dis); err != nil {
-		return nil, fmt.Errorf("initializing architecture: %w", err)
+	if err := dis.initializeComponents(ar, logger, cart); err != nil {
+		return nil, err
 	}
 
 	if options.CodeDataLog != nil {
@@ -99,6 +120,63 @@ func New(ar arch.Architecture, logger *log.Logger, cart *cartridge.Cartridge,
 	return dis, nil
 }
 
+// initializeComponents creates and wires up all the disassembler components.
+func (dis *Disasm) initializeComponents(ar architecture, logger *log.Logger, cart *cartridge.Cartridge) error {
+	// Create all components with simple constructors
+	je := jumpengine.New(logger, ar)
+	m, err := mapper.New(ar, cart)
+	if err != nil {
+		return fmt.Errorf("creating mapper: %w", err)
+	}
+	v := vars.New(ar)
+
+	// Inject dependencies using InjectDependencies with Dependencies structs
+	je.InjectDependencies(jumpengine.Dependencies{
+		Disasm: dis,
+		Mapper: m,
+	})
+
+	m.InjectDependencies(mapper.Dependencies{
+		Disasm: dis,
+		Vars:   v,
+		Consts: dis.constants,
+	})
+	m.InitializeDependencyBanks()
+
+	v.InjectDependencies(vars.Dependencies{
+		Mapper: m,
+	})
+
+	// Inject dependencies into architecture
+	switch a := ar.(type) {
+	case *m6502.Arch6502:
+		a.InjectDependencies(m6502.Dependencies{
+			Disasm:     dis,
+			Mapper:     m,
+			JumpEngine: je,
+			Vars:       v,
+			Consts:     dis.constants,
+		})
+	case *chip8.Chip8:
+		a.InjectDependencies(chip8.Dependencies{
+			Disasm: dis,
+			Mapper: m,
+		})
+	}
+
+	// Assign to disassembler fields
+	dis.jumpEngine = je
+	dis.mapper = m
+	dis.vars = v
+
+	// Call initialization after all dependencies are wired
+	if err := ar.Initialize(); err != nil {
+		return fmt.Errorf("initializing architecture: %w", err)
+	}
+
+	return nil
+}
+
 // Process disassembles the cartridge.
 func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBankWriter) (*program.Program, error) {
 	if err := dis.followExecutionFlow(); err != nil {
@@ -106,7 +184,7 @@ func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBank
 	}
 
 	dis.mapper.ProcessData()
-	if err := dis.vars.Process(dis); err != nil {
+	if err := dis.vars.Process(dis.codeBaseAddress); err != nil {
 		return nil, fmt.Errorf("processing variables: %w", err)
 	}
 	dis.constants.Process()
@@ -132,20 +210,18 @@ func (dis *Disasm) ProgramCounter() uint16 {
 	return dis.pc
 }
 
-func (dis *Disasm) Logger() *log.Logger {
-	return dis.logger
-}
-
 func (dis *Disasm) SetHandlers(handlers program.Handlers) {
 	dis.handlers = handlers
 }
 
-func (dis *Disasm) CodeBaseAddress() uint16 {
-	return dis.codeBaseAddress
-}
-
 func (dis *Disasm) SetCodeBaseAddress(address uint16) {
 	dis.codeBaseAddress = address
+	dis.mapper.SetCodeBaseAddress(address)
+
+	// Set code base address in architecture if it supports it (e.g., m6502)
+	if setter, ok := dis.arch.(interface{ SetCodeBaseAddress(uint16) }); ok {
+		setter.SetCodeBaseAddress(address)
+	}
 
 	dis.logger.Debug("Code base address",
 		log.String("address", fmt.Sprintf("0x%04X", dis.codeBaseAddress)))
@@ -159,29 +235,9 @@ func (dis *Disasm) Options() options.Disassembler {
 	return dis.options
 }
 
-// Constants returns the constants manager.
-func (dis *Disasm) Constants() arch.ConstantManager {
-	return dis.constants
-}
-
-// Variables returns the variable manager.
-func (dis *Disasm) Variables() arch.VariableManager {
-	return dis.vars
-}
-
-// JumpEngine returns the jump engine.
-func (dis *Disasm) JumpEngine() arch.JumpEngine {
-	return dis.jumpEngine
-}
-
-// Mapper returns the mapper.
-func (dis *Disasm) Mapper() arch.Mapper {
-	return dis.mapper
-}
-
 // ReadMemory delegates to the architecture-specific implementation.
 func (dis *Disasm) ReadMemory(address uint16) (byte, error) {
-	value, err := dis.arch.ReadMemory(dis, address)
+	value, err := dis.arch.ReadMemory(address)
 	if err != nil {
 		return 0, fmt.Errorf("reading memory at address %04x: %w", address, err)
 	}
@@ -213,7 +269,7 @@ func (dis *Disasm) convertToProgram() (*program.Program, error) {
 	app.VectorsStartAddress = dis.vectorsStartAddress
 	app.Handlers = dis.handlers
 
-	if err := dis.mapper.SetProgramBanks(dis, app); err != nil {
+	if err := dis.mapper.SetProgramBanks(app); err != nil {
 		return nil, fmt.Errorf("setting program banks: %w", err)
 	}
 
@@ -234,6 +290,6 @@ func (dis *Disasm) loadCodeDataLog() error {
 		return fmt.Errorf("loading code/data log file: %w", err)
 	}
 
-	dis.mapper.ApplyCodeDataLog(dis, prgFlags)
+	dis.mapper.ApplyCodeDataLog(prgFlags)
 	return nil
 }

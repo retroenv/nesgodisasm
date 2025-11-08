@@ -348,9 +348,9 @@ func testProgram(t *testing.T, options options.Disassembler, cart *cartridge.Car
 
 	copy(cart.PRG, code)
 
-	ar := m6502.New(parameter.New(ca65.ParamConfig))
 	logger := log.NewTestLogger(t)
-	disasm, err := New(ar, logger, cart, options, ca65.New)
+	ar := m6502.New(logger, parameter.New(ca65.ParamConfig))
+	disasm, err := New(logger, ar, cart, options, ca65.New)
 	assert.NoError(t, err)
 
 	return disasm

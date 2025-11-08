@@ -5,52 +5,91 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
+	"github.com/retroenv/retrodisasm/internal/offset"
+	"github.com/retroenv/retrodisasm/internal/options"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/system/nes/codedatalog"
 )
 
+// architecture defines the minimal interface needed from arch.Architecture
+type architecture interface {
+	// BankWindowSize returns the bank window size.
+	BankWindowSize(cart *cartridge.Cartridge) int
+}
+
+// variableManager defines the minimal interface needed for variable management
+type variableManager interface {
+	// AddBank adds a new bank to the variable manager.
+	AddBank()
+	// SetBankVariables sets the used variables in the bank for outputting.
+	SetBankVariables(bankID int, prgBank *program.PRGBank)
+}
+
+// constantManager defines the minimal interface needed for constant management
+type constantManager interface {
+	// AddBank adds a new bank to the constant manager.
+	AddBank()
+	// SetBankConstants sets the used constants in the bank for outputting.
+	SetBankConstants(bankID int, prgBank *program.PRGBank)
+}
+
+// disasm defines the minimal interface needed from the disassembler.
+type disasm interface {
+	// AddAddressToParse adds an address to the list to be processed.
+	AddAddressToParse(address, context, from uint16, currentInstruction instruction.Instruction, isABranchDestination bool)
+	// Options returns the disassembler options.
+	Options() options.Disassembler
+}
+
+// Dependencies contains the dependencies needed by Mapper.
+type Dependencies struct {
+	Disasm disasm
+	Vars   variableManager
+	Consts constantManager
+}
+
 type Mapper struct {
 	banks []*bank
 
-	addressShifts  int
-	bankWindowSize int
+	addressShifts   int
+	bankWindowSize  int
+	codeBaseAddress uint16 // Code base address for single-bank systems
 
 	banksMapped []mappedBank
 	mapped      []mappedBank
 
-	dis arch.Disasm // Reference to disasm for single-bank systems
+	dis    disasm          // Reference to disasm for single-bank systems
+	vars   variableManager // Reference to variable manager
+	consts constantManager // Reference to constant manager
 }
 
 // New creates a new mapper manager.
-func New(ar arch.Architecture, dis arch.Disasm, cart *cartridge.Cartridge) (*Mapper, error) {
+func New(ar architecture, cart *cartridge.Cartridge) (*Mapper, error) {
 	bankWindowSize := ar.BankWindowSize(cart)
 
 	if bankWindowSize == 0 {
-		return createSingleBankMapper(cart, dis)
+		return createSingleBankMapper(cart)
 	}
 
-	return createMultiBankMapper(cart, dis, bankWindowSize)
+	return createMultiBankMapper(cart, bankWindowSize)
 }
 
 // createSingleBankMapper creates a mapper for single bank systems (e.g., CHIP-8)
-func createSingleBankMapper(cart *cartridge.Cartridge, dis arch.Disasm) (*Mapper, error) {
+func createSingleBankMapper(cart *cartridge.Cartridge) (*Mapper, error) {
 	bnk := newBank(cart.PRG)
-	dis.Constants().AddBank()
-	dis.Variables().AddBank()
 
 	return &Mapper{
 		banks: []*bank{bnk},
 		mapped: []mappedBank{
 			{bank: bnk},
 		},
-		dis: dis,
 	}, nil
 }
 
 // createMultiBankMapper creates a mapper for multi-bank systems (e.g., NES)
-func createMultiBankMapper(cart *cartridge.Cartridge, dis arch.Disasm, bankWindowSize int) (*Mapper, error) {
+func createMultiBankMapper(cart *cartridge.Cartridge, bankWindowSize int) (*Mapper, error) {
 	prgSize := len(cart.PRG)
 	mappedBanks := prgSize / bankWindowSize
 	mappedWindows := 0x10000 / bankWindowSize
@@ -62,7 +101,7 @@ func createMultiBankMapper(cart *cartridge.Cartridge, dis arch.Disasm, bankWindo
 		mapped:         make([]mappedBank, mappedWindows),
 	}
 
-	m.initializeBanks(dis, cart.PRG)
+	m.initializeBanks(cart.PRG)
 
 	if err := m.populateBankMappings(bankWindowSize); err != nil {
 		return nil, err
@@ -104,6 +143,28 @@ func (m *Mapper) configureDefaultBankMapping() {
 	}
 }
 
+// InjectDependencies sets the required dependencies for this mapper.
+func (m *Mapper) InjectDependencies(deps Dependencies) {
+	m.dis = deps.Disasm
+	m.vars = deps.Vars
+	m.consts = deps.Consts
+}
+
+// InitializeDependencyBanks initializes the bank structures in the injected
+// vars and consts managers to match this mapper's bank configuration.
+// This must be called after InjectDependencies.
+func (m *Mapper) InitializeDependencyBanks() {
+	for range m.banks {
+		m.vars.AddBank()
+		m.consts.AddBank()
+	}
+}
+
+// SetCodeBaseAddress sets the code base address for single-bank systems.
+func (m *Mapper) SetCodeBaseAddress(address uint16) {
+	m.codeBaseAddress = address
+}
+
 func (m *Mapper) setMappedBank(address uint16, bank mappedBank) {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
@@ -116,7 +177,7 @@ func (m *Mapper) setMappedBank(address uint16, bank mappedBank) {
 	m.mapped[bankWindow] = bank
 }
 
-func (m *Mapper) GetMappedBank(address uint16) arch.MappedBank {
+func (m *Mapper) GetMappedBank(address uint16) offset.MappedBank {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8)
@@ -133,7 +194,7 @@ func (m *Mapper) GetMappedBankIndex(address uint16) uint16 {
 	var index int
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8) - subtract code base address to get ROM offset
-		index = int(address) - int(m.dis.CodeBaseAddress())
+		index = int(address) - int(m.codeBaseAddress)
 	} else {
 		// Multi-bank system - use modulo for bank window
 		index = int(address) % m.bankWindowSize
@@ -148,7 +209,7 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8) - subtract code base address
 		bankWindow = 0
-		index = int(address) - int(m.dis.CodeBaseAddress())
+		index = int(address) - int(m.codeBaseAddress)
 	} else {
 		// Multi-bank system - calculate bank window and index
 		bankWindow = address >> m.addressShifts
@@ -161,7 +222,7 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 	return b
 }
 
-func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
+func (m *Mapper) OffsetInfo(address uint16) *offset.Offset {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8)
@@ -181,7 +242,7 @@ func (m *Mapper) OffsetInfo(address uint16) *arch.Offset {
 		index = int(address) % m.bankWindowSize
 	} else {
 		// Single-bank: subtract code base address to convert memory address to ROM offset
-		index = int(address) - int(m.dis.CodeBaseAddress())
+		index = int(address) - int(m.codeBaseAddress)
 	}
 	pointer := bnk.dataStart + index
 	offsetInfo := bnk.bank.offsets[pointer]
@@ -203,13 +264,13 @@ func (m *Mapper) ProcessData() {
 		}
 	}
 }
-func (m *Mapper) SetProgramBanks(dis arch.Disasm, app *program.Program) error {
+func (m *Mapper) SetProgramBanks(app *program.Program) error {
 	for bnkIndex, bnk := range m.banks {
 		prgBank := program.NewPRGBank(len(bnk.offsets))
 
 		for i := range len(bnk.offsets) {
 			offsetInfo := bnk.offsets[i]
-			programOffsetInfo, err := getProgramOffset(dis, dis.CodeBaseAddress()+uint16(i), offsetInfo)
+			programOffsetInfo, err := getProgramOffset(m, m.codeBaseAddress+uint16(i), offsetInfo)
 			if err != nil {
 				return err
 			}
@@ -217,8 +278,8 @@ func (m *Mapper) SetProgramBanks(dis arch.Disasm, app *program.Program) error {
 			prgBank.Offsets[i] = programOffsetInfo
 		}
 
-		dis.Constants().SetBankConstants(bnkIndex, prgBank)
-		dis.Variables().SetBankVariables(bnkIndex, prgBank)
+		m.consts.SetBankConstants(bnkIndex, prgBank)
+		m.vars.SetBankVariables(bnkIndex, prgBank)
 
 		setBankName(prgBank, bnkIndex, len(m.banks))
 		setBankVectors(bnk, prgBank)
@@ -228,7 +289,7 @@ func (m *Mapper) SetProgramBanks(dis arch.Disasm, app *program.Program) error {
 	return nil
 }
 
-func (m *Mapper) ApplyCodeDataLog(dis arch.Disasm, prgFlags []codedatalog.PrgFlag) {
+func (m *Mapper) ApplyCodeDataLog(prgFlags []codedatalog.PrgFlag) {
 	bank0 := m.banks[0]
 	for index, flags := range prgFlags {
 		if index > len(bank0.offsets) {
@@ -236,7 +297,7 @@ func (m *Mapper) ApplyCodeDataLog(dis arch.Disasm, prgFlags []codedatalog.PrgFla
 		}
 
 		if flags&codedatalog.Code != 0 {
-			dis.AddAddressToParse(dis.CodeBaseAddress()+uint16(index), 0, 0, nil, false)
+			m.dis.AddAddressToParse(m.codeBaseAddress+uint16(index), 0, 0, nil, false)
 		}
 		if flags&codedatalog.SubEntryPoint != 0 {
 			bank0.offsets[index].SetType(program.CallDestination)
@@ -244,7 +305,7 @@ func (m *Mapper) ApplyCodeDataLog(dis arch.Disasm, prgFlags []codedatalog.PrgFla
 	}
 }
 
-func getProgramOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (program.Offset, error) {
+func getProgramOffset(m *Mapper, address uint16, offsetInfo *offset.Offset) (program.Offset, error) {
 	programOffset := offsetInfo.Offset
 	programOffset.Address = address
 
@@ -261,7 +322,7 @@ func getProgramOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) 
 			programOffset.Code = ".word " + offsetInfo.BranchingTo
 		}
 
-		if err := setComment(dis, address, &programOffset); err != nil {
+		if err := setComment(m, address, &programOffset); err != nil {
 			return program.Offset{}, err
 		}
 	} else {
@@ -271,10 +332,10 @@ func getProgramOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) 
 	return programOffset, nil
 }
 
-func setComment(dis arch.Disasm, address uint16, programOffset *program.Offset) error {
+func setComment(m *Mapper, address uint16, programOffset *program.Offset) error {
 	var comments []string
 
-	opts := dis.Options()
+	opts := m.dis.Options()
 	if opts.OffsetComments {
 		programOffset.HasAddressComment = true
 		comments = []string{fmt.Sprintf("$%04X", address)}

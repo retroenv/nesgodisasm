@@ -1,15 +1,15 @@
 package chip8
 
 import (
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrogolib/arch/cpu/chip8"
 )
 
 // opcodeSize is the size of CHIP-8 instructions in bytes.
 const opcodeSize = 2
 
-// Compile-time check to ensure Opcode implements arch.Opcode.
-var _ arch.Opcode = (*Opcode)(nil)
+// Compile-time check to ensure Opcode implements instruction.Opcode.
+var _ instruction.Opcode = (*Opcode)(nil)
 
 // Opcode represents a CHIP-8 instruction opcode with addressing and behavior information.
 type Opcode struct {
@@ -22,7 +22,7 @@ func (o Opcode) Addressing() int {
 }
 
 // Instruction returns the instruction associated with this opcode.
-func (o Opcode) Instruction() arch.Instruction {
+func (o Opcode) Instruction() instruction.Instruction {
 	return Instruction{ins: o.op.Instruction}
 }
 

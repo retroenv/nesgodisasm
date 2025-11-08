@@ -3,7 +3,8 @@ package disasm
 import (
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 )
 
@@ -28,7 +29,7 @@ func (dis *Disasm) followExecutionFlow() error {
 		dis.pc = address
 		offsetInfo := dis.mapper.OffsetInfo(dis.pc)
 
-		inspectCode, err := dis.arch.ProcessOffset(dis, address, offsetInfo)
+		inspectCode, err := dis.arch.ProcessOffset(address, offsetInfo)
 		if err != nil {
 			return fmt.Errorf("error processing offset at address %04x: %w", address, err)
 		}
@@ -38,7 +39,7 @@ func (dis *Disasm) followExecutionFlow() error {
 
 		dis.checkInstructionOverlap(address, offsetInfo)
 
-		if dis.arch.HandleDisambiguousInstructions(dis, address, offsetInfo) {
+		if dis.arch.HandleDisambiguousInstructions(address, offsetInfo) {
 			continue
 		}
 
@@ -49,7 +50,7 @@ func (dis *Disasm) followExecutionFlow() error {
 
 // in case the current instruction overlaps with an already existing instruction,
 // cut the current one short.
-func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *arch.Offset) {
+func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset.Offset) {
 	for i := 1; i < len(offsetInfo.Data) && int(address)+i < int(dis.arch.LastCodeAddress()); i++ {
 		followingAddress := address + uint16(i)
 		offsetInfoFollowing := dis.mapper.OffsetInfo(followingAddress)
@@ -104,7 +105,7 @@ func (dis *Disasm) addressToDisassemble() (int, error) {
 			return int(address), nil
 		}
 
-		isEntry, err := dis.jumpEngine.ScanForNewJumpEngineEntry(dis)
+		isEntry, err := dis.jumpEngine.ScanForNewJumpEngineEntry(dis.codeBaseAddress)
 		if err != nil {
 			return 0, fmt.Errorf("scanning for new jump engine entry: %w", err)
 		}
@@ -116,7 +117,7 @@ func (dis *Disasm) addressToDisassemble() (int, error) {
 
 // AddAddressToParse adds an address to the list to be processed if the address has not been processed yet.
 func (dis *Disasm) AddAddressToParse(address, context, from uint16,
-	currentInstruction arch.Instruction, isABranchDestination bool) {
+	currentInstruction instruction.Instruction, isABranchDestination bool) {
 
 	// ignore branching into addresses before the code base address, for example when generating code in
 	// zeropage and branching into it to execute it.
@@ -137,7 +138,7 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 	if isABranchDestination {
 		// Always add BranchFrom references when isABranchDestination is true.
 		// Initialization calls pass isABranchDestination = false, so they're already filtered out.
-		bankRef := arch.BankReference{
+		bankRef := offset.BankReference{
 			Mapped:  dis.mapper.GetMappedBank(from),
 			Address: from,
 			Index:   dis.mapper.GetMappedBankIndex(from),

@@ -6,7 +6,9 @@ package chip8
 import (
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/consts"
+	"github.com/retroenv/retrodisasm/internal/instruction"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/cpu/chip8"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
@@ -36,8 +38,23 @@ const (
 	LastCodeAddress = 0xFFF
 )
 
-// Compile-time check to ensure Chip8 implements arch.Architecture.
-var _ arch.Architecture = (*Chip8)(nil)
+// Dependencies contains the dependencies needed by Chip8.
+type Dependencies struct {
+	Disasm disasm
+	Mapper offset.Mapper
+}
+
+// disasm defines the minimal interface needed from the disassembler.
+type disasm interface {
+	// AddAddressToParse adds an address to the list to be processed.
+	AddAddressToParse(address, context, from uint16, currentInstruction instruction.Instruction, isABranchDestination bool)
+	// ProgramCounter returns the current program counter of the execution tracer.
+	ProgramCounter() uint16
+	// ReadMemory reads a byte from the memory at the given address.
+	ReadMemory(address uint16) (byte, error)
+	// SetCodeBaseAddress sets the code base address.
+	SetCodeBaseAddress(address uint16)
+}
 
 // New returns a new CHIP-8 architecture configuration.
 func New(converter parameter.Converter) *Chip8 {
@@ -51,12 +68,20 @@ func New(converter parameter.Converter) *Chip8 {
 // 16 general-purpose 8-bit registers, and a simple instruction set.
 type Chip8 struct {
 	converter parameter.Converter
+	dis       disasm
+	mapper    offset.Mapper
+}
+
+// InjectDependencies sets the required dependencies for this architecture.
+func (c *Chip8) InjectDependencies(deps Dependencies) {
+	c.dis = deps.Disasm
+	c.mapper = deps.Mapper
 }
 
 // Constants returns architecture-specific constants for CHIP-8.
 // CHIP-8 doesn't have hardware constants like the NES, so returns empty map.
-func (c *Chip8) Constants() (map[uint16]arch.Constant, error) {
-	return map[uint16]arch.Constant{}, nil
+func (c *Chip8) Constants() (map[uint16]consts.Constant, error) {
+	return map[uint16]consts.Constant{}, nil
 }
 
 // GetAddressingParam extracts addressing parameters from CHIP-8 instructions.
@@ -76,28 +101,28 @@ func (c *Chip8) GetAddressingParam(param any) (uint16, bool) {
 
 // HandleDisambiguousInstructions handles instructions that could be interpreted multiple ways.
 // CHIP-8 has a simple instruction set with no ambiguous opcodes.
-func (c *Chip8) HandleDisambiguousInstructions(_ arch.Disasm, _ uint16, _ *arch.Offset) bool {
+func (c *Chip8) HandleDisambiguousInstructions(_ uint16, _ *offset.Offset) bool {
 	return false
 }
 
 // Initialize sets up the disassembler for CHIP-8 ROM analysis.
 // CHIP-8 programs are stored starting at ROM offset 0 but execute at memory address 0x200.
-func (c *Chip8) Initialize(dis arch.Disasm) error {
+func (c *Chip8) Initialize() error {
 	// Set code base address to 0x200 so labels reflect CHIP-8 memory addresses
-	dis.SetCodeBaseAddress(ProgramStart)
+	c.dis.SetCodeBaseAddress(ProgramStart)
 
 	// Set "Start" label for the entry point (memory address 0x200 = ROM offset 0)
-	offsetInfo := dis.Mapper().OffsetInfo(ProgramStart)
+	offsetInfo := c.mapper.OffsetInfo(ProgramStart)
 	offsetInfo.Label = "Start"
 
 	// Start disassembly at CHIP-8 program start address (0x200)
-	dis.AddAddressToParse(ProgramStart, ProgramStart, 0, nil, false)
+	c.dis.AddAddressToParse(ProgramStart, ProgramStart, 0, nil, false)
 	return nil
 }
 
 // IsAddressingIndexed determines if an opcode uses indexed addressing.
 // CHIP-8 uses register-based addressing rather than indexed addressing.
-func (c *Chip8) IsAddressingIndexed(_ arch.Opcode) bool {
+func (c *Chip8) IsAddressingIndexed(_ instruction.Opcode) bool {
 	return false
 }
 
@@ -110,8 +135,8 @@ func (c *Chip8) LastCodeAddress() uint16 {
 // ProcessOffset processes a CHIP-8 instruction at the given address.
 // It parses the instruction, formats it for assembly output, and handles
 // control flow analysis for jumps, calls, and data references.
-func (c *Chip8) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *arch.Offset) (bool, error) {
-	inspectCode, err := initializeOffsetInfo(dis, offsetInfo)
+func (c *Chip8) ProcessOffset(address uint16, offsetInfo *offset.Offset) (bool, error) {
+	inspectCode, err := c.initializeOffsetInfo(offsetInfo)
 	if err != nil {
 		return false, err
 	}
@@ -127,12 +152,12 @@ func (c *Chip8) ProcessOffset(dis arch.Disasm, address uint16, offsetInfo *arch.
 		return false, fmt.Errorf("unexpected instruction type: %T", instruction)
 	}
 
-	c.handleControlFlow(dis, address, offsetInfo, instruction, instr)
+	c.handleControlFlow(address, offsetInfo, instruction, instr)
 	return true, nil
 }
 
 // formatOffsetCode formats the instruction code string for display
-func (c *Chip8) formatOffsetCode(offsetInfo *arch.Offset, instruction arch.Instruction) {
+func (c *Chip8) formatOffsetCode(offsetInfo *offset.Offset, instruction instruction.Instruction) {
 	name := instruction.Name()
 	opcodeBytes := offsetInfo.Data
 	if len(opcodeBytes) >= 2 {
@@ -146,58 +171,58 @@ func (c *Chip8) formatOffsetCode(offsetInfo *arch.Offset, instruction arch.Instr
 }
 
 // handleControlFlow processes control flow based on instruction type
-func (c *Chip8) handleControlFlow(dis arch.Disasm, address uint16, offsetInfo *arch.Offset, instruction arch.Instruction, instr Instruction) {
-	pc := dis.ProgramCounter()
+func (c *Chip8) handleControlFlow(address uint16, offsetInfo *offset.Offset, instruction instruction.Instruction, instr Instruction) {
+	pc := c.dis.ProgramCounter()
 
 	switch {
 	case instr.IsJump():
 		if target, ok := c.extractTargetAddressInROM(offsetInfo.Data); ok {
-			dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
+			c.dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
 		}
 
 	case instruction.IsCall():
 		if target, ok := c.extractTargetAddressInROM(offsetInfo.Data); ok {
-			dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
+			c.dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
 		}
 		nextAddr := pc + uint16(len(offsetInfo.Data))
-		dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
+		c.dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
 
 	case instr.IsSkip():
 		nextAddr := pc + uint16(len(offsetInfo.Data))
 		skipAddr := nextAddr + 2 // CHIP-8 instructions are 2 bytes
-		dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
-		dis.AddAddressToParse(skipAddr, offsetInfo.Context, address, instruction, false)
+		c.dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
+		c.dis.AddAddressToParse(skipAddr, offsetInfo.Context, address, instruction, false)
 
 	case instr.IsDataReference(offsetInfo.Data):
-		c.handleDataReference(dis, address, offsetInfo, instruction, pc)
+		c.handleDataReference(address, offsetInfo, instruction, pc)
 
 	case !instr.IsReturn():
 		nextAddr := pc + uint16(len(offsetInfo.Data))
-		dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
+		c.dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
 	}
 }
 
 // handleDataReference processes data reference instructions
-func (c *Chip8) handleDataReference(dis arch.Disasm, address uint16, offsetInfo *arch.Offset, instruction arch.Instruction, pc uint16) {
+func (c *Chip8) handleDataReference(address uint16, offsetInfo *offset.Offset, instruction instruction.Instruction, pc uint16) {
 	if target, ok := c.extractTargetAddressInROM(offsetInfo.Data); ok {
-		dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
-		targetInfo := dis.Mapper().OffsetInfo(target)
+		c.dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
+		targetInfo := c.mapper.OffsetInfo(target)
 		targetInfo.SetType(program.DataOffset)
 	}
 
 	nextAddr := pc + uint16(len(offsetInfo.Data))
-	dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
+	c.dis.AddAddressToParse(nextAddr, offsetInfo.Context, address, instruction, false)
 }
 
 // ProcessVariableUsage processes variable usage patterns in CHIP-8 instructions.
 // CHIP-8 uses simple direct addressing and register operations without complex variable patterns.
-func (c *Chip8) ProcessVariableUsage(_ *arch.Offset, _ string) error {
+func (c *Chip8) ProcessVariableUsage(_ *offset.Offset, _ string) error {
 	return nil
 }
 
 // ReadOpParam reads additional operation parameters for CHIP-8 instructions.
 // CHIP-8 opcodes are 2 bytes with all parameters embedded, so no additional reads needed.
-func (c *Chip8) ReadOpParam(_ arch.Disasm, _ int, _ uint16) (any, []byte, error) {
+func (c *Chip8) ReadOpParam(_ int, _ uint16) (any, []byte, error) {
 	return nil, nil, nil
 }
 
@@ -369,7 +394,7 @@ func (c *Chip8) extractTargetAddressInROM(data []byte) (uint16, bool) {
 
 // ReadMemory reads a byte from memory using CHIP-8-specific memory mapping.
 // CHIP-8 programs use a 4KB address space starting at 0x000.
-func (c *Chip8) ReadMemory(dis arch.Disasm, address uint16) (byte, error) {
-	value := dis.Mapper().ReadMemory(address)
+func (c *Chip8) ReadMemory(address uint16) (byte, error) {
+	value := c.mapper.ReadMemory(address)
 	return value, nil
 }

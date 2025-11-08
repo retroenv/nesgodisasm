@@ -6,27 +6,34 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrodisasm/internal/program"
 )
 
-var _ arch.ConstantManager = &Consts{}
+// Constant represents a constant translation from a read and write operation to a name.
+// This is used to replace the parameter of an instruction by a constant name.
+type Constant struct {
+	Address uint16
+
+	Read  string
+	Write string
+}
 
 // Consts manages constants in the disassembled program.
 type Consts struct {
 	banks []*bank
 
-	constants     map[uint16]arch.Constant
-	usedConstants map[uint16]arch.Constant
+	constants     map[uint16]Constant
+	usedConstants map[uint16]Constant
 }
 
 type bank struct {
-	constants     map[uint16]arch.Constant
-	usedConstants map[uint16]arch.Constant
+	constants     map[uint16]Constant
+	usedConstants map[uint16]Constant
 }
 
 type architecture interface {
-	Constants() (map[uint16]arch.Constant, error)
+	Constants() (map[uint16]Constant, error)
 }
 
 // New creates a new constants manager.
@@ -38,21 +45,21 @@ func New(ar architecture) (*Consts, error) {
 
 	return &Consts{
 		constants:     constants,
-		usedConstants: make(map[uint16]arch.Constant),
+		usedConstants: make(map[uint16]Constant),
 	}, nil
 }
 
 // AddBank adds a new bank to the constants manager.
 func (c *Consts) AddBank() {
 	c.banks = append(c.banks, &bank{
-		constants:     make(map[uint16]arch.Constant),
-		usedConstants: make(map[uint16]arch.Constant),
+		constants:     make(map[uint16]Constant),
+		usedConstants: make(map[uint16]Constant),
 	})
 }
 
 // ReplaceParameter replaces the parameter of an instruction by a constant name
 // if the address of the instruction is found in the constants map.
-func (c *Consts) ReplaceParameter(address uint16, opcode arch.Opcode, paramAsString string) (string, bool) {
+func (c *Consts) ReplaceParameter(address uint16, opcode instruction.Opcode, paramAsString string) (string, bool) {
 	constantInfo, ok := c.constants[address]
 	if !ok {
 		return "", false
@@ -79,7 +86,7 @@ func (c *Consts) ReplaceParameter(address uint16, opcode arch.Opcode, paramAsStr
 // for in which bank a constant is used, it will be added to all banks for now.
 // TODO fix constants to only output in used banks
 func (c *Consts) Process() {
-	constants := make([]arch.Constant, 0, len(c.constants))
+	constants := make([]Constant, 0, len(c.constants))
 	for _, translation := range c.constants {
 		constants = append(constants, translation)
 	}

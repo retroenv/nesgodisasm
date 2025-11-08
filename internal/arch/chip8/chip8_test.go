@@ -3,12 +3,10 @@ package chip8
 import (
 	"testing"
 
-	archpkg "github.com/retroenv/retrodisasm/internal/arch"
-	"github.com/retroenv/retrodisasm/internal/arch/mocks"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	chip8cpu "github.com/retroenv/retrogolib/arch/cpu/chip8"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/assert"
-	"github.com/retroenv/retrogolib/log"
 )
 
 func TestNew(t *testing.T) {
@@ -58,7 +56,7 @@ func TestChip8_HandleDisambiguousInstructions(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
 
 	// CHIP-8 has no disambiguous instructions
-	result := arch.HandleDisambiguousInstructions(nil, 0x200, nil)
+	result := arch.HandleDisambiguousInstructions(0x200, nil)
 	assert.False(t, result)
 }
 
@@ -89,7 +87,7 @@ func TestChip8_ReadOpParam(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
 
 	// CHIP-8 opcodes are self-contained, no additional parameters
-	param, data, err := arch.ReadOpParam(nil, 0, 0x200)
+	param, data, err := arch.ReadOpParam(0, 0x200)
 	assert.NoError(t, err)
 	assert.Nil(t, param)
 	assert.Nil(t, data)
@@ -196,11 +194,16 @@ func TestInstruction_IsDataReference(t *testing.T) {
 
 func TestChip8_Initialize(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, 0, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
 
-	err := arch.Initialize(dis)
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
+
+	err := arch.Initialize()
 	assert.NoError(t, err)
 
 	// Verify the "Start" label was set at ProgramStart
@@ -210,34 +213,44 @@ func TestChip8_Initialize(t *testing.T) {
 
 func TestChip8_ReadMemory(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, ProgramStart, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
 
-	// ReadMemory is a simple wrapper around dis.Mapper().ReadMemory()
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
+
+	// ReadMemory is a simple wrapper around mapper.ReadMemory()
 	// Just verify it doesn't error
-	_, err := arch.ReadMemory(dis, 0x200)
+	_, err := arch.ReadMemory(0x200)
 	assert.NoError(t, err)
 
-	_, err = arch.ReadMemory(dis, 0x300)
+	_, err = arch.ReadMemory(0x300)
 	assert.NoError(t, err)
 }
 
 func TestChip8_ProcessOffset(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, ProgramStart, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
+
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Set up a simple CLS instruction (0x00E0)
 	dis.Memory[0x000] = 0x00
 	dis.Memory[0x001] = 0xE0
 
 	// Create a fresh offset info without preset type
-	offsetInfo := &archpkg.Offset{}
+	offsetInfo := &offset.Offset{}
 
 	// Process the offset
-	result, err := arch.ProcessOffset(dis, ProgramStart, offsetInfo)
+	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
 	assert.True(t, result)
 
@@ -248,17 +261,22 @@ func TestChip8_ProcessOffset(t *testing.T) {
 
 func TestChip8_ProcessOffset_JumpInstruction(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, ProgramStart, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
+
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Set up a JP instruction (0x1234 = JP $234)
 	dis.Memory[0x000] = 0x12
 	dis.Memory[0x001] = 0x34
 
-	offsetInfo := &archpkg.Offset{}
+	offsetInfo := &offset.Offset{}
 
-	result, err := arch.ProcessOffset(dis, ProgramStart, offsetInfo)
+	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
 	assert.True(t, result)
 	assert.Equal(t, "jp $234", offsetInfo.Code)
@@ -266,17 +284,22 @@ func TestChip8_ProcessOffset_JumpInstruction(t *testing.T) {
 
 func TestChip8_ProcessOffset_CallInstruction(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, ProgramStart, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
+
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Set up a CALL instruction (0x2300 = CALL $300)
 	dis.Memory[0x000] = 0x23
 	dis.Memory[0x001] = 0x00
 
-	offsetInfo := &archpkg.Offset{}
+	offsetInfo := &offset.Offset{}
 
-	result, err := arch.ProcessOffset(dis, ProgramStart, offsetInfo)
+	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
 	assert.True(t, result)
 	assert.Equal(t, "call $300", offsetInfo.Code)
@@ -284,17 +307,22 @@ func TestChip8_ProcessOffset_CallInstruction(t *testing.T) {
 
 func TestChip8_ProcessOffset_SkipInstruction(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, ProgramStart, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
+
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Set up a SE instruction (0x3234 = SE V2, $34)
 	dis.Memory[0x000] = 0x32
 	dis.Memory[0x001] = 0x34
 
-	offsetInfo := &archpkg.Offset{}
+	offsetInfo := &offset.Offset{}
 
-	result, err := arch.ProcessOffset(dis, ProgramStart, offsetInfo)
+	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
 	assert.True(t, result)
 	assert.Equal(t, "se V2, $34", offsetInfo.Code)
@@ -302,17 +330,22 @@ func TestChip8_ProcessOffset_SkipInstruction(t *testing.T) {
 
 func TestChip8_ProcessOffset_LoadIInstruction(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, ProgramStart, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
+
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Set up a LD I instruction (0xA234 = LD I, $234)
 	dis.Memory[0x000] = 0xA2
 	dis.Memory[0x001] = 0x34
 
-	offsetInfo := &archpkg.Offset{}
+	offsetInfo := &offset.Offset{}
 
-	result, err := arch.ProcessOffset(dis, ProgramStart, offsetInfo)
+	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
 	assert.True(t, result)
 	assert.Equal(t, "ld I, $234", offsetInfo.Code)
@@ -320,19 +353,24 @@ func TestChip8_ProcessOffset_LoadIInstruction(t *testing.T) {
 
 func TestChip8_ProcessOffset_DataOffset(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
-	mapper := mocks.NewMapper()
-	logger := log.NewTestLogger(t)
-	dis := mocks.NewDisasm(logger, mapper, ProgramStart, 0x1000)
+	mapper := newMockMapper()
+	dis := newMockDisasm()
+
+	// Inject dependencies
+	arch.InjectDependencies(Dependencies{
+		Disasm: dis,
+		Mapper: mapper,
+	})
 
 	// Set up memory with invalid opcode
 	dis.Memory[0x000] = 0xFF
 	dis.Memory[0x001] = 0xFF
 
 	// Create a fresh offset info without preset type
-	offsetInfo := &archpkg.Offset{}
+	offsetInfo := &offset.Offset{}
 
 	// Process the offset - should return false for data
-	result, err := arch.ProcessOffset(dis, ProgramStart, offsetInfo)
+	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
 	assert.False(t, result)
 }

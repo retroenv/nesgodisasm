@@ -1,11 +1,11 @@
 package m6502
 
 import (
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 )
 
-var _ arch.Opcode = &Opcode{}
+var _ instruction.Opcode = &Opcode{}
 
 type Opcode struct {
 	op m6502.Opcode
@@ -15,7 +15,7 @@ func (o Opcode) Addressing() int {
 	return int(o.op.Addressing)
 }
 
-func (o Opcode) Instruction() arch.Instruction {
+func (o Opcode) Instruction() instruction.Instruction {
 	return Instruction{ins: o.op.Instruction}
 }
 

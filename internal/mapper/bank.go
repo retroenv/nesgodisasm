@@ -3,7 +3,7 @@ package mapper
 import (
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 )
 
@@ -12,12 +12,12 @@ const (
 	multiBankNameTemplate = "PRG_BANK_%d"
 )
 
-var _ arch.MappedBank = mappedBank{}
+var _ offset.MappedBank = mappedBank{}
 
 type bank struct {
 	prg []byte
 
-	offsets []*arch.Offset
+	offsets []*offset.Offset
 }
 
 type mappedBank struct {
@@ -29,15 +29,15 @@ type mappedBank struct {
 func newBank(prg []byte) *bank {
 	b := &bank{
 		prg:     prg,
-		offsets: make([]*arch.Offset, len(prg)),
+		offsets: make([]*offset.Offset, len(prg)),
 	}
 	for i := range b.offsets {
-		b.offsets[i] = &arch.Offset{}
+		b.offsets[i] = &offset.Offset{}
 	}
 	return b
 }
 
-func (m *Mapper) initializeBanks(dis arch.Disasm, prg []byte) {
+func (m *Mapper) initializeBanks(prg []byte) {
 	for i := 0; i < len(prg); {
 		size := min(len(prg)-i, 0x8000)
 
@@ -45,13 +45,10 @@ func (m *Mapper) initializeBanks(dis arch.Disasm, prg []byte) {
 		bnk := newBank(b)
 		m.banks = append(m.banks, bnk)
 		i += size
-
-		dis.Constants().AddBank()
-		dis.Variables().AddBank()
 	}
 }
 
-func (m mappedBank) OffsetInfo(index uint16) *arch.Offset {
+func (m mappedBank) OffsetInfo(index uint16) *offset.Offset {
 	offset := int(index) + m.dataStart
 	offsetInfo := m.bank.offsets[offset]
 	return offsetInfo

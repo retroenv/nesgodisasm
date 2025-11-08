@@ -2,12 +2,12 @@
 package chip8
 
 import (
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrogolib/arch/cpu/chip8"
 )
 
-// Compile-time check to ensure Instruction implements arch.Instruction.
-var _ arch.Instruction = (*Instruction)(nil)
+// Compile-time check to ensure Instruction implements instruction.Instruction.
+var _ instruction.Instruction = (*Instruction)(nil)
 
 // Instruction represents a CHIP-8 instruction wrapper that implements arch.Instruction.
 // It provides a bridge between the retrogolib CHIP-8 instruction definitions

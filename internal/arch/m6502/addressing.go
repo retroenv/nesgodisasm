@@ -1,7 +1,7 @@
 package m6502
 
 import (
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 )
 
@@ -32,7 +32,7 @@ func (ar *Arch6502) GetAddressingParam(param any) (uint16, bool) {
 }
 
 // IsAddressingIndexed returns if the opcode is using indexed addressing.
-func (ar *Arch6502) IsAddressingIndexed(opcode arch.Opcode) bool {
+func (ar *Arch6502) IsAddressingIndexed(opcode instruction.Opcode) bool {
 	addressing := m6502.AddressingMode(opcode.Addressing())
 	switch addressing {
 	case m6502.ZeroPageXAddressing, m6502.ZeroPageYAddressing,

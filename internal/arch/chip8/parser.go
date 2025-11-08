@@ -4,7 +4,7 @@ package chip8
 import (
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/cpu/chip8"
 )
@@ -12,13 +12,13 @@ import (
 // initializeOffsetInfo initializes the offset info and returns
 // whether the offset should process inspection for code parameters.
 // It reads the CHIP-8 instruction bytes and identifies the opcode.
-func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error) {
+func (c *Chip8) initializeOffsetInfo(offsetInfo *offset.Offset) (bool, error) {
 	if offsetInfo.IsType(program.CodeOffset) {
 		return false, nil // was set by CDL
 	}
 
-	pc := dis.ProgramCounter()
-	b1, err := dis.ReadMemory(pc)
+	pc := c.dis.ProgramCounter()
+	b1, err := c.dis.ReadMemory(pc)
 	if err != nil {
 		return false, fmt.Errorf("reading memory at address %04x: %w", pc, err)
 	}
@@ -29,7 +29,7 @@ func initializeOffsetInfo(dis arch.Disasm, offsetInfo *arch.Offset) (bool, error
 		return false, nil // was set by CDL
 	}
 
-	b2, err := dis.ReadMemory(pc + 1)
+	b2, err := c.dis.ReadMemory(pc + 1)
 	if err != nil {
 		return false, fmt.Errorf("reading memory at address %04x: %w", pc+1, err)
 	}

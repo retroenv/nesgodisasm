@@ -3,12 +3,12 @@ package m6502
 import (
 	"fmt"
 
-	"github.com/retroenv/retrodisasm/internal/arch"
+	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 )
 
-func (ar *Arch6502) ProcessVariableUsage(offsetInfo *arch.Offset, reference string) error {
+func (ar *Arch6502) ProcessVariableUsage(offsetInfo *offset.Offset, reference string) error {
 	addressing := m6502.AddressingMode(offsetInfo.Opcode.Addressing())
 	converted, err := parameter.String(ar.converter, addressing, reference)
 	if err != nil {
