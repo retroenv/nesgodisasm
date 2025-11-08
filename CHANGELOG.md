@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.3.0] - 2025-11-08
+
+Added:
+
+* add CHIP-8 architecture support with retroasm assembler
+* add system auto-detection from file extensions (.nes, .ch8, .rom)
+* add `-s` flag for manual system specification (nes, chip8)
+* add NES ROM information in output file header comments
+
+Changed:
+
+* rename project from nesgodisasm to retrodisasm to reflect multi-system support
+
+Fixed:
+
+* fix instruction overlap detection for unofficial instructions
+* fix jump engine detection and processing
+* fix mapper validation for empty banks
+* fix assembler binary detection
+* fix CLI flag registration timing issues
+
 ## [v0.2.3] - 2024-11-05
 
 Added:
