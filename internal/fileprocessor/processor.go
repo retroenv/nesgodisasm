@@ -29,6 +29,12 @@ func ProcessFile(ctx context.Context, logger *log.Logger, opts options.Program, 
 
 	// Update disasm options with the determined system
 	disasmOptions.System = system
+	disasmOptions.Binary = opts.Binary
+
+	// When using binary mode, only output code without NES-specific segments
+	if opts.Binary {
+		disasmOptions.CodeOnly = true
+	}
 
 	// Validate assembler is supported for this system
 	if err := assembler.ValidateSystemAssembler(system, opts.Assembler); err != nil {
