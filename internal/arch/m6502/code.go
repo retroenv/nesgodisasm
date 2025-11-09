@@ -9,7 +9,7 @@ import (
 // HandleDisambiguousInstructions translates disambiguous instructions into data bytes as it
 // has multiple opcodes for the same addressing mode which can result in different
 // bytes being assembled and make the resulting ROM not matching the original.
-func (ar *Arch6502) HandleDisambiguousInstructions(address uint16, offsetInfo *offset.Offset) bool {
+func (ar *Arch6502) HandleDisambiguousInstructions(address uint16, offsetInfo *offset.DisasmOffset) bool {
 	instruction := offsetInfo.Opcode.Instruction()
 	if !instruction.Unofficial() || address >= m6502.InterruptVectorStartAddress {
 		return false

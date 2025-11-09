@@ -16,7 +16,7 @@ const (
 // checkForJumpEngineJmp checks if the current instruction is the jump instruction inside a jump engine function.
 // The function offsets after the call to the jump engine will be used as destinations to disassemble as code.
 // This can be found in some official games like Super Mario Bros.
-func (ar *Arch6502) checkForJumpEngineJmp(jumpAddress uint16, offsetInfo *offset.Offset) error {
+func (ar *Arch6502) checkForJumpEngineJmp(jumpAddress uint16, offsetInfo *offset.DisasmOffset) error {
 	instruction := offsetInfo.Opcode.Instruction()
 	addressing := m6502.AddressingMode(offsetInfo.Opcode.Addressing())
 	if instruction.Name() != m6502.Jmp.Name || addressing != m6502.IndirectAddressing {
@@ -54,7 +54,7 @@ func (ar *Arch6502) checkForJumpEngineJmp(jumpAddress uint16, offsetInfo *offset
 }
 
 // checkForJumpEngineCall checks if the current instruction is a call into a jump engine function.
-func (ar *Arch6502) checkForJumpEngineCall(address uint16, offsetInfo *offset.Offset) error {
+func (ar *Arch6502) checkForJumpEngineCall(address uint16, offsetInfo *offset.DisasmOffset) error {
 	instruction := offsetInfo.Opcode.Instruction()
 	addressing := m6502.AddressingMode(offsetInfo.Opcode.Addressing())
 	if instruction.Name() != m6502.Jsr.Name || addressing != m6502.AbsoluteAddressing {

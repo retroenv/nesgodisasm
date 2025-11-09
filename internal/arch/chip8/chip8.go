@@ -101,7 +101,7 @@ func (c *Chip8) GetAddressingParam(param any) (uint16, bool) {
 
 // HandleDisambiguousInstructions handles instructions that could be interpreted multiple ways.
 // CHIP-8 has a simple instruction set with no ambiguous opcodes.
-func (c *Chip8) HandleDisambiguousInstructions(_ uint16, _ *offset.Offset) bool {
+func (c *Chip8) HandleDisambiguousInstructions(_ uint16, _ *offset.DisasmOffset) bool {
 	return false
 }
 
@@ -135,7 +135,7 @@ func (c *Chip8) LastCodeAddress() uint16 {
 // ProcessOffset processes a CHIP-8 instruction at the given address.
 // It parses the instruction, formats it for assembly output, and handles
 // control flow analysis for jumps, calls, and data references.
-func (c *Chip8) ProcessOffset(address uint16, offsetInfo *offset.Offset) (bool, error) {
+func (c *Chip8) ProcessOffset(address uint16, offsetInfo *offset.DisasmOffset) (bool, error) {
 	inspectCode, err := c.initializeOffsetInfo(offsetInfo)
 	if err != nil {
 		return false, err
@@ -157,7 +157,7 @@ func (c *Chip8) ProcessOffset(address uint16, offsetInfo *offset.Offset) (bool, 
 }
 
 // formatOffsetCode formats the instruction code string for display
-func (c *Chip8) formatOffsetCode(offsetInfo *offset.Offset, instruction instruction.Instruction) {
+func (c *Chip8) formatOffsetCode(offsetInfo *offset.DisasmOffset, instruction instruction.Instruction) {
 	name := instruction.Name()
 	opcodeBytes := offsetInfo.Data
 	if len(opcodeBytes) >= 2 {
@@ -171,7 +171,7 @@ func (c *Chip8) formatOffsetCode(offsetInfo *offset.Offset, instruction instruct
 }
 
 // handleControlFlow processes control flow based on instruction type
-func (c *Chip8) handleControlFlow(address uint16, offsetInfo *offset.Offset, instruction instruction.Instruction, instr Instruction) {
+func (c *Chip8) handleControlFlow(address uint16, offsetInfo *offset.DisasmOffset, instruction instruction.Instruction, instr Instruction) {
 	pc := c.dis.ProgramCounter()
 
 	switch {
@@ -203,7 +203,7 @@ func (c *Chip8) handleControlFlow(address uint16, offsetInfo *offset.Offset, ins
 }
 
 // handleDataReference processes data reference instructions
-func (c *Chip8) handleDataReference(address uint16, offsetInfo *offset.Offset, instruction instruction.Instruction, pc uint16) {
+func (c *Chip8) handleDataReference(address uint16, offsetInfo *offset.DisasmOffset, instruction instruction.Instruction, pc uint16) {
 	if target, ok := c.extractTargetAddressInROM(offsetInfo.Data); ok {
 		c.dis.AddAddressToParse(target, offsetInfo.Context, address, instruction, true)
 		targetInfo := c.mapper.OffsetInfo(target)
@@ -216,7 +216,7 @@ func (c *Chip8) handleDataReference(address uint16, offsetInfo *offset.Offset, i
 
 // ProcessVariableUsage processes variable usage patterns in CHIP-8 instructions.
 // CHIP-8 uses simple direct addressing and register operations without complex variable patterns.
-func (c *Chip8) ProcessVariableUsage(_ *offset.Offset, _ string) error {
+func (c *Chip8) ProcessVariableUsage(_ *offset.DisasmOffset, _ string) error {
 	return nil
 }
 

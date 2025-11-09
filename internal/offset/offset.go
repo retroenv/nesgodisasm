@@ -6,8 +6,9 @@ import (
 	"github.com/retroenv/retrodisasm/internal/program"
 )
 
-// Offset defines the content of an offset in a program that can represent data or code.
-type Offset struct {
+// DisasmOffset defines the content of an offset in a program that can represent data or code.
+// It extends program.Offset with disassembler-specific fields.
+type DisasmOffset struct {
 	program.Offset
 
 	Opcode instruction.Opcode // opcode this offset represents
@@ -20,7 +21,7 @@ type Offset struct {
 // MappedBank represents a mapped memory bank.
 type MappedBank interface {
 	ID() int
-	OffsetInfo(address uint16) *Offset
+	OffsetInfo(address uint16) *DisasmOffset
 }
 
 // BankReference represents a reference to an address in a bank.
@@ -36,7 +37,7 @@ type Mapper interface {
 	GetMappedBank(address uint16) MappedBank
 	GetMappedBankIndex(address uint16) uint16
 	// OffsetInfo returns the offset information for the given address.
-	OffsetInfo(address uint16) *Offset
+	OffsetInfo(address uint16) *DisasmOffset
 	// ReadMemory reads a byte from memory at the given address.
 	ReadMemory(address uint16) byte
 }

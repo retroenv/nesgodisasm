@@ -27,7 +27,7 @@ type architecture interface {
 // mapper defines the minimal interface needed from the mapper
 type mapper interface {
 	// OffsetInfo returns the offset information for the given address.
-	OffsetInfo(address uint16) *offset.Offset
+	OffsetInfo(address uint16) *offset.DisasmOffset
 }
 
 // disasm defines the minimal interface needed from the disassembler
@@ -121,7 +121,7 @@ func (j *JumpEngine) GetFunctionTableReference(context uint16, dataReferences []
 
 // GetContextDataReferences parse all instructions of the function context until the jump
 // and returns data references that could point to the function table.
-func (j *JumpEngine) GetContextDataReferences(offsets []*offset.Offset,
+func (j *JumpEngine) GetContextDataReferences(offsets []*offset.DisasmOffset,
 	addresses []uint16, codeBaseAddress uint16) ([]uint16, error) {
 
 	var dataReferences []uint16
@@ -152,8 +152,8 @@ func (j *JumpEngine) GetContextDataReferences(offsets []*offset.Offset,
 // JumpContextInfo builds the list of instructions of the current function context.
 // in some ROMs the jump engine can be part of a label inside a larger function,
 // the jump engine detection will use the last instructions before the jmp.
-func (j *JumpEngine) JumpContextInfo(jumpAddress uint16, offsetInfo *offset.Offset) ([]*offset.Offset, []uint16) {
-	var offsets []*offset.Offset
+func (j *JumpEngine) JumpContextInfo(jumpAddress uint16, offsetInfo *offset.DisasmOffset) ([]*offset.DisasmOffset, []uint16) {
+	var offsets []*offset.DisasmOffset
 	var addresses []uint16
 
 	for address := offsetInfo.Context; address != 0 && address < jumpAddress; {

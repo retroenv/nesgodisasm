@@ -17,20 +17,20 @@ func (a *mockArchitecture) ReadOpParam(int, uint16) (any, []byte, error) {
 
 // mockMapper is a minimal mock for testing.
 type mockMapper struct {
-	offsets map[uint16]*offset.Offset
+	offsets map[uint16]*offset.DisasmOffset
 }
 
 func newMockMapper() *mockMapper {
 	return &mockMapper{
-		offsets: make(map[uint16]*offset.Offset),
+		offsets: make(map[uint16]*offset.DisasmOffset),
 	}
 }
 
-func (m *mockMapper) OffsetInfo(address uint16) *offset.Offset {
+func (m *mockMapper) OffsetInfo(address uint16) *offset.DisasmOffset {
 	if offset, ok := m.offsets[address]; ok {
 		return offset
 	}
-	offset := &offset.Offset{
+	offset := &offset.DisasmOffset{
 		Offset: program.Offset{
 			Type: program.DataOffset,
 			Data: []byte{0},

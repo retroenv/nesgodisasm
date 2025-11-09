@@ -37,7 +37,7 @@ type architecture interface {
 	// GetAddressingParam returns the address of the param if it references an address.
 	GetAddressingParam(param any) (uint16, bool)
 	// HandleDisambiguousInstructions translates disambiguous instructions into data bytes.
-	HandleDisambiguousInstructions(address uint16, offsetInfo *offset.Offset) bool
+	HandleDisambiguousInstructions(address uint16, offsetInfo *offset.DisasmOffset) bool
 	// Initialize the architecture.
 	Initialize() error
 	// IsAddressingIndexed returns if the opcode is using indexed addressing.
@@ -45,9 +45,9 @@ type architecture interface {
 	// LastCodeAddress returns the last possible address of code.
 	LastCodeAddress() uint16
 	// ProcessOffset processes an offset and returns if the offset was processed and an error if any.
-	ProcessOffset(address uint16, offsetInfo *offset.Offset) (bool, error)
+	ProcessOffset(address uint16, offsetInfo *offset.DisasmOffset) (bool, error)
 	// ProcessVariableUsage processes the variable usage of an offset.
-	ProcessVariableUsage(offsetInfo *offset.Offset, reference string) error
+	ProcessVariableUsage(offsetInfo *offset.DisasmOffset, reference string) error
 	// ReadOpParam reads the parameter of an opcode.
 	ReadOpParam(addressing int, address uint16) (any, []byte, error)
 	// ReadMemory reads a byte from memory at the given address using architecture-specific logic.

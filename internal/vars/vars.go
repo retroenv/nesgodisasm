@@ -24,7 +24,7 @@ type architecture interface {
 	// IsAddressingIndexed returns if the opcode is using indexed addressing.
 	IsAddressingIndexed(opcode instruction.Opcode) bool
 	// ProcessVariableUsage processes the variable usage of an offset.
-	ProcessVariableUsage(offsetInfo *offset.Offset, reference string) error
+	ProcessVariableUsage(offsetInfo *offset.DisasmOffset, reference string) error
 }
 
 // mapper defines the minimal interface needed from the mapper
@@ -34,7 +34,7 @@ type mapper interface {
 	// GetMappedBankIndex returns the mapped bank index for the given address.
 	GetMappedBankIndex(address uint16) uint16
 	// OffsetInfo returns the offset info for the given address.
-	OffsetInfo(address uint16) *offset.Offset
+	OffsetInfo(address uint16) *offset.DisasmOffset
 }
 
 // Dependencies contains the dependencies needed by Vars.
@@ -131,7 +131,7 @@ func (v *Vars) Process(codeBaseAddress uint16) error {
 			}
 		}
 
-		var dataOffsetInfo *offset.Offset
+		var dataOffsetInfo *offset.DisasmOffset
 		var addressAdjustment uint16
 		if varInfo.address >= codeBaseAddress {
 			// if the referenced address is inside the code, a label will be created for it
@@ -186,7 +186,7 @@ func (v *Vars) SetToProgram(app *program.Program) {
 // getOpcodeStart returns a reference to the opcode start of the given address.
 // In case it's in the first or second byte of an instruction, referencing the middle of an instruction will be
 // converted to a reference to the beginning of the instruction and optional address adjustment like +1 or +2.
-func (v *Vars) getOpcodeStart(address uint16) (*offset.Offset, uint16, uint16) {
+func (v *Vars) getOpcodeStart(address uint16) (*offset.DisasmOffset, uint16, uint16) {
 	var addressAdjustment uint16
 
 	for {
@@ -203,7 +203,7 @@ func (v *Vars) getOpcodeStart(address uint16) (*offset.Offset, uint16, uint16) {
 // dataName calculates the name of a variable based on its address and optional address adjustment.
 // It returns the name of the variable and a string to reference it, it is possible that the reference
 // is using an adjuster like +1 or +2.
-func (v *Vars) dataName(offsetInfo *offset.Offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
+func (v *Vars) dataName(offsetInfo *offset.DisasmOffset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
 	name := v.generateVariableName(offsetInfo, indexedUsage, address)
 
 	reference := name
@@ -216,7 +216,7 @@ func (v *Vars) dataName(offsetInfo *offset.Offset, indexedUsage bool, address, a
 	return name, reference
 }
 
-func (v *Vars) generateVariableName(offsetInfo *offset.Offset, indexedUsage bool, address uint16) string {
+func (v *Vars) generateVariableName(offsetInfo *offset.DisasmOffset, indexedUsage bool, address uint16) string {
 	if offsetInfo != nil && offsetInfo.Label != "" {
 		// if destination has an existing label, reuse it
 		return offsetInfo.Label

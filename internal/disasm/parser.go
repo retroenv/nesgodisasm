@@ -113,7 +113,7 @@ func (dis *Disasm) followExecutionFlow(ctx context.Context) error {
 
 // in case the current instruction overlaps with an already existing instruction,
 // cut the current one short.
-func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset.Offset) {
+func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset.DisasmOffset) {
 	for i := 1; i < len(offsetInfo.Data) && int(address)+i < int(dis.arch.LastCodeAddress()); i++ {
 		followingAddress := address + uint16(i)
 		offsetInfoFollowing := dis.mapper.OffsetInfo(followingAddress)

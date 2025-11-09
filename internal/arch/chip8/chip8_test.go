@@ -247,7 +247,7 @@ func TestChip8_ProcessOffset(t *testing.T) {
 	dis.Memory[0x001] = 0xE0
 
 	// Create a fresh offset info without preset type
-	offsetInfo := &offset.Offset{}
+	offsetInfo := &offset.DisasmOffset{}
 
 	// Process the offset
 	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
@@ -274,7 +274,7 @@ func TestChip8_ProcessOffset_JumpInstruction(t *testing.T) {
 	dis.Memory[0x000] = 0x12
 	dis.Memory[0x001] = 0x34
 
-	offsetInfo := &offset.Offset{}
+	offsetInfo := &offset.DisasmOffset{}
 
 	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
@@ -297,7 +297,7 @@ func TestChip8_ProcessOffset_CallInstruction(t *testing.T) {
 	dis.Memory[0x000] = 0x23
 	dis.Memory[0x001] = 0x00
 
-	offsetInfo := &offset.Offset{}
+	offsetInfo := &offset.DisasmOffset{}
 
 	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
@@ -320,7 +320,7 @@ func TestChip8_ProcessOffset_SkipInstruction(t *testing.T) {
 	dis.Memory[0x000] = 0x32
 	dis.Memory[0x001] = 0x34
 
-	offsetInfo := &offset.Offset{}
+	offsetInfo := &offset.DisasmOffset{}
 
 	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
@@ -343,7 +343,7 @@ func TestChip8_ProcessOffset_LoadIInstruction(t *testing.T) {
 	dis.Memory[0x000] = 0xA2
 	dis.Memory[0x001] = 0x34
 
-	offsetInfo := &offset.Offset{}
+	offsetInfo := &offset.DisasmOffset{}
 
 	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)
 	assert.NoError(t, err)
@@ -367,7 +367,7 @@ func TestChip8_ProcessOffset_DataOffset(t *testing.T) {
 	dis.Memory[0x001] = 0xFF
 
 	// Create a fresh offset info without preset type
-	offsetInfo := &offset.Offset{}
+	offsetInfo := &offset.DisasmOffset{}
 
 	// Process the offset - should return false for data
 	result, err := arch.ProcessOffset(ProgramStart, offsetInfo)

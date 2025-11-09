@@ -17,7 +17,7 @@ var _ offset.MappedBank = mappedBank{}
 type bank struct {
 	prg []byte
 
-	offsets []*offset.Offset
+	offsets []*offset.DisasmOffset
 }
 
 type mappedBank struct {
@@ -29,10 +29,10 @@ type mappedBank struct {
 func newBank(prg []byte) *bank {
 	b := &bank{
 		prg:     prg,
-		offsets: make([]*offset.Offset, len(prg)),
+		offsets: make([]*offset.DisasmOffset, len(prg)),
 	}
 	for i := range b.offsets {
-		b.offsets[i] = &offset.Offset{}
+		b.offsets[i] = &offset.DisasmOffset{}
 	}
 	return b
 }
@@ -48,7 +48,7 @@ func (m *Mapper) initializeBanks(prg []byte) {
 	}
 }
 
-func (m mappedBank) OffsetInfo(index uint16) *offset.Offset {
+func (m mappedBank) OffsetInfo(index uint16) *offset.DisasmOffset {
 	offset := int(index) + m.dataStart
 	offsetInfo := m.bank.offsets[offset]
 	return offsetInfo

@@ -16,7 +16,7 @@ var errInstructionOverlapsIRQHandlers = errors.New("instruction overlaps IRQ han
 
 // initializeOffsetInfo initializes the offset info and returns
 // whether the offset should process inspection for code parameters.
-func (ar *Arch6502) initializeOffsetInfo(offsetInfo *offset.Offset) (bool, error) {
+func (ar *Arch6502) initializeOffsetInfo(offsetInfo *offset.DisasmOffset) (bool, error) {
 	if offsetInfo.IsType(program.CodeOffset) {
 		return false, nil // was set by CDL
 	}
@@ -49,7 +49,7 @@ func (ar *Arch6502) initializeOffsetInfo(offsetInfo *offset.Offset) (bool, error
 
 // processParamInstruction processes an instruction with parameters.
 // Special handling is required as this instruction could branch to a different location.
-func (ar *Arch6502) processParamInstruction(address uint16, offsetInfo *offset.Offset) (string, error) {
+func (ar *Arch6502) processParamInstruction(address uint16, offsetInfo *offset.DisasmOffset) (string, error) {
 	opcode := offsetInfo.Opcode
 	pc := ar.dis.ProgramCounter()
 	param, opcodes, err := ar.ReadOpParam(opcode.Addressing(), pc)
@@ -81,7 +81,7 @@ func (ar *Arch6502) processParamInstruction(address uint16, offsetInfo *offset.O
 
 // handleInstructionIRQOverlap handles an instruction overlapping with the start of the IRQ handlers.
 // The opcodes are cut until the start of the IRQ handlers and the offset is converted to type data.
-func (ar *Arch6502) handleInstructionIRQOverlap(address uint16, offsetInfo *offset.Offset) {
+func (ar *Arch6502) handleInstructionIRQOverlap(address uint16, offsetInfo *offset.DisasmOffset) {
 	if address > m6502.InterruptVectorStartAddress {
 		return
 	}

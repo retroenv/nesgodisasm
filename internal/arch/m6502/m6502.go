@@ -91,7 +91,7 @@ func (ar *Arch6502) LastCodeAddress() uint16 {
 	return m6502.InterruptVectorStartAddress
 }
 
-func (ar *Arch6502) ProcessOffset(address uint16, offsetInfo *offset.Offset) (bool, error) {
+func (ar *Arch6502) ProcessOffset(address uint16, offsetInfo *offset.DisasmOffset) (bool, error) {
 	inspectCode, err := ar.initializeOffsetInfo(offsetInfo)
 	if err != nil {
 		return false, err

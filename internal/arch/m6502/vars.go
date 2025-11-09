@@ -8,7 +8,7 @@ import (
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 )
 
-func (ar *Arch6502) ProcessVariableUsage(offsetInfo *offset.Offset, reference string) error {
+func (ar *Arch6502) ProcessVariableUsage(offsetInfo *offset.DisasmOffset, reference string) error {
 	addressing := m6502.AddressingMode(offsetInfo.Opcode.Addressing())
 	converted, err := parameter.String(ar.converter, addressing, reference)
 	if err != nil {

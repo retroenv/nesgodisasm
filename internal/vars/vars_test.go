@@ -17,20 +17,23 @@ func (m *mockArch) IsAddressingIndexed(opcode instruction.Opcode) bool {
 	return m.indexed
 }
 
-func (m *mockArch) ProcessVariableUsage(offsetInfo *offset.Offset, reference string) error {
+func (m *mockArch) ProcessVariableUsage(offsetInfo *offset.DisasmOffset, reference string) error {
 	return nil
 }
 
 type mockMapper struct {
-	offsets map[uint16]*offset.Offset
+	offsets map[uint16]*offset.DisasmOffset
 }
 
 type mockBank struct {
 	id int
 }
 
-func (m *mockBank) ID() int                                { return m.id }
-func (m *mockBank) OffsetInfo(index uint16) *offset.Offset { return &offset.Offset{} }
+func (m *mockBank) ID() int { return m.id }
+
+func (m *mockBank) OffsetInfo(index uint16) *offset.DisasmOffset {
+	return &offset.DisasmOffset{}
+}
 
 func (m *mockMapper) GetMappedBank(address uint16) offset.MappedBank {
 	return &mockBank{id: 0}
@@ -40,11 +43,11 @@ func (m *mockMapper) GetMappedBankIndex(address uint16) uint16 {
 	return 0
 }
 
-func (m *mockMapper) OffsetInfo(address uint16) *offset.Offset {
+func (m *mockMapper) OffsetInfo(address uint16) *offset.DisasmOffset {
 	if off, ok := m.offsets[address]; ok {
 		return off
 	}
-	off := &offset.Offset{}
+	off := &offset.DisasmOffset{}
 	off.Data = []byte{}
 	return off
 }
@@ -62,7 +65,7 @@ func (m *mockOpcode) ReadWritesMemory() bool               { return false }
 
 func setup() *Vars {
 	vars := New(&mockArch{})
-	mapper := &mockMapper{offsets: make(map[uint16]*offset.Offset)}
+	mapper := &mockMapper{offsets: make(map[uint16]*offset.DisasmOffset)}
 	vars.InjectDependencies(Dependencies{Mapper: mapper})
 	return vars
 }
@@ -115,7 +118,7 @@ func TestAddReference(t *testing.T) {
 
 	t.Run("marks indexed usage", func(t *testing.T) {
 		vars := New(&mockArch{indexed: true})
-		mapper := &mockMapper{offsets: make(map[uint16]*offset.Offset)}
+		mapper := &mockMapper{offsets: make(map[uint16]*offset.DisasmOffset)}
 		vars.InjectDependencies(Dependencies{Mapper: mapper})
 
 		vars.AddReference(0x0010, 0x8000, &mockOpcode{reads: true}, false)
@@ -141,15 +144,15 @@ func TestGenerateVariableName(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		offsetInfo   *offset.Offset
+		offsetInfo   *offset.DisasmOffset
 		indexedUsage bool
 		address      uint16
 		want         string
 	}{
 		{
 			name: "uses existing label",
-			offsetInfo: func() *offset.Offset {
-				off := &offset.Offset{}
+			offsetInfo: func() *offset.DisasmOffset {
+				off := &offset.DisasmOffset{}
 				off.Label = "ExistingLabel"
 				return off
 			}(),
@@ -158,16 +161,16 @@ func TestGenerateVariableName(t *testing.T) {
 		},
 		{
 			name: "jump table",
-			offsetInfo: func() *offset.Offset {
-				off := &offset.Offset{}
+			offsetInfo: func() *offset.DisasmOffset {
+				off := &offset.DisasmOffset{}
 				off.Type = program.JumpTable
 				return off
 			}(),
 			address: 0x8000,
 			want:    "_jump_table_8000",
 		},
-		{name: "indexed data", offsetInfo: &offset.Offset{}, indexedUsage: true, address: 0x8000, want: "_data_8000_indexed"},
-		{name: "data", offsetInfo: &offset.Offset{}, indexedUsage: false, address: 0x8000, want: "_data_8000"},
+		{name: "indexed data", offsetInfo: &offset.DisasmOffset{}, indexedUsage: true, address: 0x8000, want: "_data_8000_indexed"},
+		{name: "data", offsetInfo: &offset.DisasmOffset{}, indexedUsage: false, address: 0x8000, want: "_data_8000"},
 		{name: "indexed var", offsetInfo: nil, indexedUsage: true, address: 0x0010, want: "_var_0010_indexed"},
 		{name: "var", offsetInfo: nil, indexedUsage: false, address: 0x0010, want: "_var_0010"},
 	}

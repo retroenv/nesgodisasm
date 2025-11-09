@@ -12,7 +12,7 @@ import (
 // initializeOffsetInfo initializes the offset info and returns
 // whether the offset should process inspection for code parameters.
 // It reads the CHIP-8 instruction bytes and identifies the opcode.
-func (c *Chip8) initializeOffsetInfo(offsetInfo *offset.Offset) (bool, error) {
+func (c *Chip8) initializeOffsetInfo(offsetInfo *offset.DisasmOffset) (bool, error) {
 	if offsetInfo.IsType(program.CodeOffset) {
 		return false, nil // was set by CDL
 	}

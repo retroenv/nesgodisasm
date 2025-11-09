@@ -222,7 +222,7 @@ func (m *Mapper) ReadMemory(address uint16) byte {
 	return b
 }
 
-func (m *Mapper) OffsetInfo(address uint16) *offset.Offset {
+func (m *Mapper) OffsetInfo(address uint16) *offset.DisasmOffset {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8)
@@ -305,7 +305,7 @@ func (m *Mapper) ApplyCodeDataLog(prgFlags []codedatalog.PrgFlag) {
 	}
 }
 
-func getProgramOffset(m *Mapper, address uint16, offsetInfo *offset.Offset) (program.Offset, error) {
+func getProgramOffset(m *Mapper, address uint16, offsetInfo *offset.DisasmOffset) (program.Offset, error) {
 	programOffset := offsetInfo.Offset
 	programOffset.Address = address
 
