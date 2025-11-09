@@ -5,11 +5,15 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
-	"github.com/retroenv/retrodisasm/internal/app"
 	"github.com/retroenv/retrodisasm/internal/arch/chip8"
 	"github.com/retroenv/retrodisasm/internal/arch/m6502"
 	"github.com/retroenv/retrodisasm/internal/assembler"
+	"github.com/retroenv/retrodisasm/internal/assembler/asm6"
+	"github.com/retroenv/retrodisasm/internal/assembler/ca65"
+	"github.com/retroenv/retrodisasm/internal/assembler/nesasm"
+	"github.com/retroenv/retrodisasm/internal/assembler/retroasm"
 	"github.com/retroenv/retrodisasm/internal/detector"
 	"github.com/retroenv/retrodisasm/internal/disasm"
 	"github.com/retroenv/retrodisasm/internal/loader"
@@ -74,7 +78,7 @@ func (p *Pipeline) Execute(ctx context.Context, opts options.Program, disasmOpts
 	}
 
 	// Print info before processing
-	app.PrintInfo(p.logger, opts, cart, system)
+	p.printInfo(opts, cart, system)
 
 	// Run disassembly
 	result, err := p.runDisassembly(ctx, dis, writer)
@@ -97,9 +101,9 @@ func (p *Pipeline) Execute(ctx context.Context, opts options.Program, disasmOpts
 func (p *Pipeline) createDisassembler(opts options.Program, disasmOpts options.Disassembler,
 	cart *cartridge.Cartridge, system arch.System) (*disasm.Disasm, error) {
 
-	fileWriterConstructor, paramConverter, err := app.InitializeAssemblerCompatibleMode(opts.Assembler)
+	fileWriterConstructor, paramConverter, err := p.initializeAssembler(opts.Assembler)
 	if err != nil {
-		return nil, fmt.Errorf("initializing assembler compatible mode: %w", err)
+		return nil, fmt.Errorf("initializing assembler: %w", err)
 	}
 
 	dis, err := p.createDisassemblerForSystem(system, paramConverter, cart, disasmOpts, fileWriterConstructor)
@@ -107,6 +111,35 @@ func (p *Pipeline) createDisassembler(opts options.Program, disasmOpts options.D
 		return nil, fmt.Errorf("creating disassembler: %w", err)
 	}
 	return dis, nil
+}
+
+// initializeAssembler creates the file writer constructor and parameter converter for the specified assembler.
+func (p *Pipeline) initializeAssembler(assemblerName string) (disasm.FileWriterConstructor, parameter.Converter, error) {
+	var fileWriterConstructor disasm.FileWriterConstructor
+	var paramCfg parameter.Config
+
+	switch strings.ToLower(assemblerName) {
+	case assembler.Asm6:
+		fileWriterConstructor = asm6.New
+		paramCfg = asm6.ParamConfig
+
+	case assembler.Ca65:
+		fileWriterConstructor = ca65.New
+		paramCfg = ca65.ParamConfig
+
+	case assembler.Nesasm:
+		fileWriterConstructor = nesasm.New
+		paramCfg = nesasm.ParamConfig
+
+	case assembler.Retroasm:
+		fileWriterConstructor = retroasm.New
+		paramCfg = retroasm.ParamConfig
+
+	default:
+		return nil, parameter.Converter{}, fmt.Errorf("unsupported assembler '%s'", assemblerName)
+	}
+
+	return fileWriterConstructor, parameter.New(paramCfg), nil
 }
 
 // createDisassemblerForSystem creates a disassembler for the specified system architecture.
@@ -144,6 +177,31 @@ func (p *Pipeline) runDisassembly(ctx context.Context, dis *disasm.Disasm, write
 		return nil, fmt.Errorf("processing disassembly: %w", err)
 	}
 	return result, nil
+}
+
+// printInfo prints information about the ROM being processed.
+func (p *Pipeline) printInfo(opts options.Program, cart *cartridge.Cartridge, system arch.System) {
+	if opts.Quiet {
+		return
+	}
+
+	switch system {
+	case arch.NES:
+		p.logger.Info("Processing NES ROM",
+			log.String("file", opts.Input),
+			log.Uint8("mapper", cart.Mapper),
+			log.String("assembler", opts.Assembler),
+		)
+		if cart.Mapper != 0 && cart.Mapper != 3 {
+			p.logger.Warn("Support for this mapper is experimental, multi bank mapper support is still in development")
+		}
+
+	case arch.CHIP8System:
+		p.logger.Info("Processing Chip-8 ROM",
+			log.String("file", opts.Input),
+			log.String("assembler", opts.Assembler),
+		)
+	}
 }
 
 // nopCloser wraps an io.Writer to add a no-op Close method.
