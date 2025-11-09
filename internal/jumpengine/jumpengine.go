@@ -313,7 +313,7 @@ func (j *JumpEngine) ScanForNewJumpEngineEntry(codeBaseAddress uint16) (bool, er
 				return true, nil
 			}
 			j.logger.Debug("Jump engine table",
-				log.String("address", fmt.Sprintf("0x%04X", engineCaller.tableStartAddress)),
+				log.Hex("address", engineCaller.tableStartAddress),
 				log.Int("entries", engineCaller.entries),
 			)
 

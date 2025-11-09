@@ -126,9 +126,9 @@ func checkBufferEqual(logger *log.Logger, input, output []byte) error {
 		diffs++
 		if diffs < 10 {
 			logger.Error("Offset mismatch",
-				log.String("offset", fmt.Sprintf("0x%04X", i)),
-				log.String("expected", fmt.Sprintf("0x%02X", input[i])),
-				log.String("got", fmt.Sprintf("0x%02X", output[i])))
+				log.Hex("offset", i),
+				log.Hex("expected", input[i]),
+				log.Hex("got", output[i]))
 		}
 	}
 	if diffs == 0 {

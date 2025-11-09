@@ -35,7 +35,7 @@ func (ar *Arch6502) checkForJumpEngineJmp(jumpAddress uint16, offsetInfo *offset
 	}
 
 	ar.logger.Debug("Jump engine detected",
-		log.String("address", fmt.Sprintf("0x%04X", jumpAddress)),
+		log.Hex("address", jumpAddress),
 		log.Uint16("code_size", contextSize),
 	)
 

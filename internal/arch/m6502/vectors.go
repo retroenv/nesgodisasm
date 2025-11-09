@@ -32,7 +32,7 @@ func (ar *Arch6502) initializeIrqHandlers() error {
 		return fmt.Errorf("reading NMI address: %w", err)
 	}
 	if nmi != 0 {
-		ar.logger.Debug("NMI handler", log.String("address", fmt.Sprintf("0x%04X", nmi)))
+		ar.logger.Debug("NMI handler", log.Hex("address", nmi))
 		offsetInfo := ar.mapper.OffsetInfo(nmi)
 		if offsetInfo != nil {
 			offsetInfo.Label = "NMI"
@@ -51,7 +51,7 @@ func (ar *Arch6502) initializeIrqHandlers() error {
 		}
 	}
 
-	ar.logger.Debug("Reset handler", log.String("address", fmt.Sprintf("0x%04X", reset)))
+	ar.logger.Debug("Reset handler", log.Hex("address", reset))
 	offsetInfo := ar.mapper.OffsetInfo(reset)
 	if offsetInfo != nil {
 		if offsetInfo.Label != "" {
@@ -66,7 +66,7 @@ func (ar *Arch6502) initializeIrqHandlers() error {
 		return fmt.Errorf("reading IRQ address: %w", err)
 	}
 	if irq != 0 {
-		ar.logger.Debug("IRQ handler", log.String("address", fmt.Sprintf("0x%04X", irq)))
+		ar.logger.Debug("IRQ handler", log.Hex("address", irq))
 		offsetInfo = ar.mapper.OffsetInfo(irq)
 		if offsetInfo != nil {
 			if offsetInfo.Label == "" {

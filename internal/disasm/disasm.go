@@ -168,7 +168,7 @@ func (dis *Disasm) SetCodeBaseAddress(address uint16) {
 	}
 
 	dis.logger.Debug("Code base address",
-		log.String("address", fmt.Sprintf("0x%04X", dis.codeBaseAddress)))
+		log.Hex("address", dis.codeBaseAddress))
 }
 
 func (dis *Disasm) SetVectorsStartAddress(address uint16) {
