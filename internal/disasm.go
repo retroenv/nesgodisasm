@@ -21,6 +21,7 @@ import (
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/system/nes/codedatalog"
 	"github.com/retroenv/retrogolib/log"
+	"github.com/retroenv/retrogolib/set"
 )
 
 type FileWriterConstructor func(app *program.Program, options options.Disassembler,
@@ -71,15 +72,15 @@ type Disasm struct {
 	jumpEngine *jumpengine.JumpEngine
 	vars       *vars.Vars
 
-	branchDestinations map[uint16]struct{} // set of all addresses that are branched to
+	branchDestinations set.Set[uint16] // set of all addresses that are branched to
 
 	// TODO handle bank switch
 	offsetsToParse      []uint16
-	offsetsToParseAdded map[uint16]struct{}
-	offsetsParsed       map[uint16]struct{}
+	offsetsToParseAdded set.Set[uint16]
+	offsetsParsed       set.Set[uint16]
 
 	functionReturnsToParse      []uint16
-	functionReturnsToParseAdded map[uint16]struct{}
+	functionReturnsToParseAdded set.Set[uint16]
 
 	mapper *mapper.Mapper
 }
@@ -95,10 +96,10 @@ func New(logger *log.Logger, ar architecture, cart *cartridge.Cartridge,
 		options:                     options,
 		cart:                        cart,
 		fileWriterConstructor:       fileWriterConstructor,
-		branchDestinations:          map[uint16]struct{}{},
-		offsetsToParseAdded:         map[uint16]struct{}{},
-		offsetsParsed:               map[uint16]struct{}{},
-		functionReturnsToParseAdded: map[uint16]struct{}{},
+		branchDestinations:          set.New[uint16](),
+		offsetsToParseAdded:         set.New[uint16](),
+		offsetsParsed:               set.New[uint16](),
+		functionReturnsToParseAdded: set.New[uint16](),
 	}
 
 	var err error

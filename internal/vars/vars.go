@@ -9,6 +9,7 @@ import (
 	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/arch/system/nes"
+	"github.com/retroenv/retrogolib/set"
 )
 
 const (
@@ -50,12 +51,12 @@ type Vars struct {
 	banks []*bank
 
 	variables     map[uint16]*variable
-	usedVariables map[uint16]struct{}
+	usedVariables set.Set[uint16]
 }
 
 type bank struct {
 	variables     map[uint16]*variable
-	usedVariables map[uint16]struct{}
+	usedVariables set.Set[uint16]
 }
 
 type variable struct {
@@ -73,7 +74,7 @@ func New(arch architecture) *Vars {
 	return &Vars{
 		arch:          arch,
 		variables:     make(map[uint16]*variable),
-		usedVariables: make(map[uint16]struct{}),
+		usedVariables: set.New[uint16](),
 	}
 }
 
@@ -153,7 +154,7 @@ func (v *Vars) Process(codeBaseAddress uint16) error {
 			dataOffsetInfo, varInfo.address, addressAdjustment = v.getOpcodeStart(varInfo.address)
 		} else {
 			// if the address is outside the code bank, a variable will be created
-			v.usedVariables[varInfo.address] = struct{}{}
+			v.usedVariables.Add(varInfo.address)
 
 			for _, bankRef := range varInfo.usageAt {
 				v.AddUsage(bankRef.ID, varInfo)
@@ -178,7 +179,7 @@ func (v *Vars) Process(codeBaseAddress uint16) error {
 func (v *Vars) AddBank() {
 	v.banks = append(v.banks, &bank{
 		variables:     make(map[uint16]*variable),
-		usedVariables: make(map[uint16]struct{}),
+		usedVariables: set.New[uint16](),
 	})
 }
 
@@ -186,7 +187,7 @@ func (v *Vars) AddBank() {
 func (v *Vars) AddUsage(bankIndex int, varInfo *variable) {
 	bank := v.banks[bankIndex]
 	bank.variables[varInfo.address] = varInfo
-	bank.usedVariables[varInfo.address] = struct{}{}
+	bank.usedVariables.Add(varInfo.address)
 }
 
 // getOpcodeStart returns a reference to the opcode start of the given address.

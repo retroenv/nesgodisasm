@@ -21,10 +21,10 @@ func (dis *Disasm) followExecutionFlow() error {
 		}
 		address := uint16(addr)
 
-		if _, ok := dis.offsetsParsed[address]; ok {
+		if dis.offsetsParsed.Contains(address) {
 			continue
 		}
-		dis.offsetsParsed[address] = struct{}{}
+		dis.offsetsParsed.Add(address)
 
 		dis.pc = address
 		offsetInfo := dis.mapper.OffsetInfo(dis.pc)
@@ -76,8 +76,7 @@ func (dis *Disasm) checkInstructionOverlap(address uint16, offsetInfo *offset.Of
 
 // isBranchDestination checks if an address is a branch destination.
 func (dis *Disasm) isBranchDestination(address uint16) bool {
-	_, ok := dis.branchDestinations[address]
-	return ok
+	return dis.branchDestinations.Contains(address)
 }
 
 // addressToDisassemble returns the next address to disassemble, if there are no more addresses to parse,
@@ -95,7 +94,7 @@ func (dis *Disasm) addressToDisassemble() (int, error) {
 			address := dis.functionReturnsToParse[0]
 			dis.functionReturnsToParse = dis.functionReturnsToParse[1:]
 
-			_, ok := dis.functionReturnsToParseAdded[address]
+			ok := dis.functionReturnsToParseAdded.Contains(address)
 			// if the address was removed from the set it marks the address as not being parsed anymore,
 			// this way is more efficient than iterating the slice to delete the element
 			if !ok {
@@ -145,20 +144,20 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 		}
 		bankRef.ID = bankRef.Mapped.ID()
 		offsetInfo.BranchFrom = append(offsetInfo.BranchFrom, bankRef)
-		dis.branchDestinations[address] = struct{}{}
+		dis.branchDestinations.Add(address)
 	}
 
-	if _, ok := dis.offsetsToParseAdded[address]; ok {
+	if dis.offsetsToParseAdded.Contains(address) {
 		return
 	}
-	dis.offsetsToParseAdded[address] = struct{}{}
+	dis.offsetsToParseAdded.Add(address)
 
 	// add instructions that follow a function call to a special queue with lower priority, to allow the
 	// jump engine be detected before trying to parse the data following the call, which in case of a jump
 	// engine is not code but pointers to functions.
 	if currentInstruction != nil && currentInstruction.IsCall() {
 		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
-		dis.functionReturnsToParseAdded[address] = struct{}{}
+		dis.functionReturnsToParseAdded.Add(address)
 	} else {
 		dis.offsetsToParse = append(dis.offsetsToParse, address)
 	}
@@ -166,5 +165,5 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 
 // DeleteFunctionReturnToParse deletes a function return address from the list of addresses to parse.
 func (dis *Disasm) DeleteFunctionReturnToParse(address uint16) {
-	delete(dis.functionReturnsToParseAdded, address)
+	dis.functionReturnsToParseAdded.Remove(address)
 }

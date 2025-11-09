@@ -9,6 +9,7 @@ import (
 	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrogolib/log"
+	"github.com/retroenv/retrogolib/set"
 )
 
 const jumpEngineLastInstructionsCheck = 16
@@ -60,7 +61,7 @@ type JumpEngine struct {
 	mapper mapper
 	logger *log.Logger
 
-	jumpEngines            map[uint16]struct{} // set of all jump engine functions addresses
+	jumpEngines            set.Set[uint16]     // set of all jump engine functions addresses
 	jumpEngineCallers      []*jumpEngineCaller // jump engine caller tables to process
 	jumpEngineCallersAdded map[uint16]*jumpEngineCaller
 }
@@ -69,7 +70,7 @@ func New(logger *log.Logger, ar architecture) *JumpEngine {
 	return &JumpEngine{
 		arch:                   ar,
 		logger:                 logger,
-		jumpEngines:            map[uint16]struct{}{},
+		jumpEngines:            set.New[uint16](),
 		jumpEngineCallers:      []*jumpEngineCaller{},
 		jumpEngineCallersAdded: map[uint16]*jumpEngineCaller{},
 	}
@@ -83,7 +84,7 @@ func (j *JumpEngine) InjectDependencies(deps Dependencies) {
 
 // AddJumpEngine adds a jump engine function address to the list of jump engines.
 func (j *JumpEngine) AddJumpEngine(address uint16) {
-	j.jumpEngines[address] = struct{}{}
+	j.jumpEngines.Add(address)
 }
 
 // GetFunctionTableReference detects a jump engine function context and its function table.
