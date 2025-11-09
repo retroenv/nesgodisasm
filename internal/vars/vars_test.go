@@ -199,19 +199,56 @@ func TestSetToProgram(t *testing.T) {
 	})
 }
 
-func TestSetBankVariables(t *testing.T) {
-	vars := New(&mockArch{})
-	vars.AddBank()
-	bank := vars.Bank(0)
+func TestAssignBankVariables(t *testing.T) {
+	t.Run("assigns single variable", func(t *testing.T) {
+		vars := New(&mockArch{})
+		vars.AddBank()
+		bank := vars.Bank(0)
 
-	varInfo := &variable{address: 0x0010, name: "_var_0010"}
-	bank.Set(0x0010, varInfo)
-	bank.Used().Add(0x0010)
+		varInfo := &variable{address: 0x0010, name: "_var_0010"}
+		bank.Set(0x0010, varInfo)
+		bank.Used().Add(0x0010)
 
-	prgBank := program.NewPRGBank(0x4000)
-	vars.SetBankVariables(0, prgBank)
+		prgBank := program.NewPRGBank(0x4000)
+		vars.AssignBankVariables(0, prgBank)
 
-	assert.Equal(t, uint16(0x0010), prgBank.Variables["_var_0010"])
+		assert.Equal(t, uint16(0x0010), prgBank.Variables["_var_0010"])
+	})
+
+	t.Run("handles empty bank", func(t *testing.T) {
+		vars := New(&mockArch{})
+		vars.AddBank()
+
+		prgBank := program.NewPRGBank(0x4000)
+		vars.AssignBankVariables(0, prgBank)
+
+		assert.Equal(t, 0, len(prgBank.Variables))
+	})
+
+	t.Run("assigns multiple variables", func(t *testing.T) {
+		vars := New(&mockArch{})
+		vars.AddBank()
+		bank := vars.Bank(0)
+
+		var1 := &variable{address: 0x0010, name: "_var_0010"}
+		var2 := &variable{address: 0x0020, name: "_var_0020"}
+		var3 := &variable{address: 0x0030, name: "_var_0030"}
+
+		bank.Set(0x0010, var1)
+		bank.Set(0x0020, var2)
+		bank.Set(0x0030, var3)
+		bank.Used().Add(0x0010)
+		bank.Used().Add(0x0020)
+		bank.Used().Add(0x0030)
+
+		prgBank := program.NewPRGBank(0x4000)
+		vars.AssignBankVariables(0, prgBank)
+
+		assert.Equal(t, 3, len(prgBank.Variables))
+		assert.Equal(t, uint16(0x0010), prgBank.Variables["_var_0010"])
+		assert.Equal(t, uint16(0x0020), prgBank.Variables["_var_0020"])
+		assert.Equal(t, uint16(0x0030), prgBank.Variables["_var_0030"])
+	})
 }
 
 func TestAddUsage(t *testing.T) {

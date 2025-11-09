@@ -107,8 +107,8 @@ func (c *Consts) SetToProgram(app *program.Program) {
 	}
 }
 
-// SetBankConstants sets the used constants in the bank for outputting.
-func (c *Consts) SetBankConstants(bankID int, prgBank *program.PRGBank) {
+// AssignBankConstants assigns the used constants to the bank for outputting.
+func (c *Consts) AssignBankConstants(bankID int, prgBank *program.PRGBank) {
 	bank := c.Bank(bankID)
 	for address := range bank.Used() {
 		constantInfo, _ := bank.Get(address)

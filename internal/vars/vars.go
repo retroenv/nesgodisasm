@@ -166,8 +166,8 @@ func (v *Vars) AddUsage(bankIndex int, varInfo *variable) {
 	bank.Used().Add(varInfo.address)
 }
 
-// SetBankVariables sets the used variables in the bank for outputting.
-func (v *Vars) SetBankVariables(bankID int, prgBank *program.PRGBank) {
+// AssignBankVariables assigns the used variables to the bank for outputting.
+func (v *Vars) AssignBankVariables(bankID int, prgBank *program.PRGBank) {
 	bank := v.Bank(bankID)
 	for address := range bank.Used() {
 		varInfo, _ := bank.Get(address)

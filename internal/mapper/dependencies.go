@@ -17,16 +17,16 @@ type architecture interface {
 type variableManager interface {
 	// AddBank adds a new bank to the variable manager.
 	AddBank()
-	// SetBankVariables sets the used variables in the bank for outputting.
-	SetBankVariables(bankID int, prgBank *program.PRGBank)
+	// AssignBankVariables assigns the used variables to the bank for outputting.
+	AssignBankVariables(bankID int, prgBank *program.PRGBank)
 }
 
 // constantManager defines the minimal interface needed for constant management
 type constantManager interface {
 	// AddBank adds a new bank to the constant manager.
 	AddBank()
-	// SetBankConstants sets the used constants in the bank for outputting.
-	SetBankConstants(bankID int, prgBank *program.PRGBank)
+	// AssignBankConstants assigns the used constants to the bank for outputting.
+	AssignBankConstants(bankID int, prgBank *program.PRGBank)
 }
 
 // disasm defines the minimal interface needed from the disassembler.

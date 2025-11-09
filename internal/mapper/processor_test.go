@@ -10,32 +10,98 @@ import (
 	"github.com/retroenv/retrogolib/assert"
 )
 
-func TestProcessData(t *testing.T) {
-	cart := &cartridge.Cartridge{
-		PRG: []byte{0x10, 0x20, 0x30, 0x40, 0x50},
-	}
-	arch := &mockArchitecture{bankWindowSize: 0}
+//nolint:funlen // test functions can be long
+func TestClassifyRemainingAsData(t *testing.T) {
+	t.Run("classifies unclassified offsets as data", func(t *testing.T) {
+		cart := &cartridge.Cartridge{
+			PRG: []byte{0x10, 0x20, 0x30, 0x40, 0x50},
+		}
+		arch := &mockArchitecture{bankWindowSize: 0}
 
-	mapper, err := New(arch, cart)
-	assert.NoError(t, err)
+		mapper, err := New(arch, cart)
+		assert.NoError(t, err)
 
-	// Mark some offsets as code, others as unclassified
-	mapper.banks[0].offsets[0].SetType(program.CodeOffset)
-	// offset[1] is unclassified - should become data
-	mapper.banks[0].offsets[2].SetType(program.DataOffset)
-	// offset[3] is unclassified - should become data
-	mapper.banks[0].offsets[4].SetType(program.FunctionReference)
+		// Mark some offsets as code, others as unclassified
+		mapper.banks[0].offsets[0].SetType(program.CodeOffset)
+		// offset[1] is unclassified - should become data
+		mapper.banks[0].offsets[2].SetType(program.DataOffset)
+		// offset[3] is unclassified - should become data
+		mapper.banks[0].offsets[4].SetType(program.FunctionReference)
 
-	mapper.ProcessData()
+		mapper.ClassifyRemainingAsData()
 
-	// Verify unclassified offsets were marked as data
-	assert.Equal(t, 0, len(mapper.banks[0].offsets[0].Data)) // Code - no data set
-	assert.Equal(t, 1, len(mapper.banks[0].offsets[1].Data)) // Unclassified - data set
-	assert.Equal(t, byte(0x20), mapper.banks[0].offsets[1].Data[0])
-	assert.Equal(t, 0, len(mapper.banks[0].offsets[2].Data)) // Already data - no change
-	assert.Equal(t, 1, len(mapper.banks[0].offsets[3].Data)) // Unclassified - data set
-	assert.Equal(t, byte(0x40), mapper.banks[0].offsets[3].Data[0])
-	assert.Equal(t, 0, len(mapper.banks[0].offsets[4].Data)) // Function ref - no data set
+		// Verify unclassified offsets were marked as data
+		assert.Equal(t, 0, len(mapper.banks[0].offsets[0].Data)) // Code - no data set
+		assert.Equal(t, 1, len(mapper.banks[0].offsets[1].Data)) // Unclassified - data set
+		assert.Equal(t, byte(0x20), mapper.banks[0].offsets[1].Data[0])
+		assert.Equal(t, 0, len(mapper.banks[0].offsets[2].Data)) // Already data - no change
+		assert.Equal(t, 1, len(mapper.banks[0].offsets[3].Data)) // Unclassified - data set
+		assert.Equal(t, byte(0x40), mapper.banks[0].offsets[3].Data[0])
+		assert.Equal(t, 0, len(mapper.banks[0].offsets[4].Data)) // Function ref - no data set
+	})
+
+	t.Run("handles all code bank", func(t *testing.T) {
+		cart := &cartridge.Cartridge{
+			PRG: []byte{0xEA, 0xEA, 0xEA},
+		}
+		arch := &mockArchitecture{bankWindowSize: 0}
+
+		mapper, err := New(arch, cart)
+		assert.NoError(t, err)
+
+		// Mark all offsets as code
+		for i := range mapper.banks[0].offsets {
+			mapper.banks[0].offsets[i].SetType(program.CodeOffset)
+		}
+
+		mapper.ClassifyRemainingAsData()
+
+		// Verify no data was set (all code)
+		for i := range mapper.banks[0].offsets {
+			assert.Equal(t, 0, len(mapper.banks[0].offsets[i].Data))
+		}
+	})
+
+	t.Run("handles all unclassified bank", func(t *testing.T) {
+		cart := &cartridge.Cartridge{
+			PRG: []byte{0x00, 0x01, 0x02},
+		}
+		arch := &mockArchitecture{bankWindowSize: 0}
+
+		mapper, err := New(arch, cart)
+		assert.NoError(t, err)
+
+		// All offsets are unclassified by default
+		mapper.ClassifyRemainingAsData()
+
+		// Verify all offsets were marked as data
+		for i := range mapper.banks[0].offsets {
+			assert.Equal(t, 1, len(mapper.banks[0].offsets[i].Data))
+			assert.Equal(t, cart.PRG[i], mapper.banks[0].offsets[i].Data[0])
+		}
+	})
+
+	t.Run("handles multiple banks", func(t *testing.T) {
+		cart := &cartridge.Cartridge{
+			PRG: make([]byte, 0x10000), // Large enough for 2 banks
+		}
+		arch := &mockArchitecture{bankWindowSize: 0x4000}
+
+		mapper, err := New(arch, cart)
+		assert.NoError(t, err)
+
+		// Mark some offsets in each bank
+		mapper.banks[0].offsets[0].SetType(program.CodeOffset)
+		mapper.banks[1].offsets[0].SetType(program.CodeOffset)
+
+		mapper.ClassifyRemainingAsData()
+
+		// Verify unclassified offsets in both banks were marked as data
+		assert.Equal(t, 0, len(mapper.banks[0].offsets[0].Data))
+		assert.Equal(t, 1, len(mapper.banks[0].offsets[1].Data))
+		assert.Equal(t, 0, len(mapper.banks[1].offsets[0].Data))
+		assert.Equal(t, 1, len(mapper.banks[1].offsets[1].Data))
+	})
 }
 
 func TestSetProgramBanks_SingleBank(t *testing.T) {
@@ -75,7 +141,7 @@ func TestSetProgramBanks_SingleBank(t *testing.T) {
 	assert.Equal(t, "CODE", app.PRG[0].Name)
 	assert.Equal(t, 0x100, len(app.PRG[0].Offsets))
 
-	// Verify SetBankVariables and SetBankConstants were called
+	// Verify AssignBankVariables and AssignBankConstants were called
 	assert.Equal(t, 1, mockVars.setBankCalls)
 	assert.Equal(t, 1, mockConsts.setBankCalls)
 }
@@ -112,7 +178,7 @@ func TestSetProgramBanks_MultiBanks(t *testing.T) {
 	assert.Equal(t, "PRG_BANK_0", app.PRG[0].Name)
 	assert.Equal(t, "PRG_BANK_1", app.PRG[1].Name)
 
-	// Verify SetBankVariables and SetBankConstants were called for each bank
+	// Verify AssignBankVariables and AssignBankConstants were called for each bank
 	assert.Equal(t, 2, mockVars.setBankCalls)
 	assert.Equal(t, 2, mockConsts.setBankCalls)
 }

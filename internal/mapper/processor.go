@@ -8,9 +8,9 @@ import (
 	"github.com/retroenv/retrodisasm/internal/program"
 )
 
-// ProcessData sets all data bytes for offsets that have not been identified as code.
-// It iterates through all banks and marks unclassified bytes as data.
-func (m *Mapper) ProcessData() {
+// ClassifyRemainingAsData marks all unclassified bytes as data.
+// It iterates through all banks and marks bytes that have not been identified as code or data.
+func (m *Mapper) ClassifyRemainingAsData() {
 	for _, bnk := range m.banks {
 		for i, offsetInfo := range bnk.offsets {
 			if offsetInfo.IsType(program.CodeOffset) ||
@@ -42,8 +42,8 @@ func (m *Mapper) SetProgramBanks(app *program.Program) error {
 			prgBank.Offsets[i] = programOffsetInfo
 		}
 
-		m.consts.SetBankConstants(bnkIndex, prgBank)
-		m.vars.SetBankVariables(bnkIndex, prgBank)
+		m.consts.AssignBankConstants(bnkIndex, prgBank)
+		m.vars.AssignBankVariables(bnkIndex, prgBank)
 
 		setBankName(prgBank, bnkIndex, len(m.banks))
 		setBankVectors(bnk, prgBank)

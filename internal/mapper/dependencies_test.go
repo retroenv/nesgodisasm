@@ -36,7 +36,7 @@ func (m *mockVariableManager) AddBank() {
 	m.bankCount++
 }
 
-func (m *mockVariableManager) SetBankVariables(bankID int, prgBank *program.PRGBank) {
+func (m *mockVariableManager) AssignBankVariables(bankID int, prgBank *program.PRGBank) {
 	m.setBankCalls++
 	m.lastBankID = bankID
 	m.lastPrgBank = prgBank
@@ -54,7 +54,7 @@ func (m *mockConstantManager) AddBank() {
 	m.bankCount++
 }
 
-func (m *mockConstantManager) SetBankConstants(bankID int, prgBank *program.PRGBank) {
+func (m *mockConstantManager) AssignBankConstants(bankID int, prgBank *program.PRGBank) {
 	m.setBankCalls++
 	m.lastBankID = bankID
 	m.lastPrgBank = prgBank

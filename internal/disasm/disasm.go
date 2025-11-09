@@ -128,7 +128,7 @@ func (dis *Disasm) Process(ctx context.Context, mainWriter io.Writer, newBankWri
 		return nil, err
 	}
 
-	dis.mapper.ProcessData()
+	dis.mapper.ClassifyRemainingAsData()
 	if err := dis.vars.Process(dis.codeBaseAddress); err != nil {
 		return nil, fmt.Errorf("processing variables: %w", err)
 	}

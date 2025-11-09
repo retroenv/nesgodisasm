@@ -190,21 +190,78 @@ func TestSetToProgram(t *testing.T) {
 	})
 }
 
-func TestSetBankConstants(t *testing.T) {
-	arch := &mockArch{
-		constants: map[uint16]Constant{
-			0x2000: {Address: 0x2000, Read: "PPU_CTRL", Write: "PPU_CTRL_W"},
-		},
-	}
-	consts, _ := New(arch)
-	consts.AddBank()
+//nolint:funlen // test functions can be long
+func TestAssignBankConstants(t *testing.T) {
+	t.Run("assigns constants with read and write names", func(t *testing.T) {
+		arch := &mockArch{
+			constants: map[uint16]Constant{
+				0x2000: {Address: 0x2000, Read: "PPU_CTRL", Write: "PPU_CTRL_W"},
+			},
+		}
+		consts, _ := New(arch)
+		consts.AddBank()
 
-	bank := consts.Bank(0)
-	consts.AddBankItem(bank, 0x2000, Constant{Address: 0x2000, Read: "PPU_CTRL", Write: "PPU_CTRL_W"})
+		bank := consts.Bank(0)
+		consts.AddBankItem(bank, 0x2000, Constant{Address: 0x2000, Read: "PPU_CTRL", Write: "PPU_CTRL_W"})
 
-	prgBank := program.NewPRGBank(0x4000)
-	consts.SetBankConstants(0, prgBank)
+		prgBank := program.NewPRGBank(0x4000)
+		consts.AssignBankConstants(0, prgBank)
 
-	assert.Equal(t, uint16(0x2000), prgBank.Constants["PPU_CTRL"])
-	assert.Equal(t, uint16(0x2000), prgBank.Constants["PPU_CTRL_W"])
+		assert.Equal(t, uint16(0x2000), prgBank.Constants["PPU_CTRL"])
+		assert.Equal(t, uint16(0x2000), prgBank.Constants["PPU_CTRL_W"])
+	})
+
+	t.Run("handles empty bank", func(t *testing.T) {
+		arch := &mockArch{constants: map[uint16]Constant{}}
+		consts, _ := New(arch)
+		consts.AddBank()
+
+		prgBank := program.NewPRGBank(0x4000)
+		consts.AssignBankConstants(0, prgBank)
+
+		assert.Equal(t, 0, len(prgBank.Constants))
+	})
+
+	t.Run("assigns multiple constants", func(t *testing.T) {
+		arch := &mockArch{
+			constants: map[uint16]Constant{
+				0x2000: {Address: 0x2000, Read: "PPU_CTRL", Write: "PPU_CTRL_W"},
+				0x2001: {Address: 0x2001, Read: "PPU_MASK", Write: "PPU_MASK_W"},
+			},
+		}
+		consts, _ := New(arch)
+		consts.AddBank()
+
+		bank := consts.Bank(0)
+		consts.AddBankItem(bank, 0x2000, Constant{Address: 0x2000, Read: "PPU_CTRL", Write: "PPU_CTRL_W"})
+		consts.AddBankItem(bank, 0x2001, Constant{Address: 0x2001, Read: "PPU_MASK", Write: "PPU_MASK_W"})
+
+		prgBank := program.NewPRGBank(0x4000)
+		consts.AssignBankConstants(0, prgBank)
+
+		assert.Equal(t, 4, len(prgBank.Constants))
+		assert.Equal(t, uint16(0x2000), prgBank.Constants["PPU_CTRL"])
+		assert.Equal(t, uint16(0x2000), prgBank.Constants["PPU_CTRL_W"])
+		assert.Equal(t, uint16(0x2001), prgBank.Constants["PPU_MASK"])
+		assert.Equal(t, uint16(0x2001), prgBank.Constants["PPU_MASK_W"])
+	})
+
+	t.Run("skips empty constant names", func(t *testing.T) {
+		arch := &mockArch{
+			constants: map[uint16]Constant{
+				0x2000: {Address: 0x2000, Read: "PPU_CTRL", Write: ""},
+			},
+		}
+		consts, _ := New(arch)
+		consts.AddBank()
+
+		bank := consts.Bank(0)
+		consts.AddBankItem(bank, 0x2000, Constant{Address: 0x2000, Read: "PPU_CTRL", Write: ""})
+
+		prgBank := program.NewPRGBank(0x4000)
+		consts.AssignBankConstants(0, prgBank)
+
+		assert.Equal(t, 1, len(prgBank.Constants))
+		assert.Equal(t, uint16(0x2000), prgBank.Constants["PPU_CTRL"])
+	})
 }
