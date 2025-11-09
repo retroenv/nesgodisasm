@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 
@@ -49,6 +50,11 @@ func main() {
 		}
 
 		if err := fileprocessor.ProcessFile(ctx, logger, opts, disasmOptions); err != nil {
+			// Handle context cancellation (Ctrl+C) gracefully
+			if errors.Is(err, context.Canceled) {
+				logger.Info("Operation cancelled")
+				return
+			}
 			logger.Error("Disassembling failed", log.Err(err))
 		}
 	}

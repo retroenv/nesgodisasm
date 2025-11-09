@@ -2,6 +2,7 @@
 package disasm
 
 import (
+	"context"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -122,8 +123,8 @@ func New(logger *log.Logger, ar architecture, cart *cartridge.Cartridge,
 }
 
 // Process disassembles the cartridge.
-func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBankWriter) (*program.Program, error) {
-	if err := dis.followExecutionFlow(); err != nil {
+func (dis *Disasm) Process(ctx context.Context, mainWriter io.Writer, newBankWriter assembler.NewBankWriter) (*program.Program, error) {
+	if err := dis.followExecutionFlow(ctx); err != nil {
 		return nil, err
 	}
 

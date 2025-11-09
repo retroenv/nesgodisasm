@@ -77,7 +77,7 @@ func (p *Pipeline) Execute(ctx context.Context, opts options.Program, disasmOpts
 	app.PrintInfo(p.logger, opts, cart, system)
 
 	// Run disassembly
-	result, err := p.runDisassembly(dis, writer)
+	result, err := p.runDisassembly(ctx, dis, writer)
 	if err != nil {
 		return nil, fmt.Errorf("disassembling: %w", err)
 	}
@@ -134,12 +134,12 @@ func (p *Pipeline) createDisassemblerForSystem(system arch.System, paramConverte
 }
 
 // runDisassembly executes the disassembly process.
-func (p *Pipeline) runDisassembly(dis *disasm.Disasm, writer io.Writer) (*program.Program, error) {
+func (p *Pipeline) runDisassembly(ctx context.Context, dis *disasm.Disasm, writer io.Writer) (*program.Program, error) {
 	newBankWriter := func(bankName string) (io.WriteCloser, error) {
 		return &nopCloser{writer}, nil
 	}
 
-	result, err := dis.Process(writer, newBankWriter)
+	result, err := dis.Process(ctx, writer, newBankWriter)
 	if err != nil {
 		return nil, fmt.Errorf("processing disassembly: %w", err)
 	}

@@ -3,6 +3,7 @@ package disasm
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -389,7 +390,7 @@ func runDisasm(t *testing.T, setup func(options *options.Disassembler, cart *car
 		return nil, nil // nolint: nilnil
 	}
 
-	app, err := disasm.Process(writer, newBankWriter)
+	app, err := disasm.Process(context.Background(), writer, newBankWriter)
 	assert.NoError(t, err)
 	assert.True(t, app != nil, "app should not be nil")
 

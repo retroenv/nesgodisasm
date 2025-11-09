@@ -1,6 +1,7 @@
 package disasm
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/retroenv/retrodisasm/internal/instruction"
@@ -64,8 +65,16 @@ func (dis *Disasm) DeleteFunctionReturnToParse(address uint16) {
 
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 // nolint: funlen
-func (dis *Disasm) followExecutionFlow() error {
+func (dis *Disasm) followExecutionFlow(ctx context.Context) error {
 	for {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("disassembly cancelled: %w", ctx.Err())
+		default:
+			// Continue processing
+		}
+
 		addr, err := dis.addressToDisassemble()
 		if err != nil {
 			return err
