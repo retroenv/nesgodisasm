@@ -35,11 +35,11 @@ func (m *mockMapper) ReadMemory(address uint16) byte {
 	return 0
 }
 
-func (m *mockMapper) GetMappedBank(uint16) offset.MappedBank {
+func (m *mockMapper) MappedBank(uint16) offset.MappedBank {
 	return nil
 }
 
-func (m *mockMapper) GetMappedBankIndex(uint16) uint16 {
+func (m *mockMapper) MappedBankIndex(uint16) uint16 {
 	return 0
 }
 

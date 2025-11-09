@@ -109,7 +109,7 @@ func (c *Consts) SetToProgram(app *program.Program) {
 
 // SetBankConstants sets the used constants in the bank for outputting.
 func (c *Consts) SetBankConstants(bankID int, prgBank *program.PRGBank) {
-	bank := c.GetBank(bankID)
+	bank := c.Bank(bankID)
 	for address := range bank.Used() {
 		constantInfo, _ := bank.Get(address)
 		if constantInfo.Read != "" {

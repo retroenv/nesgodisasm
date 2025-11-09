@@ -122,8 +122,8 @@ func TestBank(t *testing.T) {
 		mgr.AddBank()
 		mgr.AddBank()
 
-		bank0 := mgr.GetBank(0)
-		bank1 := mgr.GetBank(1)
+		bank0 := mgr.Bank(0)
+		bank1 := mgr.Bank(1)
 
 		bank0.Set(0x8000, testItem{name: "BANK0", value: 0x0000})
 		bank1.Set(0x8000, testItem{name: "BANK1", value: 0x0001})
@@ -137,7 +137,7 @@ func TestBank(t *testing.T) {
 	t.Run("bank set get has", func(t *testing.T) {
 		mgr := New[testItem]()
 		mgr.AddBank()
-		bank := mgr.GetBank(0)
+		bank := mgr.Bank(0)
 
 		item := testItem{name: "TEST", value: 0x1234}
 		bank.Set(0x8000, item)
@@ -154,8 +154,8 @@ func TestBank(t *testing.T) {
 		mgr.AddBank()
 		mgr.AddBank()
 
-		bank0 := mgr.GetBank(0)
-		bank1 := mgr.GetBank(1)
+		bank0 := mgr.Bank(0)
+		bank1 := mgr.Bank(1)
 
 		bank0.Set(0x8000, testItem{name: "BANK0", value: 0x0000})
 		bank0.Used().Add(0x8000)

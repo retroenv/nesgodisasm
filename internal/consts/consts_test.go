@@ -147,8 +147,8 @@ func TestProcess(t *testing.T) {
 		consts.MarkUsed(0x2000)
 		consts.Process()
 
-		bank0 := consts.GetBank(0)
-		bank1 := consts.GetBank(1)
+		bank0 := consts.Bank(0)
+		bank1 := consts.Bank(1)
 
 		assert.True(t, bank0.Used().Contains(0x2000))
 		assert.False(t, bank0.Used().Contains(0x2001))
@@ -199,7 +199,7 @@ func TestSetBankConstants(t *testing.T) {
 	consts, _ := New(arch)
 	consts.AddBank()
 
-	bank := consts.GetBank(0)
+	bank := consts.Bank(0)
 	consts.AddBankItem(bank, 0x2000, Constant{Address: 0x2000, Read: "PPU_CTRL", Write: "PPU_CTRL_W"})
 
 	prgBank := program.NewPRGBank(0x4000)

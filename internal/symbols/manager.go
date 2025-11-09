@@ -117,8 +117,8 @@ func (m *Manager[T]) Banks() []*Bank[T] {
 	return m.banks
 }
 
-// GetBank returns the bank at the given index.
-func (m *Manager[T]) GetBank(index int) *Bank[T] {
+// Bank returns the bank at the given index.
+func (m *Manager[T]) Bank(index int) *Bank[T] {
 	return m.banks[index]
 }
 

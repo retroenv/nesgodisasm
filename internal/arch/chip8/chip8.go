@@ -84,9 +84,9 @@ func (c *Chip8) Constants() (map[uint16]consts.Constant, error) {
 	return map[uint16]consts.Constant{}, nil
 }
 
-// GetAddressingParam extracts addressing parameters from CHIP-8 instructions.
+// AddressingParam extracts addressing parameters from CHIP-8 instructions.
 // CHIP-8 uses direct addressing with 12-bit addresses embedded in opcodes.
-func (c *Chip8) GetAddressingParam(param any) (uint16, bool) {
+func (c *Chip8) AddressingParam(param any) (uint16, bool) {
 	switch p := param.(type) {
 	case uint16:
 		return p, true

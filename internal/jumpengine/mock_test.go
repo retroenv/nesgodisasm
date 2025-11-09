@@ -9,8 +9,14 @@ import (
 // mockArchitecture is a minimal mock for testing.
 type mockArchitecture struct{}
 
-func (a *mockArchitecture) GetAddressingParam(param any) (uint16, bool) { return 0, false }
-func (a *mockArchitecture) LastCodeAddress() uint16                     { return 0xFFFF }
+func (a *mockArchitecture) AddressingParam(param any) (uint16, bool) {
+	return 0, false
+}
+
+func (a *mockArchitecture) LastCodeAddress() uint16 {
+	return 0xFFFF
+}
+
 func (a *mockArchitecture) ReadOpParam(int, uint16) (any, []byte, error) {
 	return nil, nil, nil
 }

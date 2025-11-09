@@ -35,11 +35,11 @@ func (m *mockBank) OffsetInfo(index uint16) *offset.DisasmOffset {
 	return &offset.DisasmOffset{}
 }
 
-func (m *mockMapper) GetMappedBank(address uint16) offset.MappedBank {
+func (m *mockMapper) MappedBank(address uint16) offset.MappedBank {
 	return &mockBank{id: 0}
 }
 
-func (m *mockMapper) GetMappedBankIndex(address uint16) uint16 {
+func (m *mockMapper) MappedBankIndex(address uint16) uint16 {
 	return 0
 }
 
@@ -202,7 +202,7 @@ func TestSetToProgram(t *testing.T) {
 func TestSetBankVariables(t *testing.T) {
 	vars := New(&mockArch{})
 	vars.AddBank()
-	bank := vars.GetBank(0)
+	bank := vars.Bank(0)
 
 	varInfo := &variable{address: 0x0010, name: "_var_0010"}
 	bank.Set(0x0010, varInfo)
@@ -221,7 +221,7 @@ func TestAddUsage(t *testing.T) {
 	varInfo := &variable{address: 0x0010, name: "_var_0010"}
 	vars.AddUsage(0, varInfo)
 
-	bank := vars.GetBank(0)
+	bank := vars.Bank(0)
 	got, ok := bank.Get(0x0010)
 	assert.True(t, ok)
 	assert.Equal(t, "_var_0010", got.name)

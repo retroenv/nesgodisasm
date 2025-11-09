@@ -100,7 +100,7 @@ func (ar *Arch6502) handleInstructionIRQOverlap(address uint16, offsetInfo *offs
 // a constant, zero page variable or a code reference.
 func (ar *Arch6502) replaceParamByAlias(address uint16, opcode instruction.Opcode, param any, paramAsString string) string {
 	forceVariableUsage := false
-	addressReference, addressValid := ar.GetAddressingParam(param)
+	addressReference, addressValid := ar.AddressingParam(param)
 	if !addressValid || addressReference >= m6502.InterruptVectorStartAddress {
 		return paramAsString
 	}

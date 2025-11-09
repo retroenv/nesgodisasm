@@ -30,12 +30,12 @@ type FileWriterConstructor func(app *program.Program, options options.Disassembl
 
 // architecture defines the minimal interface needed from the architecture.
 type architecture interface {
+	// AddressingParam returns the address of the param if it references an address.
+	AddressingParam(param any) (uint16, bool)
 	// BankWindowSize returns the bank window size.
 	BankWindowSize(cart *cartridge.Cartridge) int
 	// Constants returns the constants translation map.
 	Constants() (map[uint16]consts.Constant, error)
-	// GetAddressingParam returns the address of the param if it references an address.
-	GetAddressingParam(param any) (uint16, bool)
 	// HandleDisambiguousInstructions translates disambiguous instructions into data bytes.
 	HandleDisambiguousInstructions(address uint16, offsetInfo *offset.DisasmOffset) bool
 	// Initialize the architecture.
@@ -48,10 +48,10 @@ type architecture interface {
 	ProcessOffset(address uint16, offsetInfo *offset.DisasmOffset) (bool, error)
 	// ProcessVariableUsage processes the variable usage of an offset.
 	ProcessVariableUsage(offsetInfo *offset.DisasmOffset, reference string) error
-	// ReadOpParam reads the parameter of an opcode.
-	ReadOpParam(addressing int, address uint16) (any, []byte, error)
 	// ReadMemory reads a byte from memory at the given address using architecture-specific logic.
 	ReadMemory(address uint16) (byte, error)
+	// ReadOpParam reads the parameter of an opcode.
+	ReadOpParam(addressing int, address uint16) (any, []byte, error)
 }
 
 // Disasm implements a disassembler.

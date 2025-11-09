@@ -177,7 +177,7 @@ func (f FileWriter) writeVectors() error {
 
 // writeCode writes the code to the output.
 func (f FileWriter) writeCode(bank *program.PRGBank) error {
-	endIndex := bank.GetLastNonZeroByte(f.options)
+	endIndex := bank.LastNonZeroByte(f.options)
 	if err := f.writer.ProcessPRG(bank, endIndex); err != nil {
 		return fmt.Errorf("writing PRG: %w", err)
 	}

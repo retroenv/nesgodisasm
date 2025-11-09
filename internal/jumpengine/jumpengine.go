@@ -16,8 +16,8 @@ const jumpEngineLastInstructionsCheck = 16
 
 // architecture defines the minimal interface needed from arch.Architecture
 type architecture interface {
-	// GetAddressingParam returns the address of the param if it references an address.
-	GetAddressingParam(param any) (uint16, bool)
+	// AddressingParam returns the address of the param if it references an address.
+	AddressingParam(param any) (uint16, bool)
 	// LastCodeAddress returns the last possible address of code.
 	LastCodeAddress() uint16
 	// ReadOpParam reads the parameter of an opcode.
@@ -141,7 +141,7 @@ func (j *JumpEngine) GetContextDataReferences(offsets []*offset.DisasmOffset,
 			return nil, fmt.Errorf("reading opcode parameters: %w", err)
 		}
 
-		reference, ok := j.arch.GetAddressingParam(param)
+		reference, ok := j.arch.AddressingParam(param)
 		if ok && reference >= codeBaseAddress && reference < j.arch.LastCodeAddress() {
 			dataReferences = append(dataReferences, reference)
 		}

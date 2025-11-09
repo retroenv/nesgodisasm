@@ -34,8 +34,8 @@ type BankReference struct {
 
 // Mapper provides a mapper manager interface for architecture code.
 type Mapper interface {
-	GetMappedBank(address uint16) MappedBank
-	GetMappedBankIndex(address uint16) uint16
+	MappedBank(address uint16) MappedBank
+	MappedBankIndex(address uint16) uint16
 	// OffsetInfo returns the offset information for the given address.
 	OffsetInfo(address uint16) *DisasmOffset
 	// ReadMemory reads a byte from memory at the given address.

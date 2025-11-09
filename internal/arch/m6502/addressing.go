@@ -5,8 +5,8 @@ import (
 	"github.com/retroenv/retrogolib/arch/cpu/m6502"
 )
 
-// GetAddressingParam returns the address of the param if it references an address.
-func (ar *Arch6502) GetAddressingParam(param any) (uint16, bool) {
+// AddressingParam returns the address of the param if it references an address.
+func (ar *Arch6502) AddressingParam(param any) (uint16, bool) {
 	switch val := param.(type) {
 	case m6502.Absolute:
 		return uint16(val), true

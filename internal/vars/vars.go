@@ -29,10 +29,10 @@ type architecture interface {
 
 // mapper defines the minimal interface needed from the mapper
 type mapper interface {
-	// GetMappedBank returns the mapped bank for the given address.
-	GetMappedBank(address uint16) offset.MappedBank
-	// GetMappedBankIndex returns the mapped bank index for the given address.
-	GetMappedBankIndex(address uint16) uint16
+	// MappedBank returns the mapped bank for the given address.
+	MappedBank(address uint16) offset.MappedBank
+	// MappedBankIndex returns the mapped bank index for the given address.
+	MappedBankIndex(address uint16) uint16
 	// OffsetInfo returns the offset info for the given address.
 	OffsetInfo(address uint16) *offset.DisasmOffset
 }
@@ -100,9 +100,9 @@ func (v *Vars) AddReference(addressReference,
 	}
 
 	bankRef := offset.BankReference{
-		Mapped:  v.mapper.GetMappedBank(usageAddress),
+		Mapped:  v.mapper.MappedBank(usageAddress),
 		Address: usageAddress,
-		Index:   v.mapper.GetMappedBankIndex(usageAddress),
+		Index:   v.mapper.MappedBankIndex(usageAddress),
 	}
 	bankRef.ID = bankRef.Mapped.ID()
 	varInfo.usageAt = append(varInfo.usageAt, bankRef)
@@ -161,14 +161,14 @@ func (v *Vars) Process(codeBaseAddress uint16) error {
 
 // AddUsage adds a usage info of a variable to a bank.
 func (v *Vars) AddUsage(bankIndex int, varInfo *variable) {
-	bank := v.GetBank(bankIndex)
+	bank := v.Bank(bankIndex)
 	bank.Set(varInfo.address, varInfo)
 	bank.Used().Add(varInfo.address)
 }
 
 // SetBankVariables sets the used variables in the bank for outputting.
 func (v *Vars) SetBankVariables(bankID int, prgBank *program.PRGBank) {
-	bank := v.GetBank(bankID)
+	bank := v.Bank(bankID)
 	for address := range bank.Used() {
 		varInfo, _ := bank.Get(address)
 		prgBank.Variables[varInfo.name] = address

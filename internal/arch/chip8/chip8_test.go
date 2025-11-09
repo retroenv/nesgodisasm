@@ -25,7 +25,7 @@ func TestChip8_Constants(t *testing.T) {
 	assert.Empty(t, constants)
 }
 
-func TestChip8_GetAddressingParam(t *testing.T) {
+func TestChip8_AddressingParam(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
 
 	tests := []struct {
@@ -45,7 +45,7 @@ func TestChip8_GetAddressingParam(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			addr, valid := arch.GetAddressingParam(tt.param)
+			addr, valid := arch.AddressingParam(tt.param)
 			assert.Equal(t, tt.expected, addr)
 			assert.Equal(t, tt.valid, valid)
 		})
@@ -382,7 +382,7 @@ func TestChip8_Constants_EdgeCases(t *testing.T) {
 	assert.Equal(t, uint16(0xFFF), LastCodeAddress)
 }
 
-func TestChip8_GetAddressingParam_EdgeCases(t *testing.T) {
+func TestChip8_AddressingParam_EdgeCases(t *testing.T) {
 	arch := New(parameter.New(parameter.Config{}))
 
 	tests := []struct {
@@ -403,7 +403,7 @@ func TestChip8_GetAddressingParam_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			addr, valid := arch.GetAddressingParam(tt.param)
+			addr, valid := arch.AddressingParam(tt.param)
 			assert.Equal(t, tt.expected, addr)
 			assert.Equal(t, tt.valid, valid)
 		})

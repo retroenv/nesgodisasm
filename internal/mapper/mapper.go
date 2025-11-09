@@ -177,7 +177,7 @@ func (m *Mapper) setMappedBank(address uint16, bank mappedBank) {
 	m.mapped[bankWindow] = bank
 }
 
-func (m *Mapper) GetMappedBank(address uint16) offset.MappedBank {
+func (m *Mapper) MappedBank(address uint16) offset.MappedBank {
 	var bankWindow uint16
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8)
@@ -190,7 +190,7 @@ func (m *Mapper) GetMappedBank(address uint16) offset.MappedBank {
 	return mapped
 }
 
-func (m *Mapper) GetMappedBankIndex(address uint16) uint16 {
+func (m *Mapper) MappedBankIndex(address uint16) uint16 {
 	var index int
 	if m.bankWindowSize == 0 {
 		// Single bank system (e.g., CHIP-8) - subtract code base address to get ROM offset

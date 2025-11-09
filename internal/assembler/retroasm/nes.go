@@ -91,7 +91,7 @@ func (w *FileWriter) writeBank(bank *program.PRGBank, lastBank bool) error {
 		return fmt.Errorf("writing variables: %w", err)
 	}
 
-	endIndex := bank.GetLastNonZeroByte(w.options)
+	endIndex := bank.LastNonZeroByte(w.options)
 	if err := w.writer.ProcessPRG(bank, endIndex); err != nil {
 		return fmt.Errorf("writing PRG: %w", err)
 	}
@@ -146,7 +146,7 @@ func (w *FileWriter) writeCHR() error {
 		return nil
 	}
 
-	lastNonZeroByte := w.app.CHR.GetLastNonZeroByte()
+	lastNonZeroByte := w.app.CHR.LastNonZeroByte()
 	if err := w.writer.BundleDataWrites(w.app.CHR[:lastNonZeroByte], nil); err != nil {
 		return fmt.Errorf("writing CHR data: %w", err)
 	}

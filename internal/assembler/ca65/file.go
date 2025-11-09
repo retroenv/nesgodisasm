@@ -180,7 +180,7 @@ func (f FileWriter) writeCHR() error {
 		return nil
 	}
 
-	lastNonZeroByte := f.app.CHR.GetLastNonZeroByte()
+	lastNonZeroByte := f.app.CHR.LastNonZeroByte()
 	if err := f.writer.BundleDataWrites(f.app.CHR[:lastNonZeroByte], nil); err != nil {
 		return fmt.Errorf("writing CHR data: %w", err)
 	}
@@ -195,7 +195,7 @@ func (f FileWriter) writeCode(bank *program.PRGBank) error {
 		}
 	}
 
-	endIndex := bank.GetLastNonZeroByte(f.options)
+	endIndex := bank.LastNonZeroByte(f.options)
 	if err := f.writer.ProcessPRG(bank, endIndex); err != nil {
 		return fmt.Errorf("writing PRG: %w", err)
 	}

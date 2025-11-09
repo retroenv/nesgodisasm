@@ -24,8 +24,8 @@ type PRGBank struct {
 	Variables map[string]uint16
 }
 
-// GetLastNonZeroByte searches for the last byte in PRG that is not zero.
-func (bank PRGBank) GetLastNonZeroByte(options options.Disassembler) int {
+// LastNonZeroByte searches for the last byte in PRG that is not zero.
+func (bank PRGBank) LastNonZeroByte(options options.Disassembler) int {
 	endIndex := len(bank.Offsets) - 6 // leave space for vectors
 	if options.ZeroBytes {
 		return endIndex
