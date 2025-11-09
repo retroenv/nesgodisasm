@@ -1,5 +1,10 @@
 package program
 
+import (
+	"fmt"
+	"strings"
+)
+
 // OffsetType defines the type of a program offset.
 type OffsetType uint8
 
@@ -30,4 +35,18 @@ func (o *Offset) SetType(typ OffsetType) {
 func (o *Offset) ClearType(typ OffsetType) {
 	mask := ^(typ)
 	o.Type &= mask
+}
+
+// HexCodeComment formats the offset data as hexadecimal string for code comments.
+func (o *Offset) HexCodeComment() (string, error) {
+	buf := &strings.Builder{}
+
+	for _, b := range o.Data {
+		if _, err := fmt.Fprintf(buf, "%02X ", b); err != nil {
+			return "", fmt.Errorf("writing hex comment: %w", err)
+		}
+	}
+
+	comment := strings.TrimRight(buf.String(), " ")
+	return comment, nil
 }
