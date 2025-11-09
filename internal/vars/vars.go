@@ -211,31 +211,7 @@ func (v *Vars) getOpcodeStart(address uint16) (*offset.Offset, uint16, uint16) {
 // It returns the name of the variable and a string to reference it, it is possible that the reference
 // is using an adjuster like +1 or +2.
 func (v *Vars) dataName(offsetInfo *offset.Offset, indexedUsage bool, address, addressAdjustment uint16) (string, string) {
-	var name string
-
-	if offsetInfo != nil && offsetInfo.Label != "" {
-		// if destination has an existing label, reuse it
-		name = offsetInfo.Label
-	} else {
-		prgAccess := offsetInfo != nil
-		var jumpTable bool
-		if prgAccess {
-			jumpTable = offsetInfo.IsType(program.JumpTable)
-		}
-
-		switch {
-		case jumpTable:
-			name = fmt.Sprintf(jumpTableNaming, address)
-		case prgAccess && indexedUsage:
-			name = fmt.Sprintf(dataNamingIndexed, address)
-		case prgAccess && !indexedUsage:
-			name = fmt.Sprintf(dataNaming, address)
-		case !prgAccess && indexedUsage:
-			name = fmt.Sprintf(variableNamingIndexed, address)
-		default:
-			name = fmt.Sprintf(variableNaming, address)
-		}
-	}
+	name := v.generateVariableName(offsetInfo, indexedUsage, address)
 
 	reference := name
 	if addressAdjustment > 0 {
@@ -245,6 +221,32 @@ func (v *Vars) dataName(offsetInfo *offset.Offset, indexedUsage bool, address, a
 		offsetInfo.Label = name
 	}
 	return name, reference
+}
+
+func (v *Vars) generateVariableName(offsetInfo *offset.Offset, indexedUsage bool, address uint16) string {
+	if offsetInfo != nil && offsetInfo.Label != "" {
+		// if destination has an existing label, reuse it
+		return offsetInfo.Label
+	}
+
+	prgAccess := offsetInfo != nil
+	var jumpTable bool
+	if prgAccess {
+		jumpTable = offsetInfo.IsType(program.JumpTable)
+	}
+
+	switch {
+	case jumpTable:
+		return fmt.Sprintf(jumpTableNaming, address)
+	case prgAccess && indexedUsage:
+		return fmt.Sprintf(dataNamingIndexed, address)
+	case prgAccess && !indexedUsage:
+		return fmt.Sprintf(dataNaming, address)
+	case !prgAccess && indexedUsage:
+		return fmt.Sprintf(variableNamingIndexed, address)
+	default:
+		return fmt.Sprintf(variableNaming, address)
+	}
 }
 
 // SetBankVariables sets the used variables in the bank for outputting.

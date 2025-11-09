@@ -14,6 +14,7 @@ linters:
     - decorder # check declaration order and count of types, constants, variables and functions
     - dogsled # Checks assignments with too many blank identifiers (e.g. x, _, _, _, := f())
     - durationcheck # check for two durations multiplied together
+    - embeddedstructfieldcheck # checks embedded types are at the top of field list with empty line separation
     - err113 # Golang linter to check the errors handling expressions
     - errcheck # checking for unchecked errors
     - errname # Checks that errors are prefixed with the `Err` and error types are suffixed with the `Error`
@@ -29,7 +30,7 @@ linters:
     - govet # reports suspicious constructs, such as Printf calls with wrong arguments
     - grouper # An analyzer to analyze expression groups
     - ineffassign # Detects when assignments to existing variables are not used
-    - intrange # finds places where for loops could make use of an integer range.
+    - intrange # finds places where for loops could make use of an integer range
     - maintidx # measures the maintainability index of each function
     - makezero # Finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
@@ -37,11 +38,13 @@ linters:
     - nakedret # Finds naked returns in functions
     - nestif # Reports deeply nested if statements
     - nilerr # Finds the code that returns nil even if it checks that the error is not nil
+    - nilnesserr # reports err != nil checks that return a different nil value error
     - nilnil # Checks that there is no simultaneous return of `nil` error and an invalid value
     - perfsprint # Checks that fmt.Sprintf can be replaced with a faster alternative
     - prealloc # Finds slice declarations that could potentially be preallocated
     - predeclared # find code that shadows one of Go's predeclared identifiers
     - reassign # Checks that package variables are not reassigned
+    - recvcheck # checks for receiver type consistency
     - revive # drop-in replacement of golint
     - staticcheck # drop-in replacement of go vet
     - thelper # checks the consistency of test helpers
@@ -57,7 +60,7 @@ linters:
 
   settings:
     cyclop:
-      max-complexity: 15
+      max-complexity: 14
     godot:
       period: false
     nestif:
