@@ -121,63 +121,6 @@ func New(logger *log.Logger, ar architecture, cart *cartridge.Cartridge,
 	return dis, nil
 }
 
-// initializeComponents creates and wires up all the disassembler components.
-func (dis *Disasm) initializeComponents(ar architecture, logger *log.Logger, cart *cartridge.Cartridge) error {
-	// Create all components with simple constructors
-	je := jumpengine.New(logger, ar)
-	m, err := mapper.New(ar, cart)
-	if err != nil {
-		return fmt.Errorf("creating mapper: %w", err)
-	}
-	v := vars.New(ar)
-
-	// Inject dependencies using InjectDependencies with Dependencies structs
-	je.InjectDependencies(jumpengine.Dependencies{
-		Disasm: dis,
-		Mapper: m,
-	})
-
-	m.InjectDependencies(mapper.Dependencies{
-		Disasm: dis,
-		Vars:   v,
-		Consts: dis.constants,
-	})
-	m.InitializeDependencyBanks()
-
-	v.InjectDependencies(vars.Dependencies{
-		Mapper: m,
-	})
-
-	// Inject dependencies into architecture
-	switch a := ar.(type) {
-	case *m6502.Arch6502:
-		a.InjectDependencies(m6502.Dependencies{
-			Disasm:     dis,
-			Mapper:     m,
-			JumpEngine: je,
-			Vars:       v,
-			Consts:     dis.constants,
-		})
-	case *chip8.Chip8:
-		a.InjectDependencies(chip8.Dependencies{
-			Disasm: dis,
-			Mapper: m,
-		})
-	}
-
-	// Assign to disassembler fields
-	dis.jumpEngine = je
-	dis.mapper = m
-	dis.vars = v
-
-	// Call initialization after all dependencies are wired
-	if err := ar.Initialize(); err != nil {
-		return fmt.Errorf("initializing architecture: %w", err)
-	}
-
-	return nil
-}
-
 // Process disassembles the cartridge.
 func (dis *Disasm) Process(mainWriter io.Writer, newBankWriter assembler.NewBankWriter) (*program.Program, error) {
 	if err := dis.followExecutionFlow(); err != nil {
@@ -260,6 +203,63 @@ func (dis *Disasm) ReadMemoryWord(address uint16) (uint16, error) {
 
 	high := uint16(b)
 	return (high << 8) | low, nil
+}
+
+// initializeComponents creates and wires up all the disassembler components.
+func (dis *Disasm) initializeComponents(ar architecture, logger *log.Logger, cart *cartridge.Cartridge) error {
+	// Create all components with simple constructors
+	je := jumpengine.New(logger, ar)
+	m, err := mapper.New(ar, cart)
+	if err != nil {
+		return fmt.Errorf("creating mapper: %w", err)
+	}
+	v := vars.New(ar)
+
+	// Inject dependencies using InjectDependencies with Dependencies structs
+	je.InjectDependencies(jumpengine.Dependencies{
+		Disasm: dis,
+		Mapper: m,
+	})
+
+	m.InjectDependencies(mapper.Dependencies{
+		Disasm: dis,
+		Vars:   v,
+		Consts: dis.constants,
+	})
+	m.InitializeDependencyBanks()
+
+	v.InjectDependencies(vars.Dependencies{
+		Mapper: m,
+	})
+
+	// Inject dependencies into architecture
+	switch a := ar.(type) {
+	case *m6502.Arch6502:
+		a.InjectDependencies(m6502.Dependencies{
+			Disasm:     dis,
+			Mapper:     m,
+			JumpEngine: je,
+			Vars:       v,
+			Consts:     dis.constants,
+		})
+	case *chip8.Chip8:
+		a.InjectDependencies(chip8.Dependencies{
+			Disasm: dis,
+			Mapper: m,
+		})
+	}
+
+	// Assign to disassembler fields
+	dis.jumpEngine = je
+	dis.mapper = m
+	dis.vars = v
+
+	// Call initialization after all dependencies are wired
+	if err := ar.Initialize(); err != nil {
+		return fmt.Errorf("initializing architecture: %w", err)
+	}
+
+	return nil
 }
 
 // converts the internal disassembly representation to a program type that will be used by

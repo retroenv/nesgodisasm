@@ -17,11 +17,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	disasm "github.com/retroenv/retrodisasm/internal"
 	"github.com/retroenv/retrodisasm/internal/app"
 	"github.com/retroenv/retrodisasm/internal/arch/chip8"
 	"github.com/retroenv/retrodisasm/internal/arch/m6502"
 	"github.com/retroenv/retrodisasm/internal/assembler"
+	"github.com/retroenv/retrodisasm/internal/disasm"
 	"github.com/retroenv/retrodisasm/internal/options"
 	"github.com/retroenv/retrodisasm/internal/program"
 	"github.com/retroenv/retrodisasm/internal/verification"

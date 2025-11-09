@@ -8,6 +8,60 @@ import (
 	"github.com/retroenv/retrodisasm/internal/program"
 )
 
+// AddAddressToParse adds an address to the list to be processed if the address has not been processed yet.
+func (dis *Disasm) AddAddressToParse(address, context, from uint16,
+	currentInstruction instruction.Instruction, isABranchDestination bool) {
+
+	// ignore branching into addresses before the code base address, for example when generating code in
+	// zeropage and branching into it to execute it.
+	if address < dis.codeBaseAddress {
+		return
+	}
+
+	offsetInfo := dis.mapper.OffsetInfo(address)
+	if isABranchDestination && currentInstruction != nil && currentInstruction.IsCall() {
+		offsetInfo.SetType(program.CallDestination)
+		if offsetInfo.Context == 0 {
+			offsetInfo.Context = address // begin a new context
+		}
+	} else if offsetInfo.Context == 0 {
+		offsetInfo.Context = context // continue current context
+	}
+
+	if isABranchDestination {
+		// Always add BranchFrom references when isABranchDestination is true.
+		// Initialization calls pass isABranchDestination = false, so they're already filtered out.
+		bankRef := offset.BankReference{
+			Mapped:  dis.mapper.GetMappedBank(from),
+			Address: from,
+			Index:   dis.mapper.GetMappedBankIndex(from),
+		}
+		bankRef.ID = bankRef.Mapped.ID()
+		offsetInfo.BranchFrom = append(offsetInfo.BranchFrom, bankRef)
+		dis.branchDestinations.Add(address)
+	}
+
+	if dis.offsetsToParseAdded.Contains(address) {
+		return
+	}
+	dis.offsetsToParseAdded.Add(address)
+
+	// add instructions that follow a function call to a special queue with lower priority, to allow the
+	// jump engine be detected before trying to parse the data following the call, which in case of a jump
+	// engine is not code but pointers to functions.
+	if currentInstruction != nil && currentInstruction.IsCall() {
+		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
+		dis.functionReturnsToParseAdded.Add(address)
+	} else {
+		dis.offsetsToParse = append(dis.offsetsToParse, address)
+	}
+}
+
+// DeleteFunctionReturnToParse deletes a function return address from the list of addresses to parse.
+func (dis *Disasm) DeleteFunctionReturnToParse(address uint16) {
+	dis.functionReturnsToParseAdded.Remove(address)
+}
+
 // followExecutionFlow parses opcodes and follows the execution flow to parse all code.
 // nolint: funlen
 func (dis *Disasm) followExecutionFlow() error {
@@ -100,7 +154,7 @@ func (dis *Disasm) addressToDisassemble() (int, error) {
 			if !ok {
 				continue
 			}
-			delete(dis.functionReturnsToParseAdded, address)
+			dis.functionReturnsToParseAdded.Remove(address)
 			return int(address), nil
 		}
 
@@ -112,58 +166,4 @@ func (dis *Disasm) addressToDisassemble() (int, error) {
 			return -1, nil
 		}
 	}
-}
-
-// AddAddressToParse adds an address to the list to be processed if the address has not been processed yet.
-func (dis *Disasm) AddAddressToParse(address, context, from uint16,
-	currentInstruction instruction.Instruction, isABranchDestination bool) {
-
-	// ignore branching into addresses before the code base address, for example when generating code in
-	// zeropage and branching into it to execute it.
-	if address < dis.codeBaseAddress {
-		return
-	}
-
-	offsetInfo := dis.mapper.OffsetInfo(address)
-	if isABranchDestination && currentInstruction != nil && currentInstruction.IsCall() {
-		offsetInfo.SetType(program.CallDestination)
-		if offsetInfo.Context == 0 {
-			offsetInfo.Context = address // begin a new context
-		}
-	} else if offsetInfo.Context == 0 {
-		offsetInfo.Context = context // continue current context
-	}
-
-	if isABranchDestination {
-		// Always add BranchFrom references when isABranchDestination is true.
-		// Initialization calls pass isABranchDestination = false, so they're already filtered out.
-		bankRef := offset.BankReference{
-			Mapped:  dis.mapper.GetMappedBank(from),
-			Address: from,
-			Index:   dis.mapper.GetMappedBankIndex(from),
-		}
-		bankRef.ID = bankRef.Mapped.ID()
-		offsetInfo.BranchFrom = append(offsetInfo.BranchFrom, bankRef)
-		dis.branchDestinations.Add(address)
-	}
-
-	if dis.offsetsToParseAdded.Contains(address) {
-		return
-	}
-	dis.offsetsToParseAdded.Add(address)
-
-	// add instructions that follow a function call to a special queue with lower priority, to allow the
-	// jump engine be detected before trying to parse the data following the call, which in case of a jump
-	// engine is not code but pointers to functions.
-	if currentInstruction != nil && currentInstruction.IsCall() {
-		dis.functionReturnsToParse = append(dis.functionReturnsToParse, address)
-		dis.functionReturnsToParseAdded.Add(address)
-	} else {
-		dis.offsetsToParse = append(dis.offsetsToParse, address)
-	}
-}
-
-// DeleteFunctionReturnToParse deletes a function return address from the list of addresses to parse.
-func (dis *Disasm) DeleteFunctionReturnToParse(address uint16) {
-	dis.functionReturnsToParseAdded.Remove(address)
 }

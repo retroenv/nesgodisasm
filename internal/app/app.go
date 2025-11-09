@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	disasm "github.com/retroenv/retrodisasm/internal"
 	"github.com/retroenv/retrodisasm/internal/assembler"
 	"github.com/retroenv/retrodisasm/internal/assembler/asm6"
 	"github.com/retroenv/retrodisasm/internal/assembler/ca65"
 	"github.com/retroenv/retrodisasm/internal/assembler/nesasm"
 	"github.com/retroenv/retrodisasm/internal/assembler/retroasm"
+	"github.com/retroenv/retrodisasm/internal/disasm"
 	"github.com/retroenv/retrodisasm/internal/options"
 	archsys "github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
