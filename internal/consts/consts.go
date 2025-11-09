@@ -3,11 +3,11 @@ package consts
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/symbols"
 )
 
 // Constant represents a constant translation from a read and write operation to a name.
@@ -21,15 +21,7 @@ type Constant struct {
 
 // Consts manages constants in the disassembled program.
 type Consts struct {
-	banks []*bank
-
-	constants     map[uint16]Constant
-	usedConstants map[uint16]Constant
-}
-
-type bank struct {
-	constants     map[uint16]Constant
-	usedConstants map[uint16]Constant
+	*symbols.Manager[Constant]
 }
 
 type architecture interface {
@@ -43,24 +35,21 @@ func New(ar architecture) (*Consts, error) {
 		return nil, fmt.Errorf("getting constants: %w", err)
 	}
 
-	return &Consts{
-		constants:     constants,
-		usedConstants: make(map[uint16]Constant),
-	}, nil
-}
+	mgr := symbols.New[Constant]()
+	// Initialize the manager with the architecture's constants
+	for address, constant := range constants {
+		mgr.Set(address, constant)
+	}
 
-// AddBank adds a new bank to the constants manager.
-func (c *Consts) AddBank() {
-	c.banks = append(c.banks, &bank{
-		constants:     make(map[uint16]Constant),
-		usedConstants: make(map[uint16]Constant),
-	})
+	return &Consts{
+		Manager: mgr,
+	}, nil
 }
 
 // ReplaceParameter replaces the parameter of an instruction by a constant name
 // if the address of the instruction is found in the constants map.
 func (c *Consts) ReplaceParameter(address uint16, opcode instruction.Opcode, paramAsString string) (string, bool) {
-	constantInfo, ok := c.constants[address]
+	constantInfo, ok := c.Get(address)
 	if !ok {
 		return "", false
 	}
@@ -69,12 +58,12 @@ func (c *Consts) ReplaceParameter(address uint16, opcode instruction.Opcode, par
 	paramParts := strings.Split(paramAsString, ",")
 
 	if constantInfo.Read != "" && opcode.ReadsMemory() {
-		c.usedConstants[address] = constantInfo
+		c.MarkUsed(address)
 		paramParts[0] = constantInfo.Read
 		return strings.Join(paramParts, ","), true
 	}
 	if constantInfo.Write != "" && opcode.WritesMemory() {
-		c.usedConstants[address] = constantInfo
+		c.MarkUsed(address)
 		paramParts[0] = constantInfo.Write
 		return strings.Join(paramParts, ","), true
 	}
@@ -86,31 +75,29 @@ func (c *Consts) ReplaceParameter(address uint16, opcode instruction.Opcode, par
 // for in which bank a constant is used, it will be added to all banks for now.
 // TODO fix constants to only output in used banks
 func (c *Consts) Process() {
-	constants := make([]Constant, 0, len(c.constants))
-	for _, translation := range c.constants {
-		constants = append(constants, translation)
-	}
-	sort.Slice(constants, func(i, j int) bool {
-		return constants[i].Address < constants[j].Address
-	})
+	constants := c.SortedByUint16(func(c Constant) uint16 { return c.Address })
 
 	for _, constInfo := range constants {
-		_, used := c.usedConstants[constInfo.Address]
-		if !used {
+		if !c.IsUsed(constInfo.Address) {
 			continue
 		}
 
-		for _, bnk := range c.banks {
-			bnk.constants[constInfo.Address] = constInfo
-			bnk.usedConstants[constInfo.Address] = constInfo
+		for _, bnk := range c.Banks() {
+			c.AddBankItem(bnk, constInfo.Address, constInfo)
 		}
 	}
 }
 
+// AddBankItem is a helper to add a constant to a bank.
+func (c *Consts) AddBankItem(bnk *symbols.Bank[Constant], address uint16, constInfo Constant) {
+	bnk.Set(address, constInfo)
+	bnk.Used().Add(address)
+}
+
 // SetToProgram sets the used constants in the program for outputting.
 func (c *Consts) SetToProgram(app *program.Program) {
-	for address := range c.usedConstants {
-		constantInfo := c.constants[address]
+	for address := range c.Used() {
+		constantInfo, _ := c.Get(address)
 		if constantInfo.Read != "" {
 			app.Constants[constantInfo.Read] = address
 		}
@@ -122,9 +109,9 @@ func (c *Consts) SetToProgram(app *program.Program) {
 
 // SetBankConstants sets the used constants in the bank for outputting.
 func (c *Consts) SetBankConstants(bankID int, prgBank *program.PRGBank) {
-	bank := c.banks[bankID]
-	for address := range bank.usedConstants {
-		constantInfo := bank.constants[address]
+	bank := c.GetBank(bankID)
+	for address := range bank.Used() {
+		constantInfo, _ := bank.Get(address)
 		if constantInfo.Read != "" {
 			prgBank.Constants[constantInfo.Read] = address
 		}

@@ -3,13 +3,12 @@ package vars
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/retroenv/retrodisasm/internal/instruction"
 	"github.com/retroenv/retrodisasm/internal/offset"
 	"github.com/retroenv/retrodisasm/internal/program"
+	"github.com/retroenv/retrodisasm/internal/symbols"
 	"github.com/retroenv/retrogolib/arch/system/nes"
-	"github.com/retroenv/retrogolib/set"
 )
 
 const (
@@ -45,18 +44,10 @@ type Dependencies struct {
 
 // Vars manages variables in the disassembled program.
 type Vars struct {
+	*symbols.Manager[*variable]
+
 	arch   architecture
 	mapper mapper
-
-	banks []*bank
-
-	variables     map[uint16]*variable
-	usedVariables set.Set[uint16]
-}
-
-type bank struct {
-	variables     map[uint16]*variable
-	usedVariables set.Set[uint16]
 }
 
 type variable struct {
@@ -72,9 +63,8 @@ type variable struct {
 // New creates a new variables manager.
 func New(arch architecture) *Vars {
 	return &Vars{
-		arch:          arch,
-		variables:     make(map[uint16]*variable),
-		usedVariables: set.New[uint16](),
+		Manager: symbols.New[*variable](),
+		arch:    arch,
 	}
 }
 
@@ -101,12 +91,12 @@ func (v *Vars) AddReference(addressReference,
 		return
 	}
 
-	varInfo := v.variables[addressReference]
-	if varInfo == nil {
+	varInfo, ok := v.Get(addressReference)
+	if !ok {
 		varInfo = &variable{
 			address: addressReference,
 		}
-		v.variables[addressReference] = varInfo
+		v.Set(addressReference, varInfo)
 	}
 
 	bankRef := offset.BankReference{
@@ -132,13 +122,7 @@ func (v *Vars) AddReference(addressReference,
 // Process processes all variables and updates the instructions that use them
 // with a generated alias name.
 func (v *Vars) Process(codeBaseAddress uint16) error {
-	variables := make([]*variable, 0, len(v.variables))
-	for _, varInfo := range v.variables {
-		variables = append(variables, varInfo)
-	}
-	sort.Slice(variables, func(i, j int) bool {
-		return variables[i].address < variables[j].address
-	})
+	variables := v.SortedByUint16(func(v *variable) uint16 { return v.address })
 
 	for _, varInfo := range variables {
 		if len(varInfo.usageAt) == 1 && !varInfo.indexedUsage && varInfo.address < nes.CodeBaseAddress {
@@ -154,7 +138,7 @@ func (v *Vars) Process(codeBaseAddress uint16) error {
 			dataOffsetInfo, varInfo.address, addressAdjustment = v.getOpcodeStart(varInfo.address)
 		} else {
 			// if the address is outside the code bank, a variable will be created
-			v.usedVariables.Add(varInfo.address)
+			v.MarkUsed(varInfo.address)
 
 			for _, bankRef := range varInfo.usageAt {
 				v.AddUsage(bankRef.ID, varInfo)
@@ -175,19 +159,28 @@ func (v *Vars) Process(codeBaseAddress uint16) error {
 	return nil
 }
 
-// AddBank adds a new bank to the variables manager.
-func (v *Vars) AddBank() {
-	v.banks = append(v.banks, &bank{
-		variables:     make(map[uint16]*variable),
-		usedVariables: set.New[uint16](),
-	})
-}
-
 // AddUsage adds a usage info of a variable to a bank.
 func (v *Vars) AddUsage(bankIndex int, varInfo *variable) {
-	bank := v.banks[bankIndex]
-	bank.variables[varInfo.address] = varInfo
-	bank.usedVariables.Add(varInfo.address)
+	bank := v.GetBank(bankIndex)
+	bank.Set(varInfo.address, varInfo)
+	bank.Used().Add(varInfo.address)
+}
+
+// SetBankVariables sets the used variables in the bank for outputting.
+func (v *Vars) SetBankVariables(bankID int, prgBank *program.PRGBank) {
+	bank := v.GetBank(bankID)
+	for address := range bank.Used() {
+		varInfo, _ := bank.Get(address)
+		prgBank.Variables[varInfo.name] = address
+	}
+}
+
+// SetToProgram sets the used variables in the program for outputting.
+func (v *Vars) SetToProgram(app *program.Program) {
+	for address := range v.Used() {
+		varInfo, _ := v.Get(address)
+		app.Variables[varInfo.name] = address
+	}
 }
 
 // getOpcodeStart returns a reference to the opcode start of the given address.
@@ -246,22 +239,5 @@ func (v *Vars) generateVariableName(offsetInfo *offset.Offset, indexedUsage bool
 		return fmt.Sprintf(variableNamingIndexed, address)
 	default:
 		return fmt.Sprintf(variableNaming, address)
-	}
-}
-
-// SetBankVariables sets the used variables in the bank for outputting.
-func (v *Vars) SetBankVariables(bankID int, prgBank *program.PRGBank) {
-	bank := v.banks[bankID]
-	for address := range bank.usedVariables {
-		varInfo := bank.variables[address]
-		prgBank.Variables[varInfo.name] = address
-	}
-}
-
-// SetToProgram sets the used variables in the program for outputting.
-func (v *Vars) SetToProgram(app *program.Program) {
-	for address := range v.usedVariables {
-		varInfo := v.variables[address]
-		app.Variables[varInfo.name] = address
 	}
 }
