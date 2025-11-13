@@ -3,8 +3,6 @@ package pipeline
 import (
 	"bytes"
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/retroenv/retrodisasm/internal/options"
@@ -29,25 +27,12 @@ func TestCreateDisassemblerForSystem(t *testing.T) {
 	logger := log.NewTestLogger(t)
 	p := New(logger)
 
-	// Create minimal valid NES ROM
-	nesData := make([]byte, 16+16384) // Header + 16KB PRG
-	copy(nesData[0:4], []byte{'N', 'E', 'S', 0x1A})
-	nesData[4] = 1 // 1 PRG bank
+	// Create minimal valid NES ROM in memory
+	nesData := buildMinimalNESROM(1, 0)
 
-	tmpFile := createTempFile(t, nesData)
-	defer os.Remove(tmpFile) //nolint:errcheck // test cleanup
-
-	opts := options.Program{
-		Input:     tmpFile,
-		Assembler: "ca65",
-	}
-
-	cart, cdlReader, err := p.loader.Load(opts, arch.NES)
+	cart, err := p.loader.LoadFromBytes(nesData, false, arch.NES)
 	if err != nil {
 		t.Fatalf("Failed to load cartridge: %v", err)
-	}
-	if cdlReader != nil {
-		_ = cdlReader.Close()
 	}
 
 	disasmOpts := options.Disassembler{
@@ -103,62 +88,63 @@ func TestExecute(t *testing.T) {
 	logger := log.NewTestLogger(t)
 	p := New(logger)
 
-	// Create minimal valid NES ROM
-	nesData := make([]byte, 16+16384) // Header + 16KB PRG
-	copy(nesData[0:4], []byte{'N', 'E', 'S', 0x1A})
-	nesData[4] = 1 // 1 PRG bank
-
-	tmpFile := createTempFile(t, nesData)
-	defer os.Remove(tmpFile) //nolint:errcheck // test cleanup
-
 	t.Run("execute pipeline successfully", func(t *testing.T) {
+		nesData := buildMinimalNESROM(1, 0)
+		cart, err := p.loader.LoadFromBytes(nesData, false, arch.NES)
+		assert.NoError(t, err)
+
 		opts := options.Program{
-			Input:     tmpFile,
+			Input:     "test.nes", // Filename only used for logging
 			Assembler: "ca65",
 			Quiet:     true,
 		}
-
 		disasmOpts := options.Disassembler{}
 
 		var buf bytes.Buffer
 		ctx := context.Background()
 
-		result, err := p.Execute(ctx, opts, disasmOpts, &buf)
+		result, err := p.ExecuteWithCartridge(ctx, cart, opts, disasmOpts, &buf, arch.NES)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
 
 	t.Run("execute with binary mode", func(t *testing.T) {
+		nesData := buildMinimalNESROM(1, 0)
+		cart, err := p.loader.LoadFromBytes(nesData, false, arch.NES)
+		assert.NoError(t, err)
+
 		opts := options.Program{
-			Input:     tmpFile,
+			Input:     "test.nes",
 			Assembler: "ca65",
 			Binary:    true,
 			Quiet:     true,
 		}
-
 		disasmOpts := options.Disassembler{}
 
 		var buf bytes.Buffer
 		ctx := context.Background()
 
-		result, err := p.Execute(ctx, opts, disasmOpts, &buf)
+		result, err := p.ExecuteWithCartridge(ctx, cart, opts, disasmOpts, &buf, arch.NES)
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 	})
 
 	t.Run("execute with invalid assembler", func(t *testing.T) {
+		nesData := buildMinimalNESROM(1, 0)
+		cart, err := p.loader.LoadFromBytes(nesData, false, arch.NES)
+		assert.NoError(t, err)
+
 		opts := options.Program{
-			Input:     tmpFile,
+			Input:     "test.nes",
 			Assembler: "invalid",
 			Quiet:     true,
 		}
-
 		disasmOpts := options.Disassembler{}
 
 		var buf bytes.Buffer
 		ctx := context.Background()
 
-		_, err := p.Execute(ctx, opts, disasmOpts, &buf)
+		_, err = p.ExecuteWithCartridge(ctx, cart, opts, disasmOpts, &buf, arch.NES)
 		assert.Error(t, err)
 	})
 
@@ -168,7 +154,6 @@ func TestExecute(t *testing.T) {
 			Assembler: "ca65",
 			Quiet:     true,
 		}
-
 		disasmOpts := options.Disassembler{}
 
 		var buf bytes.Buffer
@@ -319,23 +304,17 @@ func TestPrintInfo(t *testing.T) {
 			logger := log.NewTestLogger(t)
 			p := New(logger)
 
-			// Create test data
-			nesData := make([]byte, 16+16384)
-			copy(nesData[0:4], []byte{'N', 'E', 'S', 0x1A})
-			nesData[4] = 1 // 1 PRG bank
-			nesData[6] = tt.mapper
+			// Create test data in memory
+			nesData := buildMinimalNESROM(1, tt.mapper)
 
-			tmpFile := createTempFile(t, nesData)
-			defer os.Remove(tmpFile) //nolint:errcheck // test cleanup
+			cart, err := p.loader.LoadFromBytes(nesData, false, tt.system)
+			assert.NoError(t, err)
 
 			opts := options.Program{
-				Input:     tmpFile,
+				Input:     "test.nes", // Filename only used for logging
 				Assembler: "ca65",
 				Quiet:     tt.quiet,
 			}
-
-			cart, _, err := p.loader.Load(opts, tt.system)
-			assert.NoError(t, err)
 
 			// Call printInfo - should not panic
 			p.printInfo(opts, cart, tt.system)
@@ -343,12 +322,21 @@ func TestPrintInfo(t *testing.T) {
 	}
 }
 
-func createTempFile(t *testing.T, data []byte) string {
-	t.Helper()
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.nes")
-	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
-		t.Fatalf("Failed to create temp file: %v", err)
-	}
-	return tmpFile
+// buildMinimalNESROM creates a minimal valid NES ROM in iNES format.
+//
+//nolint:unparam // prgBanks parameter is useful for future test cases
+func buildMinimalNESROM(prgBanks, mapper byte) []byte {
+	const nesHeaderSize = 16
+	const prgBankSize = 16384 // 16KB
+
+	data := make([]byte, nesHeaderSize+int(prgBanks)*prgBankSize)
+
+	// iNES header
+	copy(data[0:4], []byte{'N', 'E', 'S', 0x1A}) // Magic number
+	data[4] = prgBanks                           // Number of 16KB PRG-ROM banks
+	data[5] = 0                                  // Number of 8KB CHR-ROM banks
+	data[6] = mapper << 4                        // Mapper low nibble
+	data[7] = mapper & 0xF0                      // Mapper high nibble
+
+	return data
 }

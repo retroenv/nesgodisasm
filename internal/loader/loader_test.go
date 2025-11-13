@@ -110,6 +110,79 @@ func TestLoad(t *testing.T) {
 	})
 }
 
+//nolint:funlen // test functions can be long
+func TestLoadFromBytes(t *testing.T) {
+	t.Run("load binary data", func(t *testing.T) {
+		data := []byte{0x01, 0x02, 0x03, 0x04}
+		loader := New()
+
+		cart, err := loader.LoadFromBytes(data, true, arch.NES)
+		assert.NoError(t, err)
+		assert.NotNil(t, cart)
+		// Verify data was loaded (LoadBuffer pads to minimum PRG bank size)
+		assert.True(t, len(cart.PRG) >= len(data))
+		assert.Equal(t, data[0], cart.PRG[0])
+		assert.Equal(t, data[1], cart.PRG[1])
+	})
+
+	t.Run("load CHIP8 data", func(t *testing.T) {
+		data := []byte{0x12, 0x34, 0x56, 0x78}
+		loader := New()
+
+		cart, err := loader.LoadFromBytes(data, false, arch.CHIP8System)
+		assert.NoError(t, err)
+		assert.NotNil(t, cart)
+		// Verify data was loaded (LoadBuffer pads to minimum PRG bank size)
+		assert.True(t, len(cart.PRG) >= len(data))
+		assert.Equal(t, data[0], cart.PRG[0])
+		assert.Equal(t, data[3], cart.PRG[3])
+	})
+
+	t.Run("load NES ROM from bytes", func(t *testing.T) {
+		nesData := buildMinimalNESROM(1, 0)
+		loader := New()
+
+		cart, err := loader.LoadFromBytes(nesData, false, arch.NES)
+		assert.NoError(t, err)
+		assert.NotNil(t, cart)
+		assert.Equal(t, 16384, len(cart.PRG)) // 1 bank = 16KB
+	})
+
+	t.Run("load NES ROM with mapper 1", func(t *testing.T) {
+		nesData := buildMinimalNESROM(2, 1)
+		loader := New()
+
+		cart, err := loader.LoadFromBytes(nesData, false, arch.NES)
+		assert.NoError(t, err)
+		assert.NotNil(t, cart)
+		assert.Equal(t, byte(1), cart.Mapper)
+		assert.Equal(t, 32768, len(cart.PRG)) // 2 banks = 32KB
+	})
+
+	t.Run("error on invalid NES header", func(t *testing.T) {
+		// Invalid header - missing magic number
+		invalidData := make([]byte, 100)
+		loader := New()
+
+		_, err := loader.LoadFromBytes(invalidData, false, arch.NES)
+		assert.Error(t, err)
+	})
+
+	t.Run("load binary mode with NES system", func(t *testing.T) {
+		// Even with NES system, binary mode treats as raw data
+		data := []byte{0xEA, 0xEA, 0xEA} // NOPs
+		loader := New()
+
+		cart, err := loader.LoadFromBytes(data, true, arch.NES)
+		assert.NoError(t, err)
+		assert.NotNil(t, cart)
+		// Verify data was loaded (LoadBuffer pads to minimum PRG bank size)
+		assert.True(t, len(cart.PRG) >= len(data))
+		assert.Equal(t, byte(0xEA), cart.PRG[0])
+		assert.Equal(t, byte(0xEA), cart.PRG[2])
+	})
+}
+
 func createTempFile(t *testing.T, data []byte) string {
 	t.Helper()
 	tmpDir := t.TempDir()
@@ -118,4 +191,22 @@ func createTempFile(t *testing.T, data []byte) string {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	return tmpFile
+}
+
+// buildMinimalNESROM creates a minimal valid NES ROM in iNES format with specified PRG size.
+// The mapper parameter is placed in the header at the correct position.
+func buildMinimalNESROM(prgBanks, mapper byte) []byte {
+	const nesHeaderSize = 16
+	const prgBankSize = 16384 // 16KB
+
+	data := make([]byte, nesHeaderSize+int(prgBanks)*prgBankSize)
+
+	// iNES header
+	copy(data[0:4], []byte{'N', 'E', 'S', 0x1A}) // Magic number
+	data[4] = prgBanks                           // Number of 16KB PRG-ROM banks
+	data[5] = 0                                  // Number of 8KB CHR-ROM banks
+	data[6] = mapper << 4                        // Mapper low nibble
+	data[7] = mapper & 0xF0                      // Mapper high nibble
+
+	return data
 }

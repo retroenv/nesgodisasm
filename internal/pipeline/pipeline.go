@@ -47,7 +47,31 @@ func (p *Pipeline) Execute(ctx context.Context, opts options.Program, disasmOpts
 	// Detect system architecture
 	system := p.detector.Detect(opts)
 
-	// Update disasm options with detected system
+	// Load cartridge
+	cart, cdlReader, err := p.loader.Load(opts, system)
+	if err != nil {
+		return nil, fmt.Errorf("loading cartridge: %w", err)
+	}
+	defer func() {
+		if cdlReader != nil {
+			_ = cdlReader.Close()
+		}
+	}()
+
+	// Set CDL reader in disasm options if provided
+	if cdlReader != nil {
+		disasmOpts.CodeDataLog = cdlReader
+	}
+
+	return p.ExecuteWithCartridge(ctx, cart, opts, disasmOpts, writer, system)
+}
+
+// ExecuteWithCartridge runs the disassembly pipeline with a pre-loaded cartridge.
+// This is useful for testing and programmatic usage where the cartridge is already in memory.
+func (p *Pipeline) ExecuteWithCartridge(ctx context.Context, cart *cartridge.Cartridge, opts options.Program,
+	disasmOpts options.Disassembler, writer io.Writer, system arch.System) (*program.Program, error) {
+
+	// Update disasm options with system
 	disasmOpts.System = system
 	disasmOpts.Binary = opts.Binary
 
@@ -59,16 +83,6 @@ func (p *Pipeline) Execute(ctx context.Context, opts options.Program, disasmOpts
 	// Validate assembler compatibility
 	if err := assembler.ValidateSystemAssembler(system, opts.Assembler); err != nil {
 		return nil, fmt.Errorf("incompatible assembler: %w", err)
-	}
-
-	// Load cartridge
-	cart, cdlReader, err := p.loader.Load(opts, system)
-	if err != nil {
-		return nil, fmt.Errorf("loading cartridge: %w", err)
-	}
-	if cdlReader != nil {
-		defer func() { _ = cdlReader.Close() }()
-		disasmOpts.CodeDataLog = cdlReader
 	}
 
 	// Create disassembler

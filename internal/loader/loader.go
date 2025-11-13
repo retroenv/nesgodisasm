@@ -2,6 +2,7 @@
 package loader
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -29,17 +30,9 @@ func (l *Loader) Load(opts options.Program, system arch.System) (*cartridge.Cart
 	}
 	defer func() { _ = file.Close() }()
 
-	var cart *cartridge.Cartridge
-
-	// Handle CHIP-8 and binary files as raw buffer data
-	switch {
-	case opts.Binary, system == arch.CHIP8System:
-		cart, err = cartridge.LoadBuffer(file)
-	default:
-		cart, err = cartridge.LoadFile(file)
-	}
+	cart, err := l.loadFromReader(file, opts.Binary, system)
 	if err != nil {
-		return nil, nil, fmt.Errorf("loading cartridge: %w", err)
+		return nil, nil, err
 	}
 
 	// Open Code/Data Log file if specified
@@ -52,4 +45,32 @@ func (l *Loader) Load(opts options.Program, system arch.System) (*cartridge.Cart
 	}
 
 	return cart, cdlReader, nil
+}
+
+// LoadFromBytes loads and parses a cartridge from a byte slice.
+// This is primarily used for testing but can be useful for programmatic usage.
+// The binary parameter controls whether to treat the data as raw binary (true) or iNES format (false).
+func (l *Loader) LoadFromBytes(data []byte, binary bool, system arch.System) (*cartridge.Cartridge, error) {
+	reader := bytes.NewReader(data)
+	return l.loadFromReader(reader, binary, system)
+}
+
+// loadFromReader loads and parses a cartridge from an io.Reader.
+// This shared method handles the logic for choosing between binary/buffer mode and iNES format.
+func (l *Loader) loadFromReader(reader io.Reader, binary bool, system arch.System) (*cartridge.Cartridge, error) {
+	var cart *cartridge.Cartridge
+	var err error
+
+	// Handle CHIP-8 and binary files as raw buffer data
+	switch {
+	case binary, system == arch.CHIP8System:
+		cart, err = cartridge.LoadBuffer(reader)
+	default:
+		cart, err = cartridge.LoadFile(reader)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("loading cartridge: %w", err)
+	}
+
+	return cart, nil
 }

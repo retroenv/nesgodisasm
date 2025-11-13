@@ -1,13 +1,14 @@
 package fileprocessor
 
 import (
+	"bytes"
 	"context"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/retroenv/retrodisasm/internal/loader"
 	"github.com/retroenv/retrodisasm/internal/options"
+	"github.com/retroenv/retrodisasm/internal/pipeline"
 	"github.com/retroenv/retrogolib/arch"
 	"github.com/retroenv/retrogolib/assert"
 	"github.com/retroenv/retrogolib/log"
@@ -17,9 +18,7 @@ import (
 // CodeOnly is automatically set to true to prevent NES-specific segments
 // from being included in the output (fixes issue #82).
 func TestBinaryOptionSetsCodeOnly(t *testing.T) {
-	tmpDir := t.TempDir()
 	testCode := createTestCode()
-	testBinFile := createTestBinaryFile(t, tmpDir, testCode)
 
 	tests := []struct {
 		name                  string
@@ -49,7 +48,7 @@ func TestBinaryOptionSetsCodeOnly(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runSegmentTest(t, tmpDir, testBinFile, testCode, tt.binary,
+			runSegmentTest(t, testCode, tt.binary,
 				tt.expectHeaderSegment, tt.expectTilesSegment,
 				tt.expectVectorsSegment, tt.expectCodeSegmentName)
 		})
@@ -65,69 +64,57 @@ func createTestCode() []byte {
 	}
 }
 
-func createTestBinaryFile(t *testing.T, tmpDir string, code []byte) string {
-	t.Helper()
-	testBinFile := filepath.Join(tmpDir, "test.bin")
-	err := os.WriteFile(testBinFile, code, 0644)
-	assert.NoError(t, err)
-	return testBinFile
-}
-
-func runSegmentTest(t *testing.T, tmpDir, testBinFile string, testCode []byte, binary,
+func runSegmentTest(t *testing.T, testCode []byte, binary,
 	expectHeader, expectTiles, expectVectors, expectCodeSegment bool) {
 
 	t.Helper()
 
 	logger := log.NewTestLogger(t)
 
-	// Use a simple filename based on binary mode to avoid nested path issues
-	filename := "binary.asm"
-	if !binary {
-		filename = "nes.asm"
+	// Create cartridge in memory
+	var nesData []byte
+	if binary {
+		nesData = testCode
+	} else {
+		nesData = createMinimalNESROM(testCode)
 	}
-	outputFile := filepath.Join(tmpDir, filename)
+
+	// Load cartridge from bytes
+	ldr := loader.New()
+	cart, err := ldr.LoadFromBytes(nesData, binary, arch.NES)
+	assert.NoError(t, err)
 
 	programOpts := options.Program{
-		Input:     testBinFile,
-		Output:    outputFile,
+		Input:     "test.nes", // Filename only used for logging
 		Assembler: "ca65",
 		Binary:    binary,
 		System:    arch.NES.String(),
 		Quiet:     true,
 	}
 
-	// For non-binary mode, create a proper NES file
-	if !binary {
-		nesFile := filepath.Join(tmpDir, "test.nes")
-		nesData := createMinimalNESROM(testCode)
-		err := os.WriteFile(nesFile, nesData, 0644)
-		assert.NoError(t, err)
-		programOpts.Input = nesFile
-	}
-
 	disasmOpts := options.NewDisassembler(programOpts.Assembler, programOpts.System)
 
+	// Write to in-memory buffer
+	var buf bytes.Buffer
 	ctx := context.Background()
-	err := ProcessFile(ctx, logger, programOpts, disasmOpts)
+
+	pipe := pipeline.New(logger)
+	_, err = pipe.ExecuteWithCartridge(ctx, cart, programOpts, disasmOpts, &buf, arch.NES)
 	assert.NoError(t, err)
 
-	verifyOutput(t, outputFile, expectHeader, expectTiles, expectVectors, expectCodeSegment)
+	verifyOutput(t, buf.String(), expectHeader, expectTiles, expectVectors, expectCodeSegment)
 }
 
-func verifyOutput(t *testing.T, outputFile string, expectHeader, expectTiles, expectVectors, expectCodeSegment bool) {
+func verifyOutput(t *testing.T, output string, expectHeader, expectTiles, expectVectors, expectCodeSegment bool) {
 	t.Helper()
 
-	outputBytes, err := os.ReadFile(outputFile)
-	assert.NoError(t, err)
-
-	outputStr := string(outputBytes)
-	assert.True(t, len(outputStr) > 0, "output should not be empty")
+	assert.True(t, len(output) > 0, "output should not be empty")
 
 	// Verify segment presence/absence
-	hasHeader := strings.Contains(outputStr, ".segment \"HEADER\"")
-	hasTiles := strings.Contains(outputStr, ".segment \"TILES\"")
-	hasVectors := strings.Contains(outputStr, ".segment \"VECTORS\"")
-	hasCodeSegment := strings.Contains(outputStr, ".segment \"CODE\"")
+	hasHeader := strings.Contains(output, ".segment \"HEADER\"")
+	hasTiles := strings.Contains(output, ".segment \"TILES\"")
+	hasVectors := strings.Contains(output, ".segment \"VECTORS\"")
+	hasCodeSegment := strings.Contains(output, ".segment \"CODE\"")
 
 	assert.Equal(t, expectHeader, hasHeader, "HEADER segment presence mismatch")
 	assert.Equal(t, expectTiles, hasTiles, "TILES segment presence mismatch")
@@ -135,7 +122,7 @@ func verifyOutput(t *testing.T, outputFile string, expectHeader, expectTiles, ex
 	assert.Equal(t, expectCodeSegment, hasCodeSegment, "CODE segment name presence mismatch")
 
 	// Verify we have actual code output
-	hasCode := strings.Contains(outputStr, "lda") || strings.Contains(outputStr, "sta") || strings.Contains(outputStr, "rts")
+	hasCode := strings.Contains(output, "lda") || strings.Contains(output, "sta") || strings.Contains(output, "rts")
 	assert.True(t, hasCode, "output should contain disassembled code")
 }
 
