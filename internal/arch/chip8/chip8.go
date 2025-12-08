@@ -132,6 +132,12 @@ func (c *Chip8) LastCodeAddress() uint16 {
 	return LastCodeAddress
 }
 
+// PostProcessCode performs architecture-specific post-processing after all code is disassembled.
+// CHIP-8 doesn't require any post-processing.
+func (c *Chip8) PostProcessCode() error {
+	return nil
+}
+
 // ProcessOffset processes a CHIP-8 instruction at the given address.
 // It parses the instruction, formats it for assembly output, and handles
 // control flow analysis for jumps, calls, and data references.
