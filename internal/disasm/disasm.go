@@ -44,6 +44,8 @@ type architecture interface {
 	IsAddressingIndexed(opcode instruction.Opcode) bool
 	// LastCodeAddress returns the last possible address of code.
 	LastCodeAddress() uint16
+	// PostProcessCode performs architecture-specific post-processing after all code is disassembled.
+	PostProcessCode() error
 	// ProcessOffset processes an offset and returns if the offset was processed and an error if any.
 	ProcessOffset(address uint16, offsetInfo *offset.DisasmOffset) (bool, error)
 	// ProcessVariableUsage processes the variable usage of an offset.
@@ -73,7 +75,8 @@ type Disasm struct {
 	jumpEngine *jumpengine.JumpEngine
 	vars       *vars.Vars
 
-	branchDestinations set.Set[uint16] // set of all addresses that are branched to
+	branchDestinations   set.Set[uint16] // set of all addresses that are branched to
+	unreachableAddresses set.Set[uint16] // set of addresses marked as unreachable (dead code)
 
 	// TODO handle bank switch
 	offsetsToParse      []uint16
@@ -98,6 +101,7 @@ func New(logger *log.Logger, ar architecture, cart *cartridge.Cartridge,
 		cart:                        cart,
 		fileWriterConstructor:       fileWriterConstructor,
 		branchDestinations:          set.New[uint16](),
+		unreachableAddresses:        set.New[uint16](),
 		offsetsToParseAdded:         set.New[uint16](),
 		offsetsParsed:               set.New[uint16](),
 		functionReturnsToParseAdded: set.New[uint16](),
@@ -126,6 +130,11 @@ func New(logger *log.Logger, ar architecture, cart *cartridge.Cartridge,
 func (dis *Disasm) Process(ctx context.Context, mainWriter io.Writer, newBankWriter assembler.NewBankWriter) (*program.Program, error) {
 	if err := dis.followExecutionFlow(ctx); err != nil {
 		return nil, err
+	}
+
+	// Post-process architecture-specific patterns after all branch destinations are known
+	if err := dis.arch.PostProcessCode(); err != nil {
+		return nil, fmt.Errorf("post-processing code: %w", err)
 	}
 
 	dis.mapper.ClassifyRemainingAsData()
@@ -204,6 +213,17 @@ func (dis *Disasm) ReadMemoryWord(address uint16) (uint16, error) {
 
 	high := uint16(b)
 	return (high << 8) | low, nil
+}
+
+// IsBranchDestination checks if an address is a branch destination.
+func (dis *Disasm) IsBranchDestination(address uint16) bool {
+	return dis.branchDestinations.Contains(address)
+}
+
+// MarkAddressAsUnreachable marks an address as unreachable code.
+// This prevents the disassembler from following branches to this address.
+func (dis *Disasm) MarkAddressAsUnreachable(address uint16) {
+	dis.unreachableAddresses.Add(address)
 }
 
 // initializeComponents creates and wires up all the disassembler components.

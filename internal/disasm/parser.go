@@ -19,6 +19,11 @@ func (dis *Disasm) AddAddressToParse(address, context, from uint16,
 		return
 	}
 
+	// Don't follow branches to addresses marked as unreachable (dead code)
+	if dis.unreachableAddresses.Contains(address) {
+		return
+	}
+
 	offsetInfo := dis.mapper.OffsetInfo(address)
 	if isABranchDestination && currentInstruction != nil && currentInstruction.IsCall() {
 		offsetInfo.SetType(program.CallDestination)

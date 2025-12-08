@@ -16,6 +16,7 @@ import (
 	"github.com/retroenv/retrogolib/arch/system/nes/cartridge"
 	"github.com/retroenv/retrogolib/arch/system/nes/parameter"
 	"github.com/retroenv/retrogolib/log"
+	"github.com/retroenv/retrogolib/set"
 )
 
 // Dependencies contains the dependencies needed by Arch6502.
@@ -35,6 +36,10 @@ type disasm interface {
 	Cart() *cartridge.Cartridge
 	// ChangeAddressRangeToCodeAsData sets a range of code address to code as data types.
 	ChangeAddressRangeToCodeAsData(address uint16, data []byte)
+	// IsBranchDestination checks if an address is a branch destination.
+	IsBranchDestination(address uint16) bool
+	// MarkAddressAsUnreachable marks an address as unreachable code.
+	MarkAddressAsUnreachable(address uint16)
 	// Options returns the disassembler options.
 	Options() options.Disassembler
 	// ProgramCounter returns the current program counter of the execution tracer.
@@ -54,20 +59,23 @@ type disasm interface {
 // New returns a new 6502 architecture configuration.
 func New(logger *log.Logger, converter parameter.Converter) *Arch6502 {
 	return &Arch6502{
-		converter: converter,
-		logger:    logger,
+		converter:                      converter,
+		logger:                         logger,
+		complementaryBranchSecondAddrs: set.New[uint16](),
 	}
 }
 
 type Arch6502 struct {
-	converter       parameter.Converter
-	dis             disasm
-	jumpEngine      *jumpengine.JumpEngine
-	logger          *log.Logger
-	mapper          offset.Mapper
-	vars            *vars.Vars
-	consts          *consts.Consts
-	codeBaseAddress uint16
+	converter                        parameter.Converter
+	dis                              disasm
+	jumpEngine                       *jumpengine.JumpEngine
+	logger                           *log.Logger
+	mapper                           offset.Mapper
+	vars                             *vars.Vars
+	consts                           *consts.Consts
+	codeBaseAddress                  uint16
+	complementaryBranchPairs         []ComplementaryBranchPair
+	complementaryBranchSecondAddrs   set.Set[uint16] // addresses of second branches in complementary pairs
 }
 
 // InjectDependencies sets the required dependencies for this architecture.
@@ -119,11 +127,33 @@ func (ar *Arch6502) ProcessOffset(address uint16, offsetInfo *offset.DisasmOffse
 		offsetInfo.Code = fmt.Sprintf("%s %s", name, params)
 	}
 
+	// Check for complementary branch sequences (BNE+BEQ, etc.) that create unconditional branches
+	// Record the pair for post-processing after all branch destinations are known
+	if ar.DetectComplementaryBranchSequence(pc, offsetInfo) {
+		nextAddress := pc + uint16(len(offsetInfo.Data))
+		nextByte, _ := ar.dis.ReadMemory(nextAddress)
+		nextOpcode := m6502.Opcodes[nextByte]
+
+		ar.complementaryBranchPairs = append(ar.complementaryBranchPairs, ComplementaryBranchPair{
+			FirstAddress:  pc,
+			SecondAddress: nextAddress,
+			FirstBranch:   instruction.Name(),
+			SecondBranch:  nextOpcode.Instruction.Name,
+		})
+		// Track the second branch address so we don't continue parsing past it
+		ar.complementaryBranchSecondAddrs.Add(nextAddress)
+	}
+
+	// Check if this is the second instruction of a complementary branch pair
+	// If so, don't add the following address to parse (it's unreachable code)
+	isSecondComplementaryBranch := ar.complementaryBranchSecondAddrs.Contains(pc)
+
 	if _, ok := m6502.NotExecutingFollowingOpcodeInstructions[name]; ok {
 		if err := ar.checkForJumpEngineJmp(pc, offsetInfo); err != nil {
 			return false, err
 		}
-	} else {
+	} else if !isSecondComplementaryBranch {
+		// Only add following address if this is not a second complementary branch
 		opcodeLength := uint16(len(offsetInfo.Data))
 		followingOpcodeAddress := pc + opcodeLength
 		ar.dis.AddAddressToParse(followingOpcodeAddress, offsetInfo.Context, address, instruction, false)
@@ -133,6 +163,12 @@ func (ar *Arch6502) ProcessOffset(address uint16, offsetInfo *offset.DisasmOffse
 	}
 
 	return true, nil
+}
+
+// PostProcessCode performs architecture-specific post-processing after all code is disassembled.
+func (ar *Arch6502) PostProcessCode() error {
+	ar.ProcessComplementaryBranches()
+	return nil
 }
 
 // BankWindowSize returns the bank window size.
