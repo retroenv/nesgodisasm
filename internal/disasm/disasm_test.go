@@ -32,12 +32,12 @@ func TestDisasmZeroDataReference(t *testing.T) {
         lda a:_data_8010_indexed,X     ; $8003  BD 10 80
         .byte $04, $a9                   ; $8006  04 A9  disambiguous instruction: nop z:$A9
         rti                            ; $8008  40
-        
+
         .byte $00, $00, $00, $00, $00, $00, $00 ; $8009
-        
+
         _data_8010_indexed:
         .byte $12, $00, $00, $00, $00, $34, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00 ; $8010
-        
+
         _data_8020:
         .byte $00                        ; $8020
 `
@@ -60,7 +60,7 @@ func TestDisasmBranchIntoUnofficialNop(t *testing.T) {
 	expected := `Reset:
         bcc _label_8003
         .byte $dc                        ; disambiguous instruction: nop a:$8BAE,X
-        
+
         _label_8003:
         ldx a:$788B                    ; branch into instruction detected
         rti
@@ -80,10 +80,10 @@ func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
 	expected := `Reset:
         lda a:_data_8005_indexed+1,X
         bcc _label_8007
-        
+
         _data_8005_indexed:
         .byte $82, $04                   ; disambiguous instruction: nop #$04
-        
+
         _label_8007:
         rti
 `
@@ -91,9 +91,48 @@ func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
 	runDisasm(t, nil, input, expected)
 }
 
+// TestDisasmStopAtUnofficial tests that with StopAtUnofficial option,
+// unofficial opcodes that are not branch destinations stop the trace (treated as data).
+// The official instructions after the unofficial one are also treated as data since
+// the trace stopped at the unofficial opcode.
+func TestDisasmStopAtUnofficial(t *testing.T) {
+	input := []byte{
+		0xbd, 0x09, 0x80, // $8000 lda a:$8009,X (references data)
+		0x90, 0x05, // $8003 bcc $800a
+		0x82, 0x04, // $8005 unofficial nop - trace stops here, treated as data
+		0xa9, 0x42, // $8007 lda #$42 - NOT traced, becomes data
+		0xea, // $8009 nop - NOT traced, becomes data
+		0x40, // $800a rti - reached via branch from $8003
+	}
+
+	// With StopAtUnofficial, the trace stops at the unofficial opcode at $8005.
+	// The official instructions at $8007-$8009 are NOT traced and become data.
+	// $800a is still reached via the branch at $8003.
+	expected := `Reset:
+        lda a:_data_8009_indexed,X
+        bcc _label_800a
+
+        .byte $82, $04, $a9, $42
+
+        _data_8009_indexed:
+        .byte $ea
+
+        _label_800a:
+        rti
+`
+
+	setup := func(opts *options.Disassembler, _ *cartridge.Cartridge) {
+		opts.StopAtUnofficial = true
+		opts.OffsetComments = false
+		opts.HexComments = false
+	}
+	runDisasm(t, setup, input, expected)
+}
+
 // TestDisasmBranchToUnofficialInstruction ensures that when an unofficial instruction
 // (converted to CodeAsData) is a branch destination, it doesn't get consumed by a preceding
 // instruction that could overlap with it.
+// This tests AssemblerSupportsUnofficial=false (nesasm mode) where trace continues but output is .byte
 func TestDisasmBranchToUnofficialInstruction(t *testing.T) {
 	input := []byte{
 		0x10, 0x01, // $8000: bpl $8003 (branch to unofficial instruction)
@@ -115,7 +154,7 @@ func TestDisasmBranchToUnofficialInstruction(t *testing.T) {
 `
 
 	setup := func(opts *options.Disassembler, _ *cartridge.Cartridge) {
-		opts.UnofficialInstructions = false
+		opts.AssemblerSupportsUnofficial = false
 		opts.OffsetComments = false
 		opts.HexComments = false
 	}

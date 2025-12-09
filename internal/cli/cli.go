@@ -95,9 +95,9 @@ func normalizeOptions(opts *options.Program) error {
 func createDisasmOptions(opts options.Program) options.Disassembler {
 	disasmOptions := options.NewDisassembler(opts.Assembler, opts.System)
 
-	// nesasm doesn't support unofficial instructions
+	// nesasm doesn't support unofficial instructions in output
 	if opts.Assembler == assembler.Nesasm {
-		disasmOptions.UnofficialInstructions = false
+		disasmOptions.AssemblerSupportsUnofficial = false
 	}
 
 	return disasmOptions
@@ -119,9 +119,10 @@ func readOptionFlags(flags *flag.FlagSet, opts *options.Program) {
 
 // disasmFlagVars holds temporary flag variables
 type disasmFlagVars struct {
-	noHexComments bool
-	noOffsets     bool
-	zeroBytes     bool
+	noHexComments    bool
+	noOffsets        bool
+	stopAtUnofficial bool
+	zeroBytes        bool
 }
 
 var disasmFlags disasmFlagVars
@@ -129,6 +130,7 @@ var disasmFlags disasmFlagVars
 func readDisasmOptionFlags(flags *flag.FlagSet) {
 	flags.BoolVar(&disasmFlags.noHexComments, "nohexcomments", false, "do not output opcode bytes as hex values in comments")
 	flags.BoolVar(&disasmFlags.noOffsets, "nooffsets", false, "do not output offsets in comments")
+	flags.BoolVar(&disasmFlags.stopAtUnofficial, "stop-at-unofficial", false, "stop tracing at unofficial opcodes unless explicitly branched to")
 	flags.BoolVar(&disasmFlags.zeroBytes, "z", false, "output the trailing zero bytes of banks")
 }
 
@@ -136,5 +138,6 @@ func applyDisasmOptionFlags(opts *options.Disassembler) {
 	// Apply inverse logic for hex comments and offsets
 	opts.HexComments = !disasmFlags.noHexComments
 	opts.OffsetComments = !disasmFlags.noOffsets
+	opts.StopAtUnofficial = disasmFlags.stopAtUnofficial
 	opts.ZeroBytes = disasmFlags.zeroBytes
 }

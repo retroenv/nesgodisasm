@@ -104,31 +104,33 @@ ca65 output.asm -o output.o && ld65 output.o -t nes -o output.nes
 usage: retrodisasm [options] <file to disassemble>
 
   -a string
-    	Assembler compatibility of the generated .asm file (asm6/ca65/nesasm/retroasm) (default "ca65")
+        Assembler compatibility of the generated .asm file (asm6/ca65/nesasm/retroasm) (default "ca65")
   -batch string
-    	process a batch of given path and file mask and automatically .asm file naming, for example *.nes
+        process a batch of given path and file mask and automatically .asm file naming, for example *.nes
   -binary
-    	read input file as raw binary file without any header
+        read input file as raw binary file without any header
   -c string
-    	Config file name to write output to for ca65 assembler
+        Config file name to write output to for ca65 assembler
   -cdl string
-    	name of the .cdl Code/Data log file to load
+        name of the .cdl Code/Data log file to load
   -debug
-    	enable debugging options for extended logging
+        enable debugging options for extended logging
   -i string
-    	name of the input ROM file
+        name of the input ROM file
   -nohexcomments
-    	do not output opcode bytes as hex values in comments
+        do not output opcode bytes as hex values in comments
   -nooffsets
-    	do not output offsets in comments
+        do not output offsets in comments
   -o string
-    	name of the output .asm file, printed on console if no name given
-  -q	perform operations quietly
+        name of the output .asm file, printed on console if no name given
+  -q    perform operations quietly
   -s string
-    	system to disassemble for (nes, chip8) - if not auto-detected from file extension
+        system to disassemble for (nes, chip8) - if not auto-detected from file extension
+  -stop-at-unofficial
+        stop tracing at unofficial opcodes unless explicitly branched to
   -verify
-    	verify the generated output by assembling with ca65 and check if it matches the input
-  -z	output the trailing zero bytes of banks
+        verify the generated output by assembling with ca65 and check if it matches the input
+  -z    output the trailing zero bytes of banks
 ```
 
 ### System-Specific Options

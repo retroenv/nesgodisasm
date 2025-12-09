@@ -66,16 +66,16 @@ func New(logger *log.Logger, converter parameter.Converter) *Arch6502 {
 }
 
 type Arch6502 struct {
-	converter                        parameter.Converter
-	dis                              disasm
-	jumpEngine                       *jumpengine.JumpEngine
-	logger                           *log.Logger
-	mapper                           offset.Mapper
-	vars                             *vars.Vars
-	consts                           *consts.Consts
-	codeBaseAddress                  uint16
-	complementaryBranchPairs         []ComplementaryBranchPair
-	complementaryBranchSecondAddrs   set.Set[uint16] // addresses of second branches in complementary pairs
+	converter                      parameter.Converter
+	dis                            disasm
+	jumpEngine                     *jumpengine.JumpEngine
+	logger                         *log.Logger
+	mapper                         offset.Mapper
+	vars                           *vars.Vars
+	consts                         *consts.Consts
+	codeBaseAddress                uint16
+	complementaryBranchPairs       []ComplementaryBranchPair
+	complementaryBranchSecondAddrs set.Set[uint16] // addresses of second branches in complementary pairs
 }
 
 // InjectDependencies sets the required dependencies for this architecture.

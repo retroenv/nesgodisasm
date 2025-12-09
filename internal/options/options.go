@@ -30,12 +30,13 @@ type Disassembler struct {
 	CodeDataLog io.ReadCloser // Code/Data log file to parse
 	System      arch.System   // system type (e.g., nes, chip8)
 
-	Binary                 bool
-	CodeOnly               bool
-	HexComments            bool
-	OffsetComments         bool
-	UnofficialInstructions bool
-	ZeroBytes              bool
+	AssemblerSupportsUnofficial bool // assembler can output unofficial opcodes (false for nesasm)
+	Binary                      bool
+	CodeOnly                    bool
+	HexComments                 bool
+	OffsetComments              bool
+	StopAtUnofficial            bool // stop tracing at unofficial opcodes unless explicitly branched to
+	ZeroBytes                   bool
 }
 
 // NewDisassembler returns a new options instance with default options.
