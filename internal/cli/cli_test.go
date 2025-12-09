@@ -92,6 +92,11 @@ func TestApplyDisasmOptionFlags(t *testing.T) {
 			name: "both disabled",
 			in:   disasmFlagVars{noHexComments: true, noOffsets: true},
 		},
+		{
+			name: "output unofficial as code",
+			in:   disasmFlagVars{outputUnofficialAsCode: true},
+			want: options.Disassembler{HexComments: true, OffsetComments: true, OutputUnofficialAsMnemonics: true},
+		},
 	}
 
 	for _, tt := range tests {
@@ -103,6 +108,52 @@ func TestApplyDisasmOptionFlags(t *testing.T) {
 
 			assert.Equal(t, tt.want.HexComments, got.HexComments)
 			assert.Equal(t, tt.want.OffsetComments, got.OffsetComments)
+			assert.Equal(t, tt.want.OutputUnofficialAsMnemonics, got.OutputUnofficialAsMnemonics)
+		})
+	}
+}
+
+func TestValidateOptionCombinations(t *testing.T) {
+	tests := []struct {
+		name        string
+		opts        options.Program
+		disasmOpts  options.Disassembler
+		expectError bool
+	}{
+		{
+			name:        "no conflict",
+			opts:        options.Program{},
+			disasmOpts:  options.Disassembler{},
+			expectError: false,
+		},
+		{
+			name:        "verify only",
+			opts:        options.Program{AssembleTest: true},
+			disasmOpts:  options.Disassembler{},
+			expectError: false,
+		},
+		{
+			name:        "output unofficial only",
+			opts:        options.Program{},
+			disasmOpts:  options.Disassembler{OutputUnofficialAsMnemonics: true},
+			expectError: false,
+		},
+		{
+			name:        "verify and output unofficial conflict",
+			opts:        options.Program{AssembleTest: true},
+			disasmOpts:  options.Disassembler{OutputUnofficialAsMnemonics: true},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateOptionCombinations(tt.opts, tt.disasmOpts)
+			if tt.expectError {
+				assert.True(t, err != nil)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

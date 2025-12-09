@@ -16,6 +16,12 @@ func (ar *Arch6502) HandleDisambiguousInstructions(address uint16, offsetInfo *o
 	}
 
 	opts := ar.dis.Options()
+
+	// Output as mnemonic if explicitly requested
+	if opts.OutputUnofficialAsMnemonics {
+		return false
+	}
+
 	if instruction.Name() != m6502.Nop.Name &&
 		instruction.Name() != m6502.Sbc.Name &&
 		opts.AssemblerSupportsUnofficial {

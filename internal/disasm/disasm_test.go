@@ -91,6 +91,32 @@ func TestDisasmReferencingUnofficialInstruction(t *testing.T) {
 	runDisasm(t, nil, input, expected)
 }
 
+// TestDisasmOutputUnofficialAsMnemonics tests that with OutputUnofficialAsMnemonics option,
+// unofficial opcodes are output as actual mnemonics instead of .byte directives.
+func TestDisasmOutputUnofficialAsMnemonics(t *testing.T) {
+	input := []byte{
+		0x90, 0x02, // $8000 bcc $8004
+		0x82, 0x04, // $8002 unofficial nop instruction: nop #$04
+		0x40, // $8004 rti
+	}
+
+	// With OutputUnofficialAsMnemonics, the unofficial nop is output as a mnemonic
+	expected := `Reset:
+        bcc _label_8004
+        nop #$04
+
+        _label_8004:
+        rti
+`
+
+	setup := func(opts *options.Disassembler, _ *cartridge.Cartridge) {
+		opts.OutputUnofficialAsMnemonics = true
+		opts.OffsetComments = false
+		opts.HexComments = false
+	}
+	runDisasm(t, setup, input, expected)
+}
+
 // TestDisasmStopAtUnofficial tests that with StopAtUnofficial option,
 // unofficial opcodes that are not branch destinations stop the trace (treated as data).
 // The official instructions after the unofficial one are also treated as data since
