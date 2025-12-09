@@ -100,6 +100,11 @@ func setPrgBankSelector(prg []program.Offset, index int, bankAddress, bankNumber
 	offsetInfo.WriteCallback = writeBankSelector(*bankNumber, *bankAddress)
 
 	*bankAddress += bankSize
+	// Wrap address back to $8000 after reaching $10000 (end of $8000-$FFFF range)
+	// nesasm uses 8KB banks but NES code runs at $8000-$FFFF
+	if *bankAddress >= 0x10000 {
+		*bankAddress = 0x8000
+	}
 	*bankNumber++
 }
 

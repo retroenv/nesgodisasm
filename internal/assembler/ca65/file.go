@@ -38,7 +38,8 @@ type segmentWrite struct {
 }
 
 type prgBankWrite struct {
-	bank *program.PRGBank
+	bank        *program.PRGBank
+	isMultiBank bool
 }
 
 type customWrite func() error
@@ -61,7 +62,6 @@ func New(app *program.Program, options options.Disassembler, mainWriter io.Write
 }
 
 // Write writes the assembly file content including header, footer, code and data.
-// nolint:funlen, cyclop
 func (f FileWriter) Write() error {
 	control1, control2 := cartridge.ControlBytes(f.app.Battery, byte(f.app.Mirror), f.app.Mapper, len(f.app.Trainer) > 0)
 
@@ -83,54 +83,82 @@ func (f FileWriter) Write() error {
 		}
 	}
 
+	isMultiBank := len(f.app.PRG) > 1
 	for _, bank := range f.app.PRG {
 		writes = append(writes,
-			prgBankWrite{bank: bank},
+			prgBankWrite{bank: bank, isMultiBank: isMultiBank},
 		)
 	}
 
 	if !f.options.CodeOnly {
-		writes = append(writes, customWrite(f.writeCHR), segmentWrite{name: "VECTORS"})
-	}
-
-	for _, write := range writes {
-		switch t := write.(type) {
-		case headerByteWrite:
-			if _, err := fmt.Fprintf(f.mainWriter, headerByte, t.value, "", t.comment); err != nil {
-				return fmt.Errorf("writing header: %w", err)
-			}
-
-		case segmentWrite:
-			if err := f.writeSegment(t.name); err != nil {
-				return err
-			}
-
-		case lineWrite:
-			if _, err := fmt.Fprintln(f.mainWriter, t); err != nil {
-				return fmt.Errorf("writing line: %w", err)
-			}
-
-		case customWrite:
-			if err := t(); err != nil {
-				return err
-			}
-
-		case prgBankWrite:
-			if err := f.writeConstants(t.bank); err != nil {
-				return err
-			}
-			if err := f.writeVariables(t.bank); err != nil {
-				return err
-			}
-			if err := f.writeCode(t.bank); err != nil {
-				return err
-			}
+		writes = append(writes, customWrite(f.writeCHR))
+		// Only use separate VECTORS segment for single-bank ROMs
+		if !isMultiBank {
+			writes = append(writes, segmentWrite{name: "VECTORS"})
 		}
 	}
 
-	if !f.options.CodeOnly {
+	for _, write := range writes {
+		if err := f.processWrite(write); err != nil {
+			return err
+		}
+	}
+
+	// For single-bank ROMs, write vectors in separate segment
+	if !f.options.CodeOnly && len(f.app.PRG) == 1 {
 		if _, err := fmt.Fprintf(f.mainWriter, vectors, f.app.Handlers.NMI, f.app.Handlers.Reset, f.app.Handlers.IRQ); err != nil {
 			return fmt.Errorf("writing vectors: %w", err)
+		}
+	}
+	return nil
+}
+
+// processWrite handles writing a single item to the output.
+func (f FileWriter) processWrite(write any) error {
+	switch t := write.(type) {
+	case headerByteWrite:
+		if _, err := fmt.Fprintf(f.mainWriter, headerByte, t.value, "", t.comment); err != nil {
+			return fmt.Errorf("writing header: %w", err)
+		}
+
+	case segmentWrite:
+		if err := f.writeSegment(t.name); err != nil {
+			return err
+		}
+
+	case lineWrite:
+		if _, err := fmt.Fprintln(f.mainWriter, t); err != nil {
+			return fmt.Errorf("writing line: %w", err)
+		}
+
+	case customWrite:
+		if err := t(); err != nil {
+			return err
+		}
+
+	case prgBankWrite:
+		if err := f.writePRGBank(t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// writePRGBank writes a single PRG bank including constants, variables, code, and vectors.
+func (f FileWriter) writePRGBank(t prgBankWrite) error {
+	if err := f.writeConstants(t.bank); err != nil {
+		return err
+	}
+	if err := f.writeVariables(t.bank); err != nil {
+		return err
+	}
+	if err := f.writeCode(t.bank); err != nil {
+		return err
+	}
+	// For multi-bank ROMs, write vectors at end of each bank
+	if t.isMultiBank && !f.options.CodeOnly {
+		if err := f.writeBankVectors(t.bank); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -190,7 +218,7 @@ func (f FileWriter) writeCHR() error {
 // writeCode writes the code to the output.
 func (f FileWriter) writeCode(bank *program.PRGBank) error {
 	if !f.options.CodeOnly {
-		if err := f.writeSegment("CODE"); err != nil {
+		if err := f.writeSegment(bank.Name); err != nil {
 			return err
 		}
 	}
@@ -198,6 +226,21 @@ func (f FileWriter) writeCode(bank *program.PRGBank) error {
 	endIndex := bank.LastNonZeroByte(f.options)
 	if err := f.writer.ProcessPRG(bank, endIndex); err != nil {
 		return fmt.Errorf("writing PRG: %w", err)
+	}
+	return nil
+}
+
+// writeBankVectors writes vectors at the end of a bank for multi-bank ROMs.
+// Each bank has its own NMI, Reset, and IRQ vectors stored in the last 6 bytes.
+func (f FileWriter) writeBankVectors(bank *program.PRGBank) error {
+	// Vectors are: [0]=NMI, [1]=Reset, [2]=IRQ
+	// Output as .addr directives using the addresses stored in the bank
+	nmi := fmt.Sprintf("$%04X", bank.Vectors[0])
+	reset := fmt.Sprintf("$%04X", bank.Vectors[1])
+	irq := fmt.Sprintf("$%04X", bank.Vectors[2])
+
+	if _, err := fmt.Fprintf(f.mainWriter, "\n.addr %s, %s, %s\n", nmi, reset, irq); err != nil {
+		return fmt.Errorf("writing bank vectors: %w", err)
 	}
 	return nil
 }

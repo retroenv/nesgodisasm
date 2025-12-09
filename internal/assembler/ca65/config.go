@@ -32,17 +32,16 @@ SEGMENTS {
 	segmentsPrgBankTemplate = `    %-12s load = %s, type = ro, start = $%04X;
 `
 
-	segmentsConfigPart2 = `    VECTORS:     load = %s, type = ro, start = $%04X;
-    TILES:       load = CHR, type = ro;
+	// Used for single-bank ROMs
+	segmentsVectorsTemplate = `    VECTORS:     load = %s, type = ro, start = $%04X;
+`
+	segmentsConfigPart2 = `    TILES:       load = CHR, type = ro;
 }
 `
 )
 
 // GenerateMapperConfig generates a ca65 linker config dynamically based on the passed ROM settings.
 func GenerateMapperConfig(conf Config) (string, error) {
-	prgSize := conf.PRGSize
-	vectorStart := conf.App.CodeBaseAddress + uint16(prgSize) - 6
-
 	buf := &strings.Builder{}
 	buf.WriteString(memoryConfigPart1)
 
@@ -64,8 +63,17 @@ func GenerateMapperConfig(conf Config) (string, error) {
 		}
 	}
 
-	lastBank := conf.App.PRG[len(conf.App.PRG)-1]
-	if _, err := fmt.Fprintf(buf, segmentsConfigPart2, lastBank.Name, vectorStart); err != nil {
+	// For single-bank ROMs, use separate VECTORS segment
+	// For multi-bank ROMs, vectors are included in each bank segment
+	if len(conf.App.PRG) == 1 {
+		lastBank := conf.App.PRG[0]
+		vectorStart := conf.App.CodeBaseAddress + uint16(len(lastBank.Offsets)) - 6
+		if _, err := fmt.Fprintf(buf, segmentsVectorsTemplate, lastBank.Name, vectorStart); err != nil {
+			return "", fmt.Errorf("writing vectors segment: %w", err)
+		}
+	}
+
+	if _, err := buf.WriteString(segmentsConfigPart2); err != nil {
 		return "", fmt.Errorf("writing segments config: %w", err)
 	}
 
