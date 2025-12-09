@@ -18,7 +18,7 @@ func (ar *Arch6502) HandleDisambiguousInstructions(address uint16, offsetInfo *o
 	opts := ar.dis.Options()
 	if instruction.Name() != m6502.Nop.Name &&
 		instruction.Name() != m6502.Sbc.Name &&
-		opts.UnofficialInstructions {
+		opts.AssemblerSupportsUnofficial {
 
 		return false
 	}

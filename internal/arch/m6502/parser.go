@@ -40,6 +40,15 @@ func (ar *Arch6502) initializeOffsetInfo(offsetInfo *offset.DisasmOffset) (bool,
 		return false, nil
 	}
 
+	// Stop at unofficial opcodes: if this option is enabled and this is an
+	// unofficial instruction that we didn't explicitly branch to, treat it
+	// as data instead of code and stop tracing.
+	opts := ar.dis.Options()
+	if opts.StopAtUnofficial && opcode.Instruction.Unofficial && !ar.dis.IsBranchDestination(pc) {
+		offsetInfo.SetType(program.DataOffset)
+		return false, nil
+	}
+
 	op := &Opcode{
 		op: opcode,
 	}
