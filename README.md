@@ -123,6 +123,8 @@ usage: retrodisasm [options] <file to disassemble>
         do not output offsets in comments
   -o string
         name of the output .asm file, printed on console if no name given
+  -output-unofficial
+        output unofficial opcodes as mnemonics instead of .byte (incompatible with -verify)
   -q    perform operations quietly
   -s string
         system to disassemble for (nes, chip8) - if not auto-detected from file extension

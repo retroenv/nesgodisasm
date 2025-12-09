@@ -35,6 +35,7 @@ type Disassembler struct {
 	CodeOnly                    bool
 	HexComments                 bool
 	OffsetComments              bool
+	OutputUnofficialAsMnemonics bool // output unofficial opcodes as mnemonics instead of .byte
 	StopAtUnofficial            bool // stop tracing at unofficial opcodes unless explicitly branched to
 	ZeroBytes                   bool
 }
