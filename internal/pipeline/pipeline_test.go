@@ -94,9 +94,8 @@ func TestExecute(t *testing.T) {
 		assert.NoError(t, err)
 
 		opts := options.Program{
-			Input:     "test.nes", // Filename only used for logging
-			Assembler: "ca65",
-			Quiet:     true,
+			Parameters: options.Parameters{Input: "test.nes"}, // Filename only used for logging
+			Flags:      options.Flags{Assembler: "ca65", Quiet: true},
 		}
 		disasmOpts := options.Disassembler{}
 
@@ -114,10 +113,8 @@ func TestExecute(t *testing.T) {
 		assert.NoError(t, err)
 
 		opts := options.Program{
-			Input:     "test.nes",
-			Assembler: "ca65",
-			Binary:    true,
-			Quiet:     true,
+			Parameters: options.Parameters{Input: "test.nes"},
+			Flags:      options.Flags{Assembler: "ca65", Binary: true, Quiet: true},
 		}
 		disasmOpts := options.Disassembler{}
 
@@ -135,9 +132,8 @@ func TestExecute(t *testing.T) {
 		assert.NoError(t, err)
 
 		opts := options.Program{
-			Input:     "test.nes",
-			Assembler: "invalid",
-			Quiet:     true,
+			Parameters: options.Parameters{Input: "test.nes"},
+			Flags:      options.Flags{Assembler: "invalid", Quiet: true},
 		}
 		disasmOpts := options.Disassembler{}
 
@@ -150,9 +146,8 @@ func TestExecute(t *testing.T) {
 
 	t.Run("execute with non-existent file", func(t *testing.T) {
 		opts := options.Program{
-			Input:     "/nonexistent/file.nes",
-			Assembler: "ca65",
-			Quiet:     true,
+			Parameters: options.Parameters{Input: "/nonexistent/file.nes"},
+			Flags:      options.Flags{Assembler: "ca65", Quiet: true},
 		}
 		disasmOpts := options.Disassembler{}
 
@@ -311,9 +306,8 @@ func TestPrintInfo(t *testing.T) {
 			assert.NoError(t, err)
 
 			opts := options.Program{
-				Input:     "test.nes", // Filename only used for logging
-				Assembler: "ca65",
-				Quiet:     tt.quiet,
+				Parameters: options.Parameters{Input: "test.nes"}, // Filename only used for logging
+				Flags:      options.Flags{Assembler: "ca65", Quiet: tt.quiet},
 			}
 
 			// Call printInfo - should not panic

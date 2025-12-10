@@ -60,8 +60,8 @@ func TestDetect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := options.Program{
-				System: tt.systemOpt,
-				Input:  tt.inputFile,
+				Parameters: options.Parameters{Input: tt.inputFile},
+				Flags:      options.Flags{System: tt.systemOpt},
 			}
 
 			got := d.Detect(opts)

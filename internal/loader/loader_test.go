@@ -18,8 +18,8 @@ func TestLoad(t *testing.T) {
 
 		loader := New()
 		opts := options.Program{
-			Input:  tmpFile,
-			Binary: true,
+			Parameters: options.Parameters{Input: tmpFile},
+			Flags:      options.Flags{Binary: true},
 		}
 
 		cart, cdlReader, err := loader.Load(opts, arch.NES)
@@ -34,7 +34,7 @@ func TestLoad(t *testing.T) {
 
 		loader := New()
 		opts := options.Program{
-			Input: tmpFile,
+			Parameters: options.Parameters{Input: tmpFile},
 		}
 
 		cart, cdlReader, err := loader.Load(opts, arch.CHIP8System)
@@ -54,7 +54,7 @@ func TestLoad(t *testing.T) {
 
 		loader := New()
 		opts := options.Program{
-			Input: tmpFile,
+			Parameters: options.Parameters{Input: tmpFile},
 		}
 
 		cart, cdlReader, err := loader.Load(opts, arch.NES)
@@ -66,7 +66,7 @@ func TestLoad(t *testing.T) {
 	t.Run("error on non-existent file", func(t *testing.T) {
 		loader := New()
 		opts := options.Program{
-			Input: "/nonexistent/file.nes",
+			Parameters: options.Parameters{Input: "/nonexistent/file.nes"},
 		}
 
 		_, _, err := loader.Load(opts, arch.NES)
@@ -82,9 +82,8 @@ func TestLoad(t *testing.T) {
 
 		loader := New()
 		opts := options.Program{
-			Input:       tmpFile,
-			Binary:      true,
-			CodeDataLog: tmpCDL,
+			Parameters: options.Parameters{Input: tmpFile, CodeDataLog: tmpCDL},
+			Flags:      options.Flags{Binary: true},
 		}
 
 		cart, cdlReader, err := loader.Load(opts, arch.NES)
@@ -100,9 +99,8 @@ func TestLoad(t *testing.T) {
 
 		loader := New()
 		opts := options.Program{
-			Input:       tmpFile,
-			Binary:      true,
-			CodeDataLog: "/nonexistent/cdl.log",
+			Parameters: options.Parameters{Input: tmpFile, CodeDataLog: "/nonexistent/cdl.log"},
+			Flags:      options.Flags{Binary: true},
 		}
 
 		_, _, err := loader.Load(opts, arch.NES)

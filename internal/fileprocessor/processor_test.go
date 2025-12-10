@@ -85,11 +85,8 @@ func runSegmentTest(t *testing.T, testCode []byte, binary,
 	assert.NoError(t, err)
 
 	programOpts := options.Program{
-		Input:     "test.nes", // Filename only used for logging
-		Assembler: "ca65",
-		Binary:    binary,
-		System:    arch.NES.String(),
-		Quiet:     true,
+		Parameters: options.Parameters{Input: "test.nes"}, // Filename only used for logging
+		Flags:      options.Flags{Assembler: "ca65", Binary: binary, System: arch.NES.String(), Quiet: true},
 	}
 
 	disasmOpts := options.NewDisassembler(programOpts.Assembler, programOpts.System)

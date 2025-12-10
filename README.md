@@ -101,38 +101,49 @@ ca65 output.asm -o output.o && ld65 output.o -t nes -o output.nes
 ## Options
 
 ```
-usage: retrodisasm [options] <file to disassemble>
+usage: retrodisasm [options] [file]
 
-  -a string
-        Assembler compatibility of the generated .asm file (asm6/ca65/nesasm/retroasm) (default "ca65")
-  -batch string
-        process a batch of given path and file mask and automatically .asm file naming, for example *.nes
-  -binary
-        read input file as raw binary file without any header
-  -c string
-        Config file name to write output to for ca65 assembler
-  -cdl string
-        name of the .cdl Code/Data log file to load
-  -debug
-        enable debugging options for extended logging
+Parameters:
   -i string
-        name of the input ROM file
-  -nohexcomments
-        do not output opcode bytes as hex values in comments
-  -nooffsets
-        do not output offsets in comments
+        input ROM file
   -o string
-        name of the output .asm file, printed on console if no name given
-  -output-unofficial
-        output unofficial opcodes as mnemonics instead of .byte (incompatible with -verify)
-  -q    perform operations quietly
+        output .asm file (default: stdout)
+  -c string
+        ca65 linker config file
+  -cdl string
+        Code/Data log file (.cdl)
+  -batch string
+        batch process files matching pattern (e.g. *.nes)
+
+Options:
+  -a string
+        assembler format: asm6, ca65, nesasm, retroasm (default: ca65)
   -s string
-        system to disassemble for (nes, chip8) - if not auto-detected from file extension
-  -stop-at-unofficial
-        stop tracing at unofficial opcodes unless explicitly branched to
+        target system: nes, chip8 (default: auto-detect)
+  -binary
+        treat input as raw binary without header
   -verify
-        verify the generated output by assembling with ca65 and check if it matches the input
-  -z    output the trailing zero bytes of banks
+        verify output by reassembling and comparing to input
+  -debug
+        enable debug logging
+  -q
+        quiet mode
+
+Output options:
+  -nohexcomments
+        omit hex opcode bytes in comments
+  -nooffsets
+        omit file offsets in comments
+  -output-unofficial
+        use mnemonics for unofficial opcodes (incompatible with -verify)
+  -stop-at-unofficial
+        stop tracing at unofficial opcodes unless branched to
+  -z
+        include trailing zero bytes in banks
+
+Positional arguments:
+  file
+        file to disassemble
 ```
 
 ### System-Specific Options
